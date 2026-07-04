@@ -1,0 +1,31 @@
+export const COUNTRIES = [
+  ['Iraq','العراق'],['Saudi Arabia','السعودية'],['Egypt','مصر'],
+  ['Jordan','الأردن'],['Syria','سوريا'],['Lebanon','لبنان'],
+  ['Palestine','فلسطين'],['UAE','الإمارات'],['Kuwait','الكويت'],
+  ['Qatar','قطر'],['Bahrain','البحرين'],['Oman','عُمان'],
+  ['Yemen','اليمن'],['Libya','ليبيا'],['Tunisia','تونس'],
+  ['Algeria','الجزائر'],['Morocco','المغرب'],['Sudan','السودان'],
+  ['Other','أخرى'],
+];
+
+export const CITIES = {
+  'Iraq':         [['Baghdad','بغداد'],['Basra','البصرة'],['Mosul','الموصل'],['Erbil','أربيل'],['Najaf','النجف'],['Karbala','كربلاء'],['Kirkuk','كركوك'],['Sulaymaniyah','السليمانية'],['Anbar','الأنبار'],['Diyala','ديالى'],['Babil','بابل'],['Wasit','واسط'],['Dhi Qar','ذي قار'],['Maysan','ميسان'],['Muthanna','المثنى'],['Qadisiyyah','القادسية'],['Saladin','صلاح الدين'],['Nineveh','نينوى'],['Dohuk','دهوك'],['Halabja','حلبجة']],
+  'Saudi Arabia': [['Riyadh','الرياض'],['Jeddah','جدة'],['Mecca','مكة المكرمة'],['Medina','المدينة المنورة'],['Dammam','الدمام'],['Khobar','الخبر'],['Tabuk','تبوك'],['Abha','أبها'],['Taif','الطائف'],['Buraidah','بريدة'],['Hail','حائل'],['Najran','نجران'],['Jizan','جيزان'],['Yanbu','ينبع'],['Al Ahsa','الأحساء']],
+  'Egypt':        [['Cairo','القاهرة'],['Alexandria','الإسكندرية'],['Giza','الجيزة'],['Luxor','الأقصر'],['Aswan','أسوان'],['Port Said','بورسعيد'],['Suez','السويس'],['Mansoura','المنصورة'],['Tanta','طنطا'],['Asyut','أسيوط'],['Minya','المنيا'],['Sharm el-Sheikh','شرم الشيخ'],['Hurghada','الغردقة']],
+  'Jordan':       [['Amman','عمان'],['Zarqa','الزرقاء'],['Irbid','إربد'],['Aqaba','العقبة'],['Salt','السلط'],['Madaba','مادبا'],['Jerash','جرش'],['Ajloun','عجلون'],['Mafraq','المفرق'],['Karak','الكرك']],
+  'UAE':          [['Dubai','دبي'],['Abu Dhabi','أبوظبي'],['Sharjah','الشارقة'],['Ajman','عجمان'],['Ras Al Khaimah','رأس الخيمة'],['Fujairah','الفجيرة'],['Al Ain','العين']],
+  'Syria':        [['Damascus','دمشق'],['Aleppo','حلب'],['Homs','حمص'],['Latakia','اللاذقية'],['Hama','حماة'],['Deir ez-Zor','دير الزور'],['Tartus','طرطوس'],['Idlib','إدلب']],
+  'Lebanon':      [['Beirut','بيروت'],['Tripoli','طرابلس'],['Sidon','صيدا'],['Tyre','صور'],['Zahle','زحلة'],['Baalbek','بعلبك']],
+  'Kuwait':       [['Kuwait City','مدينة الكويت'],['Hawalli','حولي'],['Salmiya','السالمية'],['Farwaniya','الفروانية'],['Ahmadi','الأحمدي'],['Jahra','الجهراء']],
+  'Qatar':        [['Doha','الدوحة'],['Al Rayyan','الريان'],['Al Wakrah','الوكرة'],['Al Khor','الخور'],['Mesaieed','مسيعيد']],
+  'Bahrain':      [['Manama','المنامة'],['Muharraq','المحرق'],['Riffa','الرفاع'],['Isa Town','مدينة عيسى'],['Hamad Town','مدينة حمد']],
+  'Oman':         [['Muscat','مسقط'],['Salalah','صلالة'],['Sohar','صحار'],['Nizwa','نزوى'],['Sur','صور'],['Ibri','عبري']],
+  'Yemen':        [['Sanaa','صنعاء'],['Aden','عدن'],['Taiz','تعز'],['Hodeidah','الحديدة'],['Ibb','إب'],['Mukalla','المكلا'],['Dhamar','ذمار'],['Marib','مأرب']],
+  'Libya':        [['Tripoli','طرابلس'],['Benghazi','بنغازي'],['Misrata','مصراتة'],['Tobruk','طبرق'],['Derna','درنة'],['Sirte','سرت']],
+  'Tunisia':      [['Tunis','تونس'],['Sfax','صفاقس'],['Sousse','سوسة'],['Kairouan','القيروان'],['Bizerte','بنزرت'],['Gabes','قابس'],['Monastir','المنستير']],
+  'Algeria':      [['Algiers','الجزائر'],['Oran','وهران'],['Constantine','قسنطينة'],['Annaba','عنابة'],['Batna','باتنة'],['Setif','سطيف'],['Blida','البليدة']],
+  'Morocco':      [['Casablanca','الدار البيضاء'],['Rabat','الرباط'],['Fez','فاس'],['Marrakech','مراكش'],['Agadir','أكادير'],['Tangier','طنجة'],['Meknes','مكناس']],
+  'Sudan':        [['Khartoum','الخرطوم'],['Omdurman','أم درمان'],['Port Sudan','بورتسودان'],['Kassala','كسلا'],['Nyala','نيالا'],['El Fasher','الفاشر']],
+  'Palestine':    [['Gaza','غزة'],['Ramallah','رام الله'],['Hebron','الخليل'],['Nablus','نابلس'],['Jenin','جنين'],['Bethlehem','بيت لحم'],['Jericho','أريحا']],
+  'Other':        [['Other','أخرى']],
+};
