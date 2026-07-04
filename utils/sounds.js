@@ -3,8 +3,14 @@
 // الأصوات مفعّلة دلوقتي من assets/sounds/*.mp3.
 const USE_SOUNDS = true;
 
-var Audio = null;
-try { Audio = require('expo-av').Audio; } catch (e) {}
+// expo-av اتلغى (deprecated) واتستبدل بـ expo-audio بداية من SDK 52+.
+var createAudioPlayer = null;
+var setAudioModeAsync = null;
+try {
+  const audioModule = require('expo-audio');
+  createAudioPlayer = audioModule.createAudioPlayer;
+  setAudioModeAsync = audioModule.setAudioModeAsync;
+} catch (e) {}
 
 const SOUND_FILES = {
   welcome:   require('../assets/sounds/welcome.mp3'),
@@ -16,43 +22,56 @@ const SOUND_FILES = {
   idea:      require('../assets/sounds/idea.mp3'),
 };
 
-let activeSound = null;
+let activePlayer = null;
+let activeListener = null;
 
 export async function prepareAudioMode() {
-  if (!Audio) return;
+  if (!setAudioModeAsync) return;
   try {
-    await Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
-      shouldDuckAndroid: true,
+    // أسماء الخيارات اتغيّرت في expo-audio (مفيش iOS/Android لواحق منفصلة).
+    await setAudioModeAsync({
+      playsInSilentMode: true,
+      shouldPlayInBackground: false,
+      interruptionMode: 'duckOthers',
     });
   } catch (e) {}
 }
 
 /** يشغّل صوت بيبو لحالة معينة (welcome, celebrate, attention, ...) */
 export async function playBiboSound(state) {
-  if (!USE_SOUNDS || !Audio) return;
+  if (!USE_SOUNDS || !createAudioPlayer) return;
   const file = SOUND_FILES[state];
   if (!file) return;
 
   try {
-    if (activeSound) {
-      await activeSound.unloadAsync();
-      activeSound = null;
+    if (activePlayer) {
+      if (activeListener) activeListener.remove();
+      activePlayer.remove();
+      activePlayer = null;
+      activeListener = null;
     }
-    const { sound } = await Audio.Sound.createAsync(file, { shouldPlay: true, volume: 0.85 });
-    activeSound = sound;
-    sound.setOnPlaybackStatusUpdate((status) => {
+    const player = createAudioPlayer(file);
+    player.volume = 0.85;
+    activePlayer = player;
+    activeListener = player.addListener('playbackStatusUpdate', (status) => {
       if (status.didJustFinish) {
-        sound.unloadAsync();
-        if (activeSound === sound) activeSound = null;
+        player.remove();
+        if (activePlayer === player) {
+          activePlayer = null;
+          activeListener = null;
+        }
       }
     });
+    player.play();
   } catch (e) {}
 }
 
 export async function stopBiboSound() {
-  if (!activeSound) return;
-  try { await activeSound.unloadAsync(); } catch (e) {}
-  activeSound = null;
+  if (!activePlayer) return;
+  try {
+    if (activeListener) activeListener.remove();
+    activePlayer.remove();
+  } catch (e) {}
+  activePlayer = null;
+  activeListener = null;
 }
