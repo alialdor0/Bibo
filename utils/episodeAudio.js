@@ -3,8 +3,9 @@
 // ولو حصل خطأ (مفيش نت، الرابط واقع، الملف مش موجود) نرجع تلقائيًا
 // لنطق الجهاز (expo-speech) بنفس أسلوب Story.js الحالي.
 
-var AVAudio = null;
-try { AVAudio = require('expo-av').Audio; } catch (e) {}
+// expo-av اتلغى (deprecated) واتستبدل بـ expo-audio بداية من SDK 52+.
+var createAudioPlayer = null;
+try { ({ createAudioPlayer } = require('expo-audio')); } catch (e) {}
 
 var Speech = null;
 try { Speech = require('expo-speech'); } catch (e) {}
@@ -16,38 +17,56 @@ function speakFallback(word, onDone) {
   } else if (onDone) onDone();
 }
 
-let currentWordSound = null;
+let currentPlayer = null;
+let currentListener = null;
+
+function releaseCurrentPlayer() {
+  if (currentPlayer) {
+    try {
+      if (currentListener) currentListener.remove();
+      currentPlayer.remove();
+    } catch (e) {}
+  }
+  currentPlayer = null;
+  currentListener = null;
+}
 
 /**
  * ينطق كلمة الحلقة: يجرب audio_url الأول، ولو فشل (تحميل أو تشغيل)
  * يرجع تلقائيًا لنطق الجهاز بنفس النص.
  */
 export async function speakWord(word, audioUrl, onDone) {
-  if (currentWordSound) {
-    try { await currentWordSound.unloadAsync(); } catch (e) {}
-    currentWordSound = null;
-  }
+  releaseCurrentPlayer();
 
-  if (!AVAudio || !audioUrl) {
+  if (!createAudioPlayer || !audioUrl) {
     speakFallback(word, onDone);
     return;
   }
 
   try {
-    const { sound } = await AVAudio.Sound.createAsync({ uri: audioUrl }, { shouldPlay: true, volume: 1.0 });
-    currentWordSound = sound;
+    const player = createAudioPlayer({ uri: audioUrl });
+    player.volume = 1.0;
+    currentPlayer = player;
     let finished = false;
-    sound.setOnPlaybackStatusUpdate((status) => {
+
+    const listener = player.addListener('playbackStatusUpdate', (status) => {
       if (status.didJustFinish && !finished) {
         finished = true;
-        sound.unloadAsync();
-        if (currentWordSound === sound) currentWordSound = null;
+        listener.remove();
+        player.remove();
+        if (currentPlayer === player) { currentPlayer = null; currentListener = null; }
         if (onDone) onDone();
       }
-      if (status.error) {
-        if (!finished) { finished = true; speakFallback(word, onDone); }
+      if (status.error && !finished) {
+        finished = true;
+        listener.remove();
+        player.remove();
+        if (currentPlayer === player) { currentPlayer = null; currentListener = null; }
+        speakFallback(word, onDone);
       }
     });
+    currentListener = listener;
+    player.play();
   } catch (e) {
     // الرابط فشل (مفيش نت، 404، إلخ) -> ارجع لنطق الجهاز
     speakFallback(word, onDone);
@@ -55,9 +74,6 @@ export async function speakWord(word, audioUrl, onDone) {
 }
 
 export async function stopWordAudio() {
-  if (currentWordSound) {
-    try { await currentWordSound.unloadAsync(); } catch (e) {}
-    currentWordSound = null;
-  }
+  releaseCurrentPlayer();
   if (Speech) { try { Speech.stop(); } catch (e) {} }
 }
