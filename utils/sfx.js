@@ -10,8 +10,9 @@
 // ─────────────────────────────────────────────────────────────
 const USE_SFX = true;
 
-var Audio = null;
-try { Audio = require('expo-av').Audio; } catch (e) {}
+// expo-av اتلغى (deprecated) واتستبدل بـ expo-audio بداية من SDK 52+.
+var createAudioPlayer = null;
+try { ({ createAudioPlayer } = require('expo-audio')); } catch (e) {}
 
 const SFX_FILES = {
   win:       require('../assets/sfx/win.mp3'),
@@ -28,14 +29,19 @@ const SFX_FILES = {
  * الكتابة اللي بيتكرر بسرعة) فمفيش instance واحد مشترك زي صوت بيبو.
  */
 export async function playSfx(key) {
-  if (!USE_SFX || !Audio) return;
+  if (!USE_SFX || !createAudioPlayer) return;
   const file = SFX_FILES[key];
   if (!file) return;
 
   try {
-    const { sound } = await Audio.Sound.createAsync(file, { shouldPlay: true, volume: 0.7 });
-    sound.setOnPlaybackStatusUpdate((status) => {
-      if (status.didJustFinish) sound.unloadAsync();
+    const player = createAudioPlayer(file);
+    player.volume = 0.7;
+    const listener = player.addListener('playbackStatusUpdate', (status) => {
+      if (status.didJustFinish) {
+        listener.remove();
+        player.remove();
+      }
     });
+    player.play();
   } catch (e) {}
 }
