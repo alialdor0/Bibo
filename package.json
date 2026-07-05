@@ -8,24 +8,20 @@
     "ios": "expo start --ios"
   },
   "dependencies": {
-    "@react-native-async-storage/async-storage": "^2.1.2",
-    "expo": "~56.0.0",
-    "expo-audio": "^1.0.0",
-    "expo-notifications": "*",
-    "expo-print": "^15.0.0",
-    "expo-sharing": "^14.0.0",
-    "expo-speech": "^14.0.0",
-    "expo-status-bar": "~3.0.0",
-    "react": "19.2.3",
-    "react-native": "0.85.2"
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "expo": "~54.0.0",
+    "expo-audio": "~1.1.1",
+    "expo-notifications": "~0.32.11",
+    "expo-print": "~15.0.8",
+    "expo-sharing": "~14.0.8",
+    "expo-speech": "~13.1.0",
+    "expo-status-bar": "~3.0.8",
+    "react": "19.1.0",
+    "react-native": "0.81.4"
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",
-    "babel-preset-expo": "~13.0.0"
-  },
-  "overrides": {
-    "hermes-parser": "0.36.1",
-    "@react-native/codegen": "0.85.2"
+    "babel-preset-expo": "~54.0.0"
   },
   "private": true
 }
