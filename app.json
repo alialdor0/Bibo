@@ -32,6 +32,11 @@
           "sounds": ["./assets/sounds/notification.mp3"]
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "15662929-054c-442e-85b0-eab538853d2b"
+      }
+    }
   }
 }
