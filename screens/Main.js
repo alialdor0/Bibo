@@ -35,19 +35,43 @@ function HomeTab({ onNav }) {
     <View style={s.root}>
       <View style={s.header}>
         <View style={s.headerLeft}>
-          <View style={s.streakPill}><Text style={s.streakTxt}>🔥 {streak}</Text></View>
+          <View
+            style={s.streakPill}
+            accessible={true}
+            accessibilityLabel={`${streak} ${lang === 'ar' ? 'يوم متتالي' : 'day streak'}`}
+          >
+            <Text style={s.streakTxt}>🔥 {streak}</Text>
+          </View>
           <GemsBadge gems={gems} />
         </View>
-        <Text style={s.logo}>Bibo</Text>
+        <Text style={s.logo} accessibilityLabel="Bibo">Bibo</Text>
         <View style={s.headerRight}>
-          <TouchableOpacity style={s.iconBtn} onPress={() => onNav('dict')} accessibilityLabel="Dictionary">
-            <Text style={s.iconTxt}>📔</Text>
+          <TouchableOpacity
+            style={s.iconBtn}
+            onPress={() => onNav('dict')}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'ar' ? 'القاموس' : 'Dictionary'}
+          >
+            <Text style={s.iconTxt} importantForAccessibility="no">📔</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.iconBtn} onPress={() => onNav('store')} accessibilityLabel="Store">
-            <Text style={s.iconTxt}>🛒</Text>
+          <TouchableOpacity
+            style={s.iconBtn}
+            onPress={() => onNav('store')}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'ar' ? 'المتجر' : 'Store'}
+          >
+            <Text style={s.iconTxt} importantForAccessibility="no">🛒</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.iconBtn} onPress={() => onNav('settings')} accessibilityLabel="Settings">
-            <Text style={s.iconTxt}>⚙️</Text>
+          <TouchableOpacity
+            style={s.iconBtn}
+            onPress={() => onNav('settings')}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'ar' ? 'الإعدادات' : 'Settings'}
+          >
+            <Text style={s.iconTxt} importantForAccessibility="no">⚙️</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -93,8 +117,13 @@ function HomeTab({ onNav }) {
             { icon: '🎬', val: episodesDone, label: T('episodes')      },
             { icon: '🔥', val: streak,       label: lang === 'ar' ? 'يوم متتالي' : 'Day streak' },
           ].map(st => (
-            <View key={st.label} style={s.statCard}>
-              <Text style={{ fontSize: 20 }}>{st.icon}</Text>
+            <View
+              key={st.label}
+              style={s.statCard}
+              accessible={true}
+              accessibilityLabel={`${st.label}: ${st.val}`}
+            >
+              <Text style={{ fontSize: 20 }} importantForAccessibility="no">{st.icon}</Text>
               <Text style={s.statVal}>{st.val}</Text>
               <Text style={s.statLabel}>{st.label}</Text>
             </View>
@@ -115,8 +144,14 @@ function HomeTab({ onNav }) {
 
 function ChallengeCard({ icon, title, subtitle, badge, badgeColor, onPress }) {
   return (
-    <TouchableOpacity style={s.challengeCard} onPress={onPress} accessibilityRole="button">
-      <View style={s.challengeIconWrap}>
+    <TouchableOpacity
+      style={s.challengeCard}
+      onPress={onPress}
+      accessible={true}
+      accessibilityRole="button"
+      accessibilityLabel={`${title}. ${subtitle}${badge ? '. ' + badge : ''}`}
+    >
+      <View style={s.challengeIconWrap} importantForAccessibility="no-hide-descendants">
         <Text style={{ fontSize: 30 }}>{icon}</Text>
       </View>
       <View style={{ flex: 1 }}>
@@ -128,7 +163,7 @@ function ChallengeCard({ icon, title, subtitle, badge, badgeColor, onPress }) {
           <Text style={[s.challengeBadgeTxt, { color: badgeColor || '#2E8B57' }]}>{badge}</Text>
         </View>
       ) : (
-        <Text style={s.challengeArrow}>›</Text>
+        <Text style={s.challengeArrow} importantForAccessibility="no">›</Text>
       )}
     </TouchableOpacity>
   );
@@ -202,30 +237,47 @@ function ProfileTab({ onBack, onNav }) {
       <PageHeader title={T('profile')} onBack={onBack} backLabel={T('back')} right={<GemsBadge gems={gems} />} />
       <ScrollView contentContainerStyle={s.pageContent}>
         <View style={s.profileCard}>
-          <View style={s.avatar}><Text style={{ fontSize: 40 }}>🐦</Text></View>
+          <View style={s.avatar} importantForAccessibility="no-hide-descendants">
+            <Text style={{ fontSize: 40 }}>🐦</Text>
+          </View>
           <Text style={s.profileName}>{u.fullName}</Text>
           <Text style={s.profileMeta}>{u.city}, {u.country}</Text>
           <Text style={s.profileMeta}>{u.job} · {u.age}</Text>
           <View style={[s.levelPill, { borderColor: u.levelTitle?.color }]}>
             <Text style={[s.levelPillTxt, { color: u.levelTitle?.color }]}>{u.levelTitle?.en}</Text>
           </View>
-          <View style={s.streakRow}>
-            <Text style={{ fontSize: 18 }}>🔥</Text>
+          <View
+            style={s.streakRow}
+            accessible={true}
+            accessibilityLabel={`${u.stats?.streak} day streak`}
+          >
+            <Text style={{ fontSize: 18 }} importantForAccessibility="no">🔥</Text>
             <Text style={s.streakRowTxt}>{u.stats?.streak} day streak</Text>
           </View>
         </View>
 
-        <TouchableOpacity style={s.dictLinkCard} onPress={() => onNav && onNav('dict')} accessibilityRole="button">
-          <Text style={{ fontSize: 22 }}>📔</Text>
+        <TouchableOpacity
+          style={s.dictLinkCard}
+          onPress={() => onNav && onNav('dict')}
+          accessible={true}
+          accessibilityRole="button"
+          accessibilityLabel={lang === 'ar' ? 'قاموسي الشخصي' : 'My Dictionary'}
+        >
+          <Text style={{ fontSize: 22 }} importantForAccessibility="no">📔</Text>
           <Text style={s.dictLinkTxt}>{lang === 'ar' ? 'قاموسي الشخصي' : 'My Dictionary'}</Text>
-          <Text style={s.settingArrow}>›</Text>
+          <Text style={s.settingArrow} importantForAccessibility="no">›</Text>
         </TouchableOpacity>
 
         <Text style={s.sectionTitle}>Badges</Text>
         <View style={s.badgesRow}>
           {(u.badges || []).map((b, i) => (
-            <View key={String(i)} style={s.badgeItem}>
-              <Text style={{ fontSize: 24 }}>{b.icon}</Text>
+            <View
+              key={String(i)}
+              style={s.badgeItem}
+              accessible={true}
+              accessibilityLabel={b.label}
+            >
+              <Text style={{ fontSize: 24 }} importantForAccessibility="no">{b.icon}</Text>
               <Text style={s.badgeLabel}>{b.label}</Text>
             </View>
           ))}
@@ -239,8 +291,13 @@ function ProfileTab({ onBack, onNav }) {
             { icon: '🎬', val: u.stats?.episodesDone, label: 'Episodes Done' },
             { icon: '⭐', val: u.stats?.points,        label: 'Points'        },
           ].map((st, i) => (
-            <View key={String(i)} style={s.statCardLg}>
-              <Text style={{ fontSize: 24 }}>{st.icon}</Text>
+            <View
+              key={String(i)}
+              style={s.statCardLg}
+              accessible={true}
+              accessibilityLabel={`${st.label}: ${st.val}`}
+            >
+              <Text style={{ fontSize: 24 }} importantForAccessibility="no">{st.icon}</Text>
               <Text style={s.statValLg}>{st.val}</Text>
               <Text style={s.statLabelLg}>{st.label}</Text>
             </View>
@@ -292,10 +349,16 @@ function SettingsTab({ onBack }) {
             { label: T('changeTrack'),  icon: '🎭' },
             { label: T('retakeTest'),   icon: '📊' },
           ].map(item => (
-            <TouchableOpacity key={item.label} style={s.settingRowBtn} accessibilityRole="button">
-              <Text style={{ fontSize: 18 }}>{item.icon}</Text>
+            <TouchableOpacity
+              key={item.label}
+              style={s.settingRowBtn}
+              accessible={true}
+              accessibilityRole="button"
+              accessibilityLabel={item.label}
+            >
+              <Text style={{ fontSize: 18 }} importantForAccessibility="no">{item.icon}</Text>
               <Text style={s.settingLabel}>{item.label}</Text>
-              <Text style={s.settingArrow}>›</Text>
+              <Text style={s.settingArrow} importantForAccessibility="no">›</Text>
             </TouchableOpacity>
           ))}
           <TouchableOpacity style={s.settingRowBtn}
@@ -307,8 +370,11 @@ function SettingsTab({ onBack }) {
                 { text: lang === 'ar' ? 'تسجيل الخروج' : 'Sign Out', style: 'destructive', onPress: () => logout() },
               ]
             )}
-            accessibilityRole="button">
-            <Text style={{ fontSize: 18 }}>🚪</Text>
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel={T('signOut')}
+          >
+            <Text style={{ fontSize: 18 }} importantForAccessibility="no">🚪</Text>
             <Text style={[s.settingLabel, { color: '#c0392b' }]}>{T('signOut')}</Text>
           </TouchableOpacity>
         </View>
@@ -341,12 +407,24 @@ function SettingsTab({ onBack }) {
           <View style={s.settingRow}>
             <Text style={s.settingLabel}>{T('dailyReview')}</Text>
             <View style={s.stepper}>
-              <TouchableOpacity style={s.stepperBtn} onPress={() => setDailyRev(v => Math.max(5, v - 5))}>
-                <Text style={s.stepperTxt}>−</Text>
+              <TouchableOpacity
+                style={s.stepperBtn}
+                onPress={() => setDailyRev(v => Math.max(5, v - 5))}
+                accessible={true}
+                accessibilityRole="button"
+                accessibilityLabel={lang === 'ar' ? 'إنقاص العدد' : 'Decrease'}
+              >
+                <Text style={s.stepperTxt} importantForAccessibility="no">−</Text>
               </TouchableOpacity>
               <Text style={s.stepperVal}>{dailyRev}</Text>
-              <TouchableOpacity style={s.stepperBtn} onPress={() => setDailyRev(v => Math.min(50, v + 5))}>
-                <Text style={s.stepperTxt}>+</Text>
+              <TouchableOpacity
+                style={s.stepperBtn}
+                onPress={() => setDailyRev(v => Math.min(50, v + 5))}
+                accessible={true}
+                accessibilityRole="button"
+                accessibilityLabel={lang === 'ar' ? 'زيادة العدد' : 'Increase'}
+              >
+                <Text style={s.stepperTxt} importantForAccessibility="no">+</Text>
               </TouchableOpacity>
             </View>
           </View>
