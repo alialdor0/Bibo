@@ -325,7 +325,16 @@ export default function StoryEpisode({ onLeave }) {
         </View>
       ) : null}
       <View style={s.lineCard}>
-        <Text style={s.lineText}>{line.text}</Text>
+        <TouchableOpacity
+          style={s.lineTextRow}
+          onPress={() => playWord({ id: `line-${lineIdx}`, word: line.text })}
+          accessible={true}
+          accessibilityRole="button"
+          accessibilityLabel={lang === 'ar' ? 'استمع للجملة' : 'Listen to the sentence'}
+        >
+          <Text style={s.lineText}>{line.text}</Text>
+          <Text style={s.lineSpeakIcon} importantForAccessibility="no">🔊</Text>
+        </TouchableOpacity>
         <Text style={s.lineAr}>{line.arabic}</Text>
       </View>
       {line.protected_word_ids?.length ? (
@@ -498,6 +507,8 @@ const s = StyleSheet.create({
   partnerName:     { color: '#fff', fontWeight: '800', fontSize: 13 },
   partnerLoc:      { color: 'rgba(255,255,255,0.45)', fontSize: 11, marginTop: 1 },
   lineText:        { color: '#fff', fontSize: 17, lineHeight: 26, marginBottom: 8 },
+  lineTextRow:     { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+  lineSpeakIcon:   { fontSize: 15, color: 'rgba(255,255,255,0.4)', marginBottom: 8 },
   lineAr:          { color: 'rgba(255,255,255,0.55)', fontSize: 14, lineHeight: 22 },
   protectedNote:   { color: 'rgba(255,255,255,0.4)', fontSize: 12, marginBottom: 12, fontStyle: 'italic' },
   newWordsLabel:   { color: '#fff', fontWeight: '700', fontSize: 13, marginBottom: 8 },
