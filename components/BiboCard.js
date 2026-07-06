@@ -3,8 +3,16 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 
 export function BiboMsg({ text, color }) {
   return (
-    <View style={[s.wrap, { borderColor: (color || '#2E8B57') + '44' }]}>
-      <View style={[s.bird, { borderColor: (color || '#2E8B57') + '66' }]}>
+    <View
+      style={[s.wrap, { borderColor: (color || '#2E8B57') + '44' }]}
+      accessible={true}
+      accessibilityLabel={`Bibo: ${text}`}
+    >
+      <View
+        style={[s.bird, { borderColor: (color || '#2E8B57') + '66' }]}
+        accessibilityElementsHidden={true}
+        importantForAccessibility="no-hide-descendants"
+      >
         <Text style={s.birdEmoji}>🐦</Text>
       </View>
       <View style={s.content}>
@@ -19,7 +27,13 @@ export function PageHeader({ title, onBack, backLabel, right }) {
   return (
     <View style={s.header}>
       {onBack ? (
-        <TouchableOpacity style={s.backBtn} onPress={onBack} accessibilityRole="button">
+        <TouchableOpacity
+          style={s.backBtn}
+          onPress={onBack}
+          accessible={true}
+          accessibilityRole="button"
+          accessibilityLabel={backLabel || 'Back'}
+        >
           <Text style={s.backTxt}>{'← ' + (backLabel || 'Back')}</Text>
         </TouchableOpacity>
       ) : <View style={s.spacer} />}
@@ -31,7 +45,11 @@ export function PageHeader({ title, onBack, backLabel, right }) {
 
 export function GemsBadge({ gems }) {
   return (
-    <View style={s.gemsBadge}>
+    <View
+      style={s.gemsBadge}
+      accessible={true}
+      accessibilityLabel={`${gems} جوهرة`}
+    >
       <Text style={s.gemsIcon}>💎</Text>
       <Text style={s.gemsVal}>{gems}</Text>
     </View>
@@ -42,17 +60,29 @@ export function StationeryBar({ stationery }) {
   const { pen, eraser, pages } = stationery;
   return (
     <View style={s.statBar}>
-      <View style={s.statItem}>
+      <View
+        style={s.statItem}
+        accessible={true}
+        accessibilityLabel={`القلم: ${Math.min(100, pen.inkLeft)}% حبر متبقي`}
+      >
         <Text style={s.statIcon}>🖊️</Text>
         <View style={s.inkBarBg}>
           <View style={[s.inkBarFill, { width: Math.min(100, pen.inkLeft) + '%' }]} />
         </View>
       </View>
-      <View style={s.statItem}>
+      <View
+        style={s.statItem}
+        accessible={true}
+        accessibilityLabel={`الممحاة: ${eraser.uses} استخدام متبقي`}
+      >
         <Text style={s.statIcon}>🧹</Text>
         <Text style={s.statVal}>{eraser.uses}</Text>
       </View>
-      <View style={s.statItem}>
+      <View
+        style={s.statItem}
+        accessible={true}
+        accessibilityLabel={`الأوراق: ${pages.left} ورقة متبقية`}
+      >
         <Text style={s.statIcon}>📄</Text>
         <Text style={s.statVal}>{pages.left}</Text>
       </View>
