@@ -53,8 +53,9 @@ export function speakWord(word, audioUrl, onDone) {
     const player = createAudioPlayer({ uri: audioUrl });
     currentPlayer = player;
 
-    // لو ما بدأ التشغيل خلال 4 ثواني (شبكة بطيئة/معلقة) نرجع لنطق الجهاز
-    fallbackTimer = setTimeout(() => finishOnce(true), 4000);
+    // لو ما بدأ التشغيل خلال 2.5 ثانية (شبكة بطيئة/معلقة أو رابط غير موجود)
+    // نرجع لنطق الجهاز فورًا بدل ما يحس المستخدم بتعليق طويل
+    fallbackTimer = setTimeout(() => finishOnce(true), 2500);
 
     player.addListener('playbackStatusUpdate', (status) => {
       if (status.playbackState === 'error') {
