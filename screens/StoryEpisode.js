@@ -567,3 +567,4 @@ const s = StyleSheet.create({
   restartBtn:      { backgroundColor: '#1B3A6B', borderRadius: 13, paddingHorizontal: 28, paddingVertical: 13 },
   restartTxt:      { color: '#fff', fontSize: 15, fontWeight: '700' },
 });
+
