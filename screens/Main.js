@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Switch, SafeAreaView, Alert } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Switch, SafeAreaView, Alert, Animated } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../context/AppContext';
 import { t, STORE_ITEMS, GIFT_REWARDS, LEADERBOARD } from '../data';
 import { BiboMsg, PageHeader, GemsBadge, StationeryBar } from '../components/BiboCard';
@@ -8,9 +9,25 @@ import BottomNav from '../components/BottomNav';
 import Library from './Library';
 import { hasEpisodes, getEpisode, getTotalEpisodes } from '../data/episodes';
 import { buildTemplateVars, fillTemplate } from '../utils/templateEngine';
+import { playSfx } from '../utils/sfx';
+
+const DAILY_TIPS = {
+  ar: [
+    'نصيحة بيبو: راجع كلماتك كل يوم حتى لا تُنسى 📚',
+    'نصيحة بيبو: عشر دقائق يوميًا أفضل من ساعة أسبوعيًا ⏱️',
+    'نصيحة بيبو: استمع للكلمة قبل أن تكتبها، هذا يثبّتها بذاكرتك 🔊',
+    'نصيحة بيبو: هدفك اليوم قريب — كمّل خطوة واحدة بس! 🎯',
+  ],
+  en: [
+    "Bibo's tip: Review your words daily so they don't fade 📚",
+    "Bibo's tip: Ten minutes a day beats an hour once a week ⏱️",
+    "Bibo's tip: Listen before you write — it locks the word into memory 🔊",
+    "Bibo's tip: Your goal is close — just one more step today! 🎯",
+  ],
+};
 
 function HomeTab({ onNav }) {
-  const { user, track, lang, gems, stationery, library, companion, getEpisodeState } = useApp();
+  const { user, track, lang, gems, stationery, library, companion, getEpisodeState, getWordBankWords } = useApp();
   const T = (k) => t(k, lang);
   const u = user || { fullName: 'Ali', levelTitle: { en: 'Novice Writer', color: '#8B4513' } };
   const tr = track || { icon: '🕵️', name: 'Spy & Mystery', color: '#C0C0C0' };
@@ -29,10 +46,42 @@ function HomeTab({ onNav }) {
   const seasonComplete = usesNewEngine && !rawCurrentEp && currentEpNum > totalEps;
 
   const currentBook = (library || []).find(b => b.trackId === tr.id && b.episodeId === (usesNewEngine ? currentEpNum : 1));
-  const progressPct = currentBook ? 100 : 0;
+
+  // نسبة تقدم حقيقية داخل الحلقة الحالية (مبنية على آخر سطر محفوظ)، بدل رقم ثابت
+  const [savedLineIdx, setSavedLineIdx] = useState(0);
+  useEffect(() => {
+    if (!usesNewEngine || !rawCurrentEp) return;
+    let mounted = true;
+    AsyncStorage.getItem(`episode_progress_${tr.id}_${currentEpNum}`)
+      .then(raw => {
+        if (!mounted || !raw) return;
+        const data = JSON.parse(raw);
+        if (typeof data.lineIdx === 'number') setSavedLineIdx(data.lineIdx);
+      })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, [tr.id, currentEpNum, usesNewEngine, rawCurrentEp]);
+
+  const totalLines = rawCurrentEp?.lines?.length || 1;
+  const progressPct = currentBook ? 100 : Math.round(Math.min(99, (savedLineIdx / totalLines) * 100));
+
+  // حركة انسيابية لامتلاء شريط التقدم عند فتح الشاشة
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(progressAnim, { toValue: progressPct, duration: 900, useNativeDriver: false }).start();
+  }, [progressPct, progressAnim]);
+  const animatedWidth = progressAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] });
+
+  // إشعارات داخل التطبيق: كلمات تحتاج مراجعة + هدية متاحة
+  const reviewWords = (getWordBankWords ? getWordBankWords() : []).filter(w => w.status === 'review' || w.status === 'forgotten');
+
+  // ودجت بيبو التفاعلي: نصيحة يومية متغيرة
+  const tips = DAILY_TIPS[lang] || DAILY_TIPS.ar;
+  const [tipIdx, setTipIdx] = useState(0);
+  const cycleTip = () => { playSfx('pageTurn'); setTipIdx(i => (i + 1) % tips.length); };
 
   return (
-    <View style={s.root}>
+    <SafeAreaView style={s.root}>
       <View style={s.header}>
         <View style={s.headerLeft}>
           <View
@@ -82,6 +131,40 @@ function HomeTab({ onNav }) {
           <Text style={s.userName}>{u.fullName || 'Ali'}</Text>
         </View>
 
+        {reviewWords.length > 0 ? (
+          <TouchableOpacity
+            style={s.notifCard}
+            onPress={() => onNav('dict')}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel={
+              lang === 'ar'
+                ? `${reviewWords.length} كلمة تحتاج مراجعة، اضغط للانتقال إلى القاموس`
+                : `${reviewWords.length} words need review, tap to open dictionary`
+            }
+          >
+            <Text style={{ fontSize: 20 }} importantForAccessibility="no">📚</Text>
+            <Text style={s.notifTxt}>
+              {lang === 'ar'
+                ? `${reviewWords.length} كلمة تحتاج مراجعة قبل أن تُنسى`
+                : `${reviewWords.length} word${reviewWords.length > 1 ? 's' : ''} need review before they fade`}
+            </Text>
+            <Text style={s.notifArrow} importantForAccessibility="no">›</Text>
+          </TouchableOpacity>
+        ) : null}
+
+        <TouchableOpacity
+          style={s.notifCardGift}
+          onPress={() => onNav('store')}
+          accessible={true}
+          accessibilityRole="button"
+          accessibilityLabel={lang === 'ar' ? 'هدية بانتظارك بالمتجر، اضغط للفتح' : 'A gift is waiting in the store, tap to open'}
+        >
+          <Text style={{ fontSize: 20 }} importantForAccessibility="no">🎁</Text>
+          <Text style={s.notifTxt}>{lang === 'ar' ? 'هدية بانتظارك بالمتجر' : 'A gift is waiting for you in the store'}</Text>
+          <Text style={s.notifArrow} importantForAccessibility="no">›</Text>
+        </TouchableOpacity>
+
         <StationeryBar stationery={stationery} />
 
         <View style={s.chapterCard}>
@@ -91,7 +174,7 @@ function HomeTab({ onNav }) {
           </View>
           {seasonComplete ? (
             <>
-              <Text style={s.chapterTitle}>{lang === 'ar' ? 'خلصت الموسم كامل! 🏆' : 'You finished the whole season! 🏆'}</Text>
+              <Text style={s.chapterTitle}>{lang === 'ar' ? 'أكملت الموسم بالكامل! 🏆' : 'You finished the whole season! 🏆'}</Text>
               <Text style={s.chapterSub}>{lang === 'ar' ? `${totalEps} حلقة مكتملة` : `${totalEps} episodes completed`}</Text>
             </>
           ) : (
@@ -104,10 +187,10 @@ function HomeTab({ onNav }) {
               <Text style={s.chapterSub}>Season 1 · Episode {usesNewEngine ? currentEpNum : 1}{usesNewEngine ? ` / ${totalEps}` : ''}</Text>
             </>
           )}
-          <View style={s.progressBg}><View style={[s.progressFill, { width: progressPct + '%' }]} /></View>
+          <View style={s.progressBg}><Animated.View style={[s.progressFill, { width: animatedWidth }]} /></View>
           <Text style={s.progressTxt}>{progressPct}% {lang === 'ar' ? 'مكتمل' : 'completed'}</Text>
           <TouchableOpacity style={[s.startBtn, seasonComplete ? { opacity: 0.4 } : null]} onPress={() => onNav('story')} disabled={seasonComplete} accessibilityRole="button">
-            <Text style={s.startBtnTxt}>{currentBook ? '🔁 ' + (lang === 'ar' ? 'اقرأ تاني' : 'Read Again') : '▶ ' + T('resumeLesson')}</Text>
+            <Text style={s.startBtnTxt}>{currentBook ? '🔁 ' + (lang === 'ar' ? 'اقرأ مرة أخرى' : 'Read Again') : '▶ ' + T('resumeLesson')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -132,13 +215,23 @@ function HomeTab({ onNav }) {
 
         <BiboMsg text={
           currentBook
-            ? (lang === 'ar' ? 'خلصت الحلقة دي! زور مكتبتك أو جرب تحدي جديد 📚' : 'You finished this episode! Check your library or try a new challenge 📚')
-            : (lang === 'ar' ? 'ابدأ أول حلقة النهارده — قصتك مستنياك! 🎵' : 'Start your first episode today — your story is waiting! 🎵')
+            ? (lang === 'ar' ? 'انتهت هذه الحلقة! تفقّد مكتبتك أو جرّب تحديًا جديدًا 📚' : 'You finished this episode! Check your library or try a new challenge 📚')
+            : (lang === 'ar' ? 'ابدأ أول حلقة اليوم — قصتك في انتظارك! 🎵' : 'Start your first episode today — your story is waiting! 🎵')
         } />
       </ScrollView>
 
+      <View style={s.floatingBiboWrap} pointerEvents="box-none">
+        <BiboCharacter
+          state="idea"
+          message={tips[tipIdx]}
+          size={52}
+          layout="column"
+          onPress={cycleTip}
+        />
+      </View>
+
       <BottomNav active="home" onNav={onNav} T={T} />
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -181,7 +274,7 @@ function ChallengeTab({ onNav }) {
   const myRank = { rank: rankData.findIndex(p => p.isMe) + 1 };
 
   return (
-    <View style={s.root}>
+    <SafeAreaView style={s.root}>
       <View style={s.header}>
         <Text style={s.pageTitle}>🏆 {T('challenge')}</Text>
         <GemsBadge gems={gems} />
@@ -193,13 +286,13 @@ function ChallengeTab({ onNav }) {
           size={56}
           style={{ marginBottom: 16 }}
           state="idea"
-          message={lang === 'ar' ? 'اختار تحدي وابدأ دلوقتي! 🔥' : 'Pick a challenge and start now! 🔥'}
+          message={lang === 'ar' ? 'اختر تحديًا وابدأ الآن! 🔥' : 'Pick a challenge and start now! 🔥'}
         />
 
         <ChallengeCard
           icon="🆘"
           title={lang === 'ar' ? 'إنقاذ الكلمات' : 'Word Rescue'}
-          subtitle={lang === 'ar' ? 'كلمات هتنسى — أنقذها قبل ما تفوتك' : 'Words about to fade — rescue them in time'}
+          subtitle={lang === 'ar' ? 'كلمات ستُنسى — أنقذها قبل أن تفوتك' : 'Words about to fade — rescue them in time'}
           badge={urgent.length > 0 ? String(urgent.length) : null}
           badgeColor="#c0392b"
           onPress={() => onNav('rescue')}
@@ -208,7 +301,7 @@ function ChallengeTab({ onNav }) {
         <ChallengeCard
           icon="🏅"
           title={lang === 'ar' ? 'قائمة المتصدرين' : 'Leaderboard'}
-          subtitle={lang === 'ar' ? 'شوف ترتيبك بين المتعلمين' : 'See where you rank among learners'}
+          subtitle={lang === 'ar' ? 'اطّلع على ترتيبك بين المتعلمين' : 'See where you rank among learners'}
           badge={myRank ? '#' + myRank.rank : null}
           badgeColor="#FFB300"
           onPress={() => onNav('leaderboard')}
@@ -217,13 +310,13 @@ function ChallengeTab({ onNav }) {
         <ChallengeCard
           icon="🤝"
           title={lang === 'ar' ? 'تحدي تعاوني' : 'Co-op Challenge'}
-          subtitle={lang === 'ar' ? 'اكمل قصة مع صديق وكسبوا سوا' : 'Finish a story with a friend and earn together'}
+          subtitle={lang === 'ar' ? 'أكمل قصة مع صديق واربحا معًا' : 'Finish a story with a friend and earn together'}
           onPress={() => onNav('coop')}
         />
       </ScrollView>
 
       <BottomNav active="challenge" onNav={onNav} T={T} />
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -249,10 +342,10 @@ function ProfileTab({ onBack, onNav }) {
           <View
             style={s.streakRow}
             accessible={true}
-            accessibilityLabel={`${u.stats?.streak} day streak`}
+            accessibilityLabel={`${u.stats?.streak} ${lang === 'ar' ? 'يوم متتالي' : 'day streak'}`}
           >
             <Text style={{ fontSize: 18 }} importantForAccessibility="no">🔥</Text>
-            <Text style={s.streakRowTxt}>{u.stats?.streak} day streak</Text>
+            <Text style={s.streakRowTxt}>{u.stats?.streak} {lang === 'ar' ? 'يوم متتالي' : 'day streak'}</Text>
           </View>
         </View>
 
@@ -503,6 +596,11 @@ const s = StyleSheet.create({
   progressBg:        { height: 6, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 3, overflow: 'hidden', marginBottom: 4 },
   progressFill:      { height: '100%', backgroundColor: '#2E8B57', borderRadius: 3 },
   progressTxt:       { fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 14 },
+  notifCard:         { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(74,144,217,0.1)', borderWidth: 1, borderColor: 'rgba(74,144,217,0.3)', borderRadius: 14, padding: 12, marginBottom: 10 },
+  notifCardGift:     { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(255,179,0,0.1)', borderWidth: 1, borderColor: 'rgba(255,179,0,0.3)', borderRadius: 14, padding: 12, marginBottom: 14 },
+  notifTxt:          { flex: 1, color: '#fff', fontSize: 13, fontWeight: '600' },
+  notifArrow:        { color: 'rgba(255,255,255,0.4)', fontSize: 18 },
+  floatingBiboWrap:  { position: 'absolute', bottom: 78, right: 16 },
   startBtn:          { backgroundColor: '#2E8B57', borderRadius: 12, padding: 14, alignItems: 'center' },
   startBtnTxt:       { color: '#fff', fontSize: 16, fontWeight: '800' },
   statsRow:          { flexDirection: 'row', gap: 8, marginBottom: 12 },
