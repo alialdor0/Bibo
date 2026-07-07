@@ -12,7 +12,7 @@ try { Speech = require('expo-speech'); } catch (e) {}
 function speakFallback(word, onDone) {
   if (Speech) {
     Speech.stop();
-    Speech.speak(word, { language: 'en-US', pitch: 1.0, rate: 0.85, onDone: onDone || (() => {}) });
+    Speech.speak(word, { language: 'en-US', pitch: 1.0, rate: 0.98, onDone: onDone || (() => {}) });
   } else if (onDone) onDone();
 }
 
