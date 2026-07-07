@@ -1,6 +1,7 @@
 {
+  
   "expo": {
-    "name": "Bibo Lingo",
+  "name": "Bibo Lingo",
     "slug": "bibolingo",
     "version": "1.0.0",
     "orientation": "portrait",
