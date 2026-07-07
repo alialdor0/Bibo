@@ -1,12 +1,35 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Animated, KeyboardAvoidingView, Platform, SafeAreaView, Alert } from 'react-native';
 import { useApp } from '../context/AppContext';
-import { t, GENDERS, COUNTRIES, CITIES, JOBS, AGES, ASSESSMENT, LEVEL_TITLES, getLevel, getPrefix, itemLabel } from '../data';
-import WheelPicker, { AgePicker } from '../components/WheelPicker';
+import { t, GENDERS, COUNTRIES, CITIES, JOBS, MONTHS, ASSESSMENT, LEVEL_TITLES, getLevel, getPrefix, getZodiac, itemLabel } from '../data';
+import WheelPicker from '../components/WheelPicker';
 import BiboCharacter from '../components/BiboCharacter';
 import { playSfx } from '../utils/sfx';
 
 const TOTAL = 8;
+const DAYS  = Array.from({ length: 31 }, (_, i) => [String(i + 1), String(i + 1)]);
+const CUR_YEAR = new Date().getFullYear();
+const YEARS = Array.from({ length: 90 }, (_, i) => { const y = CUR_YEAR - 13 - i; return [String(y), String(y)]; });
+
+/** يحسب العمر الحالي من تاريخ الميلاد */
+function calcAge(day, monthEn, year) {
+  const monthIdx = MONTHS.findIndex(m => m[0] === monthEn);
+  if (monthIdx < 0 || !day || !year) return '';
+  const today = new Date();
+  const birth = new Date(parseInt(year, 10), monthIdx, parseInt(day, 10));
+  let age = today.getFullYear() - birth.getFullYear();
+  const hasHadBirthdayThisYear =
+    today.getMonth() > monthIdx || (today.getMonth() === monthIdx && today.getDate() >= parseInt(day, 10));
+  if (!hasHadBirthdayThisYear) age -= 1;
+  return String(Math.max(0, age));
+}
+
+/** عدد أيام شهر معيّن (يراعي فبراير بالسنة الكبيسة) */
+function daysInMonth(monthEn, year) {
+  const monthIdx = MONTHS.findIndex(m => m[0] === monthEn);
+  if (monthIdx < 0) return 31;
+  return new Date(parseInt(year, 10) || CUR_YEAR, monthIdx + 1, 0).getDate();
+}
 
 export default function Onboarding({ onDone }) {
   const { lang, setUser } = useApp();
@@ -18,12 +41,14 @@ export default function Onboarding({ onDone }) {
 
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const floatAnim = useRef(new Animated.Value(0)).current;
+  const shineAnim = useRef(new Animated.Value(0)).current;
 
   const [u, setU] = useState({
     firstName: '', lastName: '', gender: 'Male',
     country: 'Iraq', city: 'Baghdad',
     customCountry: '', customCity: '', customJob: '',
-    job: 'Doctor', age: '18',
+    job: 'Doctor',
+    birthDay: '1', birthMonth: 'January', birthYear: String(CUR_YEAR - 20),
     levelScore: 0, levelTitle: LEVEL_TITLES[0],
   });
 
@@ -34,6 +59,22 @@ export default function Onboarding({ onDone }) {
   const onCountry = useCallback((en) => {
     const cities = CITIES[en] || [];
     setU(prev => ({ ...prev, country: en, city: cities[0]?.[0] || '', customCity: '' }));
+  }, []);
+
+  const onBirthMonth = useCallback((v) => {
+    setU(prev => {
+      const maxDay = daysInMonth(v, prev.birthYear);
+      const day = parseInt(prev.birthDay, 10) > maxDay ? String(maxDay) : prev.birthDay;
+      return { ...prev, birthMonth: v, birthDay: day };
+    });
+  }, []);
+
+  const onBirthYear = useCallback((v) => {
+    setU(prev => {
+      const maxDay = daysInMonth(prev.birthMonth, v);
+      const day = parseInt(prev.birthDay, 10) > maxDay ? String(maxDay) : prev.birthDay;
+      return { ...prev, birthYear: v, birthDay: day };
+    });
   }, []);
 
   const shake = useCallback(() => {
@@ -47,14 +88,26 @@ export default function Onboarding({ onDone }) {
 
   const next = useCallback(() => {
     if (step === 1) {
-      if (!u.firstName.trim()) { setErr('Please enter your first name'); return; }
-      if (!u.lastName.trim())  { setErr('Please enter your last name');  return; }
+      if (!u.firstName.trim()) {
+        const msg = lang === 'ar' ? 'الرجاء إدخال اسمك الأول' : 'Please enter your first name';
+        setErr(msg);
+        Alert.alert(lang === 'ar' ? 'حقل ناقص' : 'Missing field', msg);
+        shake();
+        return;
+      }
+      if (!u.lastName.trim()) {
+        const msg = lang === 'ar' ? 'الرجاء إدخال اسمك الأخير' : 'Please enter your last name';
+        setErr(msg);
+        Alert.alert(lang === 'ar' ? 'حقل ناقص' : 'Missing field', msg);
+        shake();
+        return;
+      }
     }
     setErr('');
     shake();
     playSfx('pageTurn');
     setTimeout(() => setStep(s => s + 1), 160);
-  }, [step, u, shake]);
+  }, [step, u, shake, lang]);
 
   const back = useCallback(() => {
     setErr('');
@@ -62,6 +115,22 @@ export default function Onboarding({ onDone }) {
     playSfx('pageTurn');
     setTimeout(() => setStep(s => s - 1), 160);
   }, [shake]);
+
+  // لمعان متحرك على بطاقة الهوية بخطوة 8
+  React.useEffect(() => {
+    if (step === 8) {
+      shineAnim.setValue(0);
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.delay(900),
+          Animated.timing(shineAnim, { toValue: 1, duration: 1100, useNativeDriver: true }),
+          Animated.timing(shineAnim, { toValue: 0, duration: 0, useNativeDriver: true }),
+        ])
+      );
+      loop.start();
+      return () => loop.stop();
+    }
+  }, [step, shineAnim]);
 
   const answerAssessment = useCallback((optIdx) => {
     if (assess.chosen !== null) return;
@@ -83,12 +152,15 @@ export default function Onboarding({ onDone }) {
 
   const birdY = floatAnim.interpolate({ inputRange: [0,1], outputRange: [0,-10] });
   const birdX = shakeAnim.interpolate({ inputRange: [-1,1], outputRange: [-8,8] });
+  const shineX = shineAnim.interpolate({ inputRange: [0,1], outputRange: [-160, 420] });
   const pct   = step >= 1 && step <= TOTAL ? Math.round(step / TOTAL * 100) + '%' : '0%';
   const cityList = CITIES[u.country] || [['Other','أخرى']];
   const prefix   = getPrefix(u.customJob.trim() ? 'Other' : u.job);
   const fName    = (prefix ? prefix + ' ' : '') + u.firstName + ' ' + u.lastName;
   const lvl      = u.levelTitle || LEVEL_TITLES[0];
   const genders  = GENDERS[lang] || GENDERS.ar;
+  const age      = calcAge(u.birthDay, u.birthMonth, u.birthYear);
+  const zodiac   = getZodiac(u.birthDay, u.birthMonth);
 
   const bibState =
     step === 0 ? 'welcome' :
@@ -118,8 +190,9 @@ export default function Onboarding({ onDone }) {
     const userData = {
       ...u,
       fullName: fName,
+      age,
+      zodiac,
       levelTitle: lvl,
-      loginType: 'apple',
     };
     setUser(userData);
     onDone(userData);
@@ -226,7 +299,7 @@ export default function Onboarding({ onDone }) {
               <View style={s.sw}>
                 <Text style={s.stepLbl}>{step + ' / ' + TOTAL}</Text>
                 <Text style={s.q}>{T('qJob')}</Text>
-                <ScrollView style={s.jobScroll} showsVerticalScrollIndicator={false}>
+                <ScrollView style={s.jobScroll} showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
                   {JOBS.map(j => {
                     const isSel = u.job === j.en && !u.customJob.trim();
                     return (
@@ -260,7 +333,23 @@ export default function Onboarding({ onDone }) {
               <View style={s.sw}>
                 <Text style={s.stepLbl}>{step + ' / ' + TOTAL}</Text>
                 <Text style={s.q}>{T('qAge')}</Text>
-                <AgePicker ages={AGES} value={u.age} onChange={v => set('age', v)} hint={T('scrollHint')} />
+                <View style={s.dobRow}>
+                  <View style={s.dobCol}>
+                    <WheelPicker items={DAYS.slice(0, daysInMonth(u.birthMonth, u.birthYear))} value={u.birthDay} onChange={v => set('birthDay', v)} hint={lang === 'ar' ? 'اليوم' : 'Day'} />
+                  </View>
+                  <View style={s.dobColWide}>
+                    <WheelPicker items={MONTHS} value={u.birthMonth} onChange={onBirthMonth} hint={lang === 'ar' ? 'الشهر' : 'Month'} />
+                  </View>
+                  <View style={s.dobCol}>
+                    <WheelPicker items={YEARS} value={u.birthYear} onChange={onBirthYear} hint={lang === 'ar' ? 'السنة' : 'Year'} />
+                  </View>
+                </View>
+                <View style={s.zodiacCard}>
+                  <Text style={{ fontSize: 26 }}>{zodiac.emoji}</Text>
+                  <Text style={s.zodiacTxt}>
+                    {lang === 'ar' ? `برجك: ${zodiac.ar}` : `Your zodiac: ${zodiac.en}`}
+                  </Text>
+                </View>
                 <TouchableOpacity style={s.btn} onPress={next} accessibilityRole="button">
                   <Text style={s.btnTxt}>{T('next')}</Text>
                 </TouchableOpacity>
@@ -317,6 +406,10 @@ export default function Onboarding({ onDone }) {
               <View style={s.sw}>
                 <Text style={s.readyLbl}>{T('ready')}</Text>
                 <View style={s.idCard}>
+                  <Animated.View
+                    pointerEvents="none"
+                    style={[s.idShine, { transform: [{ rotate: '20deg' }, { translateX: shineX }] }]}
+                  />
                   <View style={s.idHeader}>
                     <View style={s.idBird}><Text style={{ fontSize: 28 }}>🐦</Text></View>
                     <View>
@@ -329,7 +422,8 @@ export default function Onboarding({ onDone }) {
                     ['Full Name', fName],
                     ['Profession', u.customJob.trim() || u.job],
                     ['Location', (u.customCity.trim() || u.city) + ', ' + (u.customCountry.trim() || u.country)],
-                    ['Age', u.age],
+                    ['Age', age],
+                    ['Zodiac', `${zodiac.emoji} ${zodiac.en}`],
                     ['Level', lvl.en],
                   ].map(row => (
                     <View key={row[0]} style={s.idRow}>
@@ -390,6 +484,11 @@ const s = StyleSheet.create({
   chipTxt:      { fontSize: 11 },
   bar:          { marginTop: 16, height: 2, backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden', width: '100%' },
   fill:         { height: '100%', backgroundColor: '#2E8B57', borderRadius: 2 },
+  dobRow:       { flexDirection: 'row', width: '100%', gap: 6 },
+  dobCol:       { flex: 1 },
+  dobColWide:   { flex: 1.4 },
+  zodiacCard:   { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, marginTop: 10, marginBottom: 4 },
+  zodiacTxt:    { color: '#fff', fontSize: 14, fontWeight: '700' },
   jobScroll:    { width: '100%', maxHeight: 200, marginBottom: 4 },
   jobBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 10, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.02)', marginBottom: 6 },
   jobBtnSel:    { borderColor: '#2E8B57', backgroundColor: 'rgba(46,139,87,0.12)' },
@@ -414,7 +513,8 @@ const s = StyleSheet.create({
   levelBadgeTxt:{ fontSize: 18, fontWeight: '800' },
   levelAr:      { fontSize: 14, color: 'rgba(255,255,255,0.5)' },
   readyLbl:     { fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 12, textAlign: 'center' },
-  idCard:       { width: '100%', backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', borderRadius: 16, padding: 18 },
+  idCard:       { width: '100%', backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', borderRadius: 16, padding: 18, overflow: 'hidden', position: 'relative' },
+  idShine:      { position: 'absolute', top: -80, bottom: -80, left: -40, width: 70, backgroundColor: 'rgba(255,255,255,0.16)' },
   idHeader:     { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
   idBird:       { width: 48, height: 48, borderRadius: 24, backgroundColor: '#0a150a', borderWidth: 2, borderColor: 'rgba(46,139,87,0.5)', alignItems: 'center', justifyContent: 'center' },
   idAppName:    { fontSize: 18, fontWeight: '900', color: '#fff', letterSpacing: 4 },
