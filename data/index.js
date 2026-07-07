@@ -24,7 +24,7 @@ export const i18n = {
     qCountry:      'من أي دولة أنت؟',
     qCity:         'من أي مدينة؟',
     qJob:          'ما مهنتك؟',
-    qAge:          'كم عمرك؟',
+    qAge:          'ما تاريخ ميلادك؟',
     qLevel:        'اختبار تحديد المستوى',
     levelNote:     'أجب بصدق — هذا يحدد مستواك في القصة',
     firstName:     'الاسم الأول',
@@ -88,7 +88,7 @@ export const i18n = {
     qCountry:      'Which country are you from?',
     qCity:         'Which city?',
     qJob:          'What is your profession?',
-    qAge:          'How old are you?',
+    qAge:          'What is your date of birth?',
     qLevel:        'Level Assessment Test',
     levelNote:     'Answer honestly — this sets your story level',
     firstName:     'First name',
@@ -197,20 +197,51 @@ export const AGES = Array.from({ length: 83 }, (_, i) => String(i + 13));
 
 // ── مستويات اللغة ──
 export const LEVEL_TITLES = [
-  { min:0, max:1, en:'Novice Writer',       ar:'كاتب مبتدئ',    color:'#8B4513' },
-  { min:2, max:2, en:'Rising Speaker',       ar:'متحدث صاعد',    color:'#1B3A6B' },
-  { min:3, max:3, en:'Skilled Communicator', ar:'متواصل ماهر',   color:'#2E8B57' },
-  { min:4, max:4, en:'Advanced Narrator',    ar:'راوٍ متقدم',    color:'#C0C0C0' },
-  { min:5, max:5, en:'Expert Storyteller',   ar:'حكواتي خبير',   color:'#FFB300' },
+  { min:0, max:2,  en:'Novice Writer',       ar:'كاتب مبتدئ',    color:'#8B4513' },
+  { min:3, max:4,  en:'Rising Speaker',       ar:'متحدث صاعد',    color:'#1B3A6B' },
+  { min:5, max:6,  en:'Skilled Communicator', ar:'متواصل ماهر',   color:'#2E8B57' },
+  { min:7, max:8,  en:'Advanced Narrator',    ar:'راوٍ متقدم',    color:'#C0C0C0' },
+  { min:9, max:10, en:'Expert Storyteller',   ar:'حكواتي خبير',   color:'#FFB300' },
 ];
 
-// ── أسئلة اختبار المستوى ──
+// ── أسئلة اختبار المستوى: 10 أسئلة (4 مبتدئ + 3 متوسط + 3 متقدم) ──
 export const ASSESSMENT = [
-  { q:'What does "received" mean?',            opts:['استلمت','ذهبت','قرأت','كتبت'],                                                                                               correct:0 },
-  { q:'Choose the correct sentence:',          opts:['He walk to the store','He walked to the store','He walking to the store','He walks to store'],                               correct:1 },
-  { q:'Past tense of "speak"?',                opts:['speaked','spoken','spoke','speaking'],                                                                                        correct:2 },
-  { q:'"The message was written ___ red ink."',opts:['on','in','at','with'],                                                                                                        correct:1 },
-  { q:'Which uses "despite" correctly?',       opts:['Despite it was raining, we went out.','Despite of the rain, we went out.','Despite the rain, we went out.','Despite that rain, we went out.'], correct:2 },
+  // مبتدئ (4)
+  { level:'beginner',     q:'What does "received" mean?',              opts:['استلمت','ذهبت','قرأت','كتبت'],                                                                                               correct:0 },
+  { level:'beginner',     q:'Past tense of "speak"?',                  opts:['speaked','spoken','spoke','speaking'],                                                                                        correct:2 },
+  { level:'beginner',     q:'What does "address" mean?',               opts:['عنوان','رسالة','مهمة','صورة'],                                                                                                correct:0 },
+  { level:'beginner',     q:'One book, two ___.',                      opts:['book','books','bookes','booking'],                                                                                            correct:1 },
+  // متوسط (3)
+  { level:'intermediate', q:'Choose the correct sentence:',            opts:['He walk to the store','He walked to the store','He walking to the store','He walks to store'],                               correct:1 },
+  { level:'intermediate', q:'"The message was written ___ red ink."',  opts:['on','in','at','with'],                                                                                                        correct:1 },
+  { level:'intermediate', q:'Select the correctly formed question:',   opts:['Where you are going?','Where are you going?','Where do you going?','Where you going?'],                                      correct:1 },
+  // متقدم (3)
+  { level:'advanced',     q:'Which uses "despite" correctly?',         opts:['Despite it was raining, we went out.','Despite of the rain, we went out.','Despite the rain, we went out.','Despite that rain, we went out.'], correct:2 },
+  { level:'advanced',     q:'Which sentence uses the present perfect correctly?', opts:['I have seen him yesterday.','I saw him yesterday.','I have seen him already.','I seen him already.'],             correct:2 },
+  { level:'advanced',     q:'"If I ___ known, I would have called you."', opts:['know','knew','had known','have known'],                                                                                    correct:2 },
+];
+
+// ── الأشهر (للاختيار عند اختيار تاريخ الميلاد) ──
+export const MONTHS = [
+  ['January','يناير'], ['February','فبراير'], ['March','مارس'], ['April','أبريل'],
+  ['May','مايو'], ['June','يونيو'], ['July','يوليو'], ['August','أغسطس'],
+  ['September','سبتمبر'], ['October','أكتوبر'], ['November','نوفمبر'], ['December','ديسمبر'],
+];
+
+// ── الأبراج ──
+export const ZODIAC_SIGNS = [
+  { en:'Capricorn',  ar:'الجدي',    emoji:'♑' },
+  { en:'Aquarius',   ar:'الدلو',    emoji:'♒' },
+  { en:'Pisces',     ar:'الحوت',    emoji:'♓' },
+  { en:'Aries',      ar:'الحمل',    emoji:'♈' },
+  { en:'Taurus',     ar:'الثور',    emoji:'♉' },
+  { en:'Gemini',     ar:'الجوزاء',  emoji:'♊' },
+  { en:'Cancer',     ar:'السرطان',  emoji:'♋' },
+  { en:'Leo',        ar:'الأسد',    emoji:'♌' },
+  { en:'Virgo',      ar:'العذراء',  emoji:'♍' },
+  { en:'Libra',      ar:'الميزان',  emoji:'♎' },
+  { en:'Scorpio',    ar:'العقرب',   emoji:'♏' },
+  { en:'Sagittarius',ar:'القوس',    emoji:'♐' },
 ];
 
 // ── المسارات ──
@@ -347,6 +378,28 @@ export const GIFT_REWARDS = [
 // ── دوال مساعدة ──
 export const getLevel    = (score) => LEVEL_TITLES.find(l => score >= l.min && score <= l.max) || LEVEL_TITLES[0];
 export const getPrefix   = (jobEn) => { const j = JOBS.find(x => x.en === jobEn); return j ? j.prefix : ''; };
+
+/** يحسب البرج تلقائيًا من اليوم واسم الشهر (الإنجليزي، زي "March") */
+export const getZodiac = (day, monthEn) => {
+  const d = parseInt(day, 10);
+  const ranges = [
+    ['Capricorn', 'January', 19], ['Aquarius', 'January', 31],
+    ['Aquarius', 'February', 18], ['Pisces', 'February', 29],
+    ['Pisces', 'March', 20], ['Aries', 'March', 31],
+    ['Aries', 'April', 19], ['Taurus', 'April', 30],
+    ['Taurus', 'May', 20], ['Gemini', 'May', 31],
+    ['Gemini', 'June', 20], ['Cancer', 'June', 30],
+    ['Cancer', 'July', 22], ['Leo', 'July', 31],
+    ['Leo', 'August', 22], ['Virgo', 'August', 31],
+    ['Virgo', 'September', 22], ['Libra', 'September', 30],
+    ['Libra', 'October', 22], ['Scorpio', 'October', 31],
+    ['Scorpio', 'November', 21], ['Sagittarius', 'November', 30],
+    ['Sagittarius', 'December', 21], ['Capricorn', 'December', 31],
+  ];
+  const hit = ranges.find(([, m, upTo]) => m === monthEn && d <= upTo);
+  const signName = hit ? hit[0] : 'Capricorn';
+  return ZODIAC_SIGNS.find(z => z.en === signName) || ZODIAC_SIGNS[0];
+};
 export const getTrack    = (id)    => TRACKS.find(tr => tr.id === id) || TRACKS[0];
 export const itemLabel   = (item, lang) => lang === 'ar' ? item[1] : item[0];
 export const fullName    = (u)     => { const p = getPrefix(u.job); return (p ? p + ' ' : '') + u.firstName + ' ' + u.lastName; };
