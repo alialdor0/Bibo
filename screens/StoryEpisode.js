@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, TextInput, Animated, Alert, I18nManager } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../context/AppContext';
 import { t } from '../data';
 import { getEpisode, getTotalEpisodes } from '../data/episodes';
@@ -21,11 +22,65 @@ function shuffle(arr) {
   return a;
 }
 
-/** يبني اختيارات متعددة (الترجمة الصح + 2 مشتتات) لكلمة معينة */
-function buildChoices(word, vocabulary) {
-  const distractorPool = vocabulary.filter(v => v.id !== word.id && v.arabic !== word.ar);
-  const distractors = shuffle(distractorPool).slice(0, 2).map(v => v.arabic);
-  return shuffle([word.ar, ...distractors]);
+/** اختبار نطق وهمي بسيط: يسجّل "صوتيًا" (بدون تحليل حقيقي) ويعطي تقييم عشوائي */
+function PronTest({ lineText, lineAr, lang, onDone }) {
+  const [state, setState] = useState('idle'); // idle | recording | result
+  const [stars, setStars] = useState(3);
+
+  const startRecording = () => {
+    playSfx('pageTurn');
+    setState('recording');
+    setTimeout(() => {
+      setStars(Math.random() < 0.5 ? 2 : 3);
+      setState('result');
+    }, 1600);
+  };
+
+  return (
+    <View style={s.lineCard}>
+      <Text style={s.qLabel}>{lang === 'ar' ? 'جرّب تنطق الجملة كاملة' : 'Try saying the full sentence'}</Text>
+      <Text style={s.lineText}>{lineText}</Text>
+      <Text style={s.lineAr}>{lineAr}</Text>
+
+      {state === 'result' ? (
+        <>
+          <Text style={s.pronStars}>{'⭐'.repeat(stars)}</Text>
+          <TouchableOpacity style={s.startBtn2} onPress={onDone} accessibilityRole="button">
+            <Text style={s.startBtn2Txt}>{lang === 'ar' ? 'متابعة ←' : 'Continue ←'}</Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        <TouchableOpacity
+          style={[s.pronRecordBtn, state === 'recording' ? s.pronRecordBtnActive : null]}
+          onPress={state === 'idle' ? startRecording : undefined}
+          disabled={state === 'recording'}
+          accessible={true}
+          accessibilityRole="button"
+          accessibilityLabel={lang === 'ar' ? 'اضغط وانطق الجملة' : 'Tap and say the sentence'}
+        >
+          <Text style={s.pronRecordIcon} importantForAccessibility="no">{state === 'recording' ? '🔴' : '🎙️'}</Text>
+          <Text style={s.pronRecordTxt}>
+            {state === 'recording' ? (lang === 'ar' ? 'جاري التسجيل...' : 'Recording...') : (lang === 'ar' ? 'اضغط وانطق' : 'Tap to speak')}
+          </Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
+/**
+ * يبني اختيارات متعددة (الإجابة الصح + 2 مشتتات) حسب اتجاه السؤال.
+ * ملاحظة: كلمة السطر (word) تستخدم الحقل "ar"، لكن قائمة المفردات الكاملة
+ * (vocabulary) تستخدم الحقل "arabic" — لازم نفرّق بينهم عشان المطابقة تصير صح.
+ */
+function buildChoices(word, vocabulary, direction) {
+  const correctVal = direction === 'toArabic' ? word.ar : word.word;
+  const distractorPool = vocabulary.filter(v => {
+    const val = direction === 'toArabic' ? v.arabic : v.word;
+    return v.id !== word.id && val !== correctVal;
+  });
+  const distractors = shuffle(distractorPool).slice(0, 2).map(v => (direction === 'toArabic' ? v.arabic : v.word));
+  return shuffle([correctVal, ...distractors]);
 }
 
 export default function StoryEpisode({ onLeave }) {
@@ -56,7 +111,29 @@ export default function StoryEpisode({ onLeave }) {
   const [lineHintUsed, setLineHintUsed] = useState(false);
   const [showCinema, setShowCinema] = useState(false);
   const choicesRef = useRef([]);
+  const directionRef = useRef('toArabic');
+  const lineDirectionsRef = useRef([]);
   const arrangeOptsRef = useRef([]);
+  const shakeAnim = useRef(new Animated.Value(0)).current;
+  const flashAnim = useRef(new Animated.Value(0)).current;
+
+  const runShake = () => {
+    shakeAnim.setValue(0);
+    Animated.sequence([
+      Animated.timing(shakeAnim, { toValue: 1, duration: 60, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -1, duration: 60, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 1, duration: 60, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 0, duration: 60, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const runFlash = () => {
+    flashAnim.setValue(1);
+    Animated.timing(flashAnim, { toValue: 0, duration: 500, useNativeDriver: true }).start();
+  };
+
+  const shakeStyle = { transform: [{ translateX: shakeAnim.interpolate({ inputRange: [-1, 1], outputRange: [-10, 10] }) }] };
+  const flashStyle = { opacity: flashAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.5] }) };
 
   const vocabById = useMemo(() => {
     const map = {};
@@ -69,11 +146,51 @@ export default function StoryEpisode({ onLeave }) {
   const word = line?.words?.[wordIdx];
   const bibo = episode?.bibo_messages || {};
 
+  const progressKey = `episode_progress_${trackId}_${episodeNum}`;
+
+  // بيرجع السطر المحفوظ (لو موجود) أول ما تفتح الحلقة
+  useEffect(() => {
+    (async () => {
+      try {
+        const saved = await AsyncStorage.getItem(progressKey);
+        if (saved) {
+          const data = JSON.parse(saved);
+          if (typeof data.lineIdx === 'number' && data.lineIdx > 0 && data.lineIdx < lines.length) {
+            setLineIdx(data.lineIdx);
+            setStarted(true);
+          }
+        }
+      } catch (e) {}
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // بيحفظ موقع السطر الحالي كل ما يتغير
+  useEffect(() => {
+    if (!started) return;
+    AsyncStorage.setItem(progressKey, JSON.stringify({ lineIdx })).catch(() => {});
+  }, [lineIdx, started]);
+
   useEffect(() => { stopWordAudio(); return () => stopWordAudio(); }, []);
 
+  // يبني خطة اتجاهات متساوية (نص إنجليزي↔عربي، نص عربي↔إنجليزي) لكل كلمات السطر الحالي
   useEffect(() => {
-    if (word && phase === 'choice') choicesRef.current = buildChoices(word, episode.vocabulary);
-  }, [word, phase]);
+    const wordCount = (line?.words || []).length;
+    if (!wordCount) return;
+    const half = Math.floor(wordCount / 2);
+    const plan = [
+      ...Array(half).fill('toArabic'),
+      ...Array(wordCount - half).fill('toEnglish'),
+    ];
+    lineDirectionsRef.current = shuffle(plan);
+  }, [lineIdx]);
+
+  useEffect(() => {
+    if (word && phase === 'choice') {
+      directionRef.current = lineDirectionsRef.current[wordIdx] || 'toArabic';
+      choicesRef.current = buildChoices(word, episode.vocabulary, directionRef.current);
+    }
+  }, [word, phase, wordIdx]);
 
   useEffect(() => {
     if (line && phase === 'arrange' && line.arrange_words_exercise) {
@@ -96,6 +213,7 @@ export default function StoryEpisode({ onLeave }) {
   const flash = (ok, msgKey, fallbackCat) => {
     playSfx(ok ? 'correct' : 'wrong');
     setFeedback({ type: ok ? 'correct' : 'wrong', msg: bMsg(msgKey, fallbackCat) });
+    if (ok) runFlash(); else runShake();
     setTimeout(() => setFeedback(null), 900);
   };
 
@@ -117,13 +235,14 @@ export default function StoryEpisode({ onLeave }) {
     setHintVisible(true);
     setLineHintUsed(true);
     if (phase === 'choice' && !eliminatedChoice) {
-      const wrongOpts = choicesRef.current.filter(o => o !== word.ar);
+      const correctVal = directionRef.current === 'toArabic' ? word.ar : word.word;
+      const wrongOpts = choicesRef.current.filter(o => o !== correctVal);
       setEliminatedChoice(wrongOpts[Math.floor(Math.random() * wrongOpts.length)]);
     }
   };
 
   const hintText = () => {
-    if (phase === 'choice') return lang === 'ar' ? 'شيلتلك إجابة غلط 👀' : 'I removed a wrong answer for you 👀';
+    if (phase === 'choice') return lang === 'ar' ? 'أزلت لك إجابة خاطئة 👀' : 'I removed a wrong answer for you 👀';
     if (phase === 'blank')  return (lang === 'ar' ? 'نطقها: ' : 'It sounds like: ') + word.pron;
     if (phase === 'arrange') return (lang === 'ar' ? 'أول كلمة: ' : 'First word: ') + line.arrange_words_exercise.correct_order[0];
     return '';
@@ -133,7 +252,7 @@ export default function StoryEpisode({ onLeave }) {
     const nextWordIdx = wordIdx + 1;
     if (nextWordIdx >= (line.words || []).length) {
       if (line.arrange_words_exercise) { setPhase('arrange'); }
-      else finishLine();
+      else setPhase('pronounce');
     } else {
       setWordIdx(nextWordIdx);
       setPhase('choice');
@@ -148,7 +267,7 @@ export default function StoryEpisode({ onLeave }) {
     setFeedback({
       type: 'correct',
       msg: bonusEarned
-        ? (lang === 'ar' ? 'لعبتها من غير أي تلميح! +2 💎' : 'You did it with no hints! +2 💎')
+        ? (lang === 'ar' ? 'أتممتها بدون أي تلميح! +2 💎' : 'You did it with no hints! +2 💎')
         : bMsg('line_complete', 'episodeComplete'),
     });
     setTimeout(() => {
@@ -165,9 +284,21 @@ export default function StoryEpisode({ onLeave }) {
     }, 900);
   };
 
+  const confirmLeave = () => {
+    Alert.alert(
+      T('leave'),
+      T('leaveMsg'),
+      [
+        { text: T('stayBtn'), style: 'cancel' },
+        { text: T('leaveBtn'), style: 'destructive', onPress: onLeave },
+      ]
+    );
+  };
+
   const finishEpisode = () => {
     playSfx('win');
     completeEpisode(trackId, episodeNum);
+    AsyncStorage.removeItem(progressKey).catch(() => {});
     const allWords = lines.flatMap(l => l.words || []);
     addLibraryEntry({
       trackId,
@@ -187,7 +318,7 @@ export default function StoryEpisode({ onLeave }) {
   const handleChoice = (opt) => {
     if (chosen) return;
     setChosen(opt);
-    const ok = opt === word.ar;
+    const ok = opt === (directionRef.current === 'toArabic' ? word.ar : word.word);
     flash(ok, ok ? 'correct_answer' : 'wrong_answer', ok ? 'correct' : 'wrong');
     if (ok) awardGems(1);
     setTimeout(() => {
@@ -226,7 +357,7 @@ export default function StoryEpisode({ onLeave }) {
     const target = line.arrange_words_exercise.correct_order;
     const ok = built.length === target.length && built.every((w, i) => w === target[i]);
     flash(ok, ok ? 'correct_answer' : 'wrong_answer', ok ? 'correct' : 'wrong');
-    if (ok) { awardGems(3); setTimeout(finishLine, 800); }
+    if (ok) { awardGems(3); setTimeout(() => setPhase('pronounce'), 800); }
     else { playSfx('eraser'); setTimeout(() => setArrangePicked([]), 500); }
   };
 
@@ -239,7 +370,7 @@ export default function StoryEpisode({ onLeave }) {
             state="celebrate"
             size={92}
             message={lang === 'ar'
-              ? (episodeNum > totalEpisodes ? 'خلصت كل حلقات الموسم! مبروك 🏆' : 'الحلقة دي لسه بتتجهز... جرب تاني قريب 📖')
+              ? (episodeNum > totalEpisodes ? 'أكملت جميع حلقات الموسم! مبروك 🏆' : 'هذه الحلقة لم تُجهَّز بعد... تفقّدها مرة أخرى قريبًا 📖')
               : (episodeNum > totalEpisodes ? 'You finished the whole season! Congrats 🏆' : "This episode isn't ready yet... check back soon 📖")}
           />
           <TouchableOpacity style={s.restartBtn} onPress={onLeave}>
@@ -279,7 +410,7 @@ export default function StoryEpisode({ onLeave }) {
           </View>
 
           <View style={s.wordsSummaryCard}>
-            <Text style={s.wordsSummaryTitle}>{lang === 'ar' ? 'الكلمات اللي اتعلمتها 🌟' : 'Words you learned 🌟'}</Text>
+            <Text style={s.wordsSummaryTitle}>{lang === 'ar' ? 'الكلمات التي تعلّمتها 🌟' : 'Words you learned 🌟'}</Text>
             <View style={s.wordsSummaryGrid}>
               {lines.flatMap(l => l.words || []).map((w, i) => (
                 <View key={String(w.id) + i} style={s.wordsSummaryChip}>
@@ -340,7 +471,7 @@ export default function StoryEpisode({ onLeave }) {
       {line.protected_word_ids?.length ? (
         <Text style={s.protectedNote}>{bMsg('protected_word', 'idea')}</Text>
       ) : null}
-      <Text style={s.newWordsLabel}>{lang === 'ar' ? 'كلمات جديدة في السطر ده' : 'New words in this line'}</Text>
+      <Text style={s.newWordsLabel}>{lang === 'ar' ? 'كلمات جديدة في هذا السطر' : 'New words in this line'}</Text>
       <View style={s.chipsRow}>
         {(line.words || []).map((w, i) => (
           <View key={String(w.id) + i} style={s.chipWrap}>
@@ -356,39 +487,52 @@ export default function StoryEpisode({ onLeave }) {
         ))}
       </View>
       <TouchableOpacity style={s.startBtn2} onPress={() => { setPhase('choice'); setWordIdx(0); }}>
-        <Text style={s.startBtn2Txt}>{lang === 'ar' ? 'يلا نتعلم 🎯' : "Let's learn 🎯"}</Text>
+        <Text style={s.startBtn2Txt}>{lang === 'ar' ? 'هيا نتعلّم 🎯' : "Let's learn 🎯"}</Text>
       </TouchableOpacity>
     </View>
   );
 
-  const renderChoice = () => (
-    <View>
-      <View style={s.wordCard}>
-        <Text style={s.wordEmojiBig}>{word.emoji}</Text>
-        <Text style={s.wordEn}>{word.word}</Text>
-        <View style={s.wordCardBtns}>
-          <TouchableOpacity onPress={() => playWord(word)} style={s.speakBtn}><Text style={s.speakTxt}>🔊</Text></TouchableOpacity>
-          <TouchableOpacity onPress={() => openWordInfo(word.id)} style={s.speakBtn}><Text style={s.speakTxt}>ℹ️</Text></TouchableOpacity>
+  const renderChoice = () => {
+    const toArabic = directionRef.current === 'toArabic';
+    const correctVal = toArabic ? word.ar : word.word;
+    return (
+      <View>
+        <View style={s.wordCard}>
+          <Text style={s.wordEmojiBig}>{word.emoji}</Text>
+          {toArabic ? (
+            <Text style={s.wordEn}>{word.word}</Text>
+          ) : (
+            <Text style={s.wordArBig}>{word.ar}</Text>
+          )}
+          <View style={s.wordCardBtns}>
+            <TouchableOpacity onPress={() => playWord(word)} style={s.speakBtn}><Text style={s.speakTxt}>🔊</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => openWordInfo(word.id)} style={s.speakBtn}><Text style={s.speakTxt}>ℹ️</Text></TouchableOpacity>
+          </View>
         </View>
+        <Text style={s.qLabel}>
+          {toArabic
+            ? (lang === 'ar' ? 'اختر الترجمة الصحيحة' : 'Choose the correct meaning')
+            : (lang === 'ar' ? 'اختر الكلمة الإنجليزية الصحيحة' : 'Choose the correct English word')}
+          {' '}· {wordIdx + 1}/{line.words.length}
+        </Text>
+        {choicesRef.current.filter(opt => opt !== eliminatedChoice).map((opt, i) => {
+          const isChosen = chosen === opt;
+          const isCorrect = opt === correctVal;
+          const showState = chosen && (isChosen || isCorrect);
+          return (
+            <TouchableOpacity
+              key={String(i)}
+              style={[s.optBtn, showState ? (isCorrect ? s.optCorrect : s.optWrong) : null]}
+              onPress={() => handleChoice(opt)}
+              disabled={!!chosen}
+            >
+              <Text style={s.optTxt}>{opt}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
-      <Text style={s.qLabel}>{lang === 'ar' ? 'اختر الترجمة الصحيحة' : 'Choose the correct meaning'} · {wordIdx + 1}/{line.words.length}</Text>
-      {choicesRef.current.filter(opt => opt !== eliminatedChoice).map((opt, i) => {
-        const isChosen = chosen === opt;
-        const isCorrect = opt === word.ar;
-        const showState = chosen && (isChosen || isCorrect);
-        return (
-          <TouchableOpacity
-            key={String(i)}
-            style={[s.optBtn, showState ? (isCorrect ? s.optCorrect : s.optWrong) : null]}
-            onPress={() => handleChoice(opt)}
-            disabled={!!chosen}
-          >
-            <Text style={s.optTxt}>{opt}</Text>
-          </TouchableOpacity>
-        );
-      })}
-    </View>
-  );
+    );
+  };
 
   const renderBlank = () => {
     const sentence = line.text.replace(new RegExp(word.word, 'i'), '____');
@@ -426,18 +570,18 @@ export default function StoryEpisode({ onLeave }) {
         <Text style={s.qLabel}>{lang === 'ar' ? 'رتّب الكلمات لتكوين السطر' : 'Arrange the words'}</Text>
         <Text style={s.lineAr}>{ex.arabic}</Text>
         {hintVisible ? <Text style={s.blankHint}>💡 {hintText()}</Text> : null}
-        <View style={s.builtRow}>
+        <View style={[s.builtRow, s.forceLTR]}>
           {arrangePicked.length === 0 ? <Text style={s.builtPlaceholder}>...</Text> : arrangePicked.map((p, i) => (
-            <TouchableOpacity key={String(i)} style={s.builtChip} onPress={() => undoArrangeWord(p.idx)}>
+            <TouchableOpacity key={String(i)} style={[s.builtChip, s.forceLTRChild]} onPress={() => undoArrangeWord(p.idx)}>
               <Text style={s.builtChipTxt}>{p.word}</Text>
             </TouchableOpacity>
           ))}
         </View>
-        <View style={s.chipsRow}>
+        <View style={[s.chipsRow, s.forceLTR]}>
           {arrangeOptsRef.current.map((w, i) => {
             const used = arrangePicked.some(p => p.idx === i);
             return (
-              <TouchableOpacity key={String(i)} style={[s.arrangeChip, used ? { opacity: 0.25 } : null]} disabled={used} onPress={() => pickArrangeWord(w, i)}>
+              <TouchableOpacity key={String(i)} style={[s.arrangeChip, s.forceLTRChild, used ? { opacity: 0.25 } : null]} disabled={used} onPress={() => pickArrangeWord(w, i)}>
                 <Text style={s.arrangeChipTxt}>{w}</Text>
               </TouchableOpacity>
             );
@@ -453,7 +597,7 @@ export default function StoryEpisode({ onLeave }) {
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.header}>
-        <TouchableOpacity style={s.leaveBtn} onPress={onLeave}><Text style={s.leaveTxt}>← {T('leave')}</Text></TouchableOpacity>
+        <TouchableOpacity style={s.leaveBtn} onPress={confirmLeave}><Text style={s.leaveTxt}>← {T('leave')}</Text></TouchableOpacity>
         <Text style={s.headerInfo}>{lang === 'ar' ? 'حلقة' : 'Ep'} {episodeNum} · {lineIdx + 1}/{lines.length}</Text>
       </View>
       <ScrollView contentContainerStyle={s.body}>
@@ -465,16 +609,20 @@ export default function StoryEpisode({ onLeave }) {
           message={
             feedback ? feedback.msg :
             hintVisible ? hintText() :
-            ['choice', 'blank', 'arrange'].includes(phase) ? (lang === 'ar' ? 'محتاج مساعدة؟ دوسني 💡' : 'Need help? Tap me 💡') :
+            ['choice', 'blank', 'arrange'].includes(phase) ? (lang === 'ar' ? 'هل تحتاج مساعدة؟ اضغط عليّ 💡' : 'Need help? Tap me 💡') :
             undefined
           }
           onPress={['choice', 'blank', 'arrange'].includes(phase) ? requestHint : undefined}
           hintBadge={['choice', 'blank', 'arrange'].includes(phase) && !hintVisible}
         />
-        {phase === 'context' ? renderContext() :
-         phase === 'choice' ? renderChoice() :
-         phase === 'blank' ? renderBlank() :
-         phase === 'arrange' ? renderArrange() : null}
+        <Animated.View style={shakeStyle}>
+          {phase === 'context' ? renderContext() :
+           phase === 'choice' ? renderChoice() :
+           phase === 'blank' ? renderBlank() :
+           phase === 'arrange' ? renderArrange() :
+           phase === 'pronounce' ? <PronTest lineText={line.text} lineAr={line.arabic} lang={lang} onDone={finishLine} /> : null}
+          <Animated.View pointerEvents="none" style={[s.correctFlashOverlay, flashStyle]} />
+        </Animated.View>
       </ScrollView>
 
       <WordInfoModal
@@ -496,6 +644,7 @@ const s = StyleSheet.create({
   leaveTxt:        { color: '#a5d6a7', fontSize: 14, fontWeight: '600' },
   headerInfo:      { color: 'rgba(255,255,255,0.5)', fontSize: 12 },
   body:            { padding: 18, paddingBottom: 50 },
+  correctFlashOverlay: { position: 'absolute', top: -10, bottom: -10, left: -10, right: -10, backgroundColor: '#2E8B57', borderRadius: 16 },
 
   epNum:           { color: '#a5d6a7', fontSize: 14, fontWeight: '700', letterSpacing: 1 },
   epTitle:         { color: '#fff', fontSize: 24, fontWeight: '800', marginTop: 4, textAlign: 'center' },
@@ -524,6 +673,7 @@ const s = StyleSheet.create({
   wordCard:        { alignItems: 'center', marginBottom: 20 },
   wordEmojiBig:    { fontSize: 46 },
   wordEn:          { color: '#fff', fontSize: 26, fontWeight: '800', marginTop: 6 },
+  wordArBig:       { color: '#a5d6a7', fontSize: 26, fontWeight: '800', marginTop: 6 },
   wordCardBtns:    { flexDirection: 'row', gap: 14, marginTop: 8 },
   speakBtn:        { padding: 6 },
   speakTxt:        { fontSize: 22 },
@@ -542,6 +692,13 @@ const s = StyleSheet.create({
   checkBtnTxt:     { color: '#fff', fontSize: 18, fontWeight: '800' },
 
   builtRow:        { flexDirection: 'row', flexWrap: 'wrap', gap: 8, minHeight: 46, borderBottomWidth: 2, borderBottomColor: 'rgba(255,255,255,0.15)', marginBottom: 18, paddingBottom: 10 },
+  forceLTR:        I18nManager.isRTL ? { transform: [{ scaleX: -1 }] } : null,
+  forceLTRChild:   I18nManager.isRTL ? { transform: [{ scaleX: -1 }] } : null,
+  pronRecordBtn:   { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(74,144,217,0.15)', borderWidth: 2, borderColor: 'rgba(74,144,217,0.5)', borderRadius: 60, width: 120, height: 120, alignSelf: 'center', marginTop: 8 },
+  pronRecordBtnActive: { backgroundColor: 'rgba(192,57,43,0.2)', borderColor: '#c0392b' },
+  pronRecordIcon:  { fontSize: 34, marginBottom: 4 },
+  pronRecordTxt:   { color: 'rgba(255,255,255,0.6)', fontSize: 12, textAlign: 'center' },
+  pronStars:       { fontSize: 30, textAlign: 'center', marginVertical: 12 },
   builtPlaceholder:{ color: 'rgba(255,255,255,0.25)', fontSize: 14 },
   builtChip:       { backgroundColor: 'rgba(46,139,87,0.25)', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },
   builtChipTxt:    { color: '#fff', fontWeight: '700', fontSize: 14 },
@@ -567,4 +724,3 @@ const s = StyleSheet.create({
   restartBtn:      { backgroundColor: '#1B3A6B', borderRadius: 13, paddingHorizontal: 28, paddingVertical: 13 },
   restartTxt:      { color: '#fff', fontSize: 15, fontWeight: '700' },
 });
-
