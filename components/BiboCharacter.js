@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Image, TouchableOpacity } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { playBiboSound } from '../utils/sounds';
+import { COSMETIC_ITEMS } from '../data';
 
 // ─────────────────────────────────────────────────────────────
 // صور بيبو الحقيقية السبع مفعّلة من assets/bibo/*.png
@@ -41,12 +42,17 @@ const STATE_META = {
  *  - onPress:  دالة اختيارية — لو موجودة، بيبو يبقى قابل للمس (مفيد لطلب تلميح)
  *  - hintBadge:شارة صغيرة نابضة "💡" فوق بيبو لما يكون عنده تلميح متاح
  */
-export default function BiboCharacter({ state = 'welcome', message, size = 64, layout = 'column', style, onPress, hintBadge = false }) {
+export default function BiboCharacter({ state = 'welcome', message, size = 64, layout = 'column', style, onPress, hintBadge = false, showCosmetics = true }) {
   const anim   = useRef(new Animated.Value(0)).current;
   const bubble = useRef(new Animated.Value(0)).current;
   const pulse  = useRef(new Animated.Value(0)).current;
   const meta   = STATE_META[state] || STATE_META.welcome;
-  const { voiceOn } = useApp();
+  const { voiceOn, equippedCosmetics } = useApp();
+
+  const hatItem     = showCosmetics && equippedCosmetics?.hat     ? COSMETIC_ITEMS.find(c => c.id === equippedCosmetics.hat)     : null;
+  const glassesItem = showCosmetics && equippedCosmetics?.glasses ? COSMETIC_ITEMS.find(c => c.id === equippedCosmetics.glasses) : null;
+  const ringItem     = showCosmetics && equippedCosmetics?.ring    ? COSMETIC_ITEMS.find(c => c.id === equippedCosmetics.ring)    : null;
+  const ringColor = ringItem?.color || (meta.color + '77');
 
   useEffect(() => {
     if (!hintBadge) return;
@@ -158,7 +164,7 @@ export default function BiboCharacter({ state = 'welcome', message, size = 64, l
     <Animated.View
       style={[
         styles.circle,
-        { width: size, height: size, borderRadius: size / 2, borderColor: meta.color + '77', opacity, transform },
+        { width: size, height: size, borderRadius: size / 2, borderColor: ringColor, borderWidth: ringItem ? 3 : 2, opacity, transform },
       ]}
     >
       {USE_IMAGES && IMAGES[state] ? (
@@ -167,6 +173,8 @@ export default function BiboCharacter({ state = 'welcome', message, size = 64, l
         <Text style={{ fontSize: size * 0.42 }}>{meta.emoji}</Text>
       )}
       {state === 'sleep' ? <Text style={styles.zzz}>💤</Text> : null}
+      {hatItem ? <Text style={[styles.hatEmoji, { fontSize: size * 0.36, top: -size * 0.16 }]}>{hatItem.emoji}</Text> : null}
+      {glassesItem ? <Text style={[styles.glassesEmoji, { fontSize: size * 0.26, top: size * 0.28 }]}>{glassesItem.emoji}</Text> : null}
       {hintBadge ? (
         <Animated.View style={[styles.hintBadge, { opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }), transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.15] }) }] }]}>
           <Text style={styles.hintBadgeTxt}>💡</Text>
@@ -216,6 +224,8 @@ const styles = StyleSheet.create({
   rowWrap:   { flexDirection: 'row', alignItems: 'center', gap: 10 },
   circle:    { backgroundColor: '#0a150a', borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   zzz:       { position: 'absolute', top: -8, right: -6, fontSize: 14 },
+  hatEmoji:      { position: 'absolute', alignSelf: 'center', textShadowColor: 'rgba(0,0,0,0.4)', textShadowRadius: 3 },
+  glassesEmoji:  { position: 'absolute', alignSelf: 'center' },
   hintBadge: { position: 'absolute', top: -6, right: -6, width: 24, height: 24, borderRadius: 12, backgroundColor: '#FFB300', alignItems: 'center', justifyContent: 'center' },
   hintBadgeTxt: { fontSize: 13 },
   bubble:    { maxWidth: 240, backgroundColor: 'rgba(20,20,28,0.95)', borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
