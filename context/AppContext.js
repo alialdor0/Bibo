@@ -25,6 +25,8 @@ export function AppProvider({ children }) {
   const [library, setLibrary] = useState([]);
   const [bookCovers, setBookCovers] = useState({}); // { "trackId::episodeId": { color, stickers:[ids] } }
   const [ownedStickers, setOwnedStickers] = useState([]); // ["star","heart",...]
+  const [ownedCosmetics, setOwnedCosmetics] = useState([]); // ["hat_cap","ring_gold",...]
+  const [equippedCosmetics, setEquippedCosmetics] = useState({ hat: null, glasses: null, ring: null });
   const [episodeProgress, setEpisodeProgress] = useState({});
   const [wordBank, setWordBank] = useState({}); // { [trackId]: { [wordId]: entry } }
   const [hydrated, setHydrated] = useState(false);
@@ -44,6 +46,8 @@ export function AppProvider({ children }) {
         library: [],
         bookCovers: {},
         ownedStickers: [],
+        ownedCosmetics: [],
+        equippedCosmetics: { hat: null, glasses: null, ring: null },
         episodeProgress: {},
         wordBank: {},
       });
@@ -57,6 +61,8 @@ export function AppProvider({ children }) {
       setLibrary(saved.library);
       setBookCovers(saved.bookCovers);
       setOwnedStickers(saved.ownedStickers);
+      setOwnedCosmetics(saved.ownedCosmetics);
+      setEquippedCosmetics(saved.equippedCosmetics);
       setEpisodeProgress(saved.episodeProgress);
       setWordBank(saved.wordBank);
       hydratedRef.current = true;
@@ -92,6 +98,8 @@ export function AppProvider({ children }) {
   useEffect(() => { if (hydratedRef.current) saveJSON('library', library); }, [library]);
   useEffect(() => { if (hydratedRef.current) saveJSON('bookCovers', bookCovers); }, [bookCovers]);
   useEffect(() => { if (hydratedRef.current) saveJSON('ownedStickers', ownedStickers); }, [ownedStickers]);
+  useEffect(() => { if (hydratedRef.current) saveJSON('ownedCosmetics', ownedCosmetics); }, [ownedCosmetics]);
+  useEffect(() => { if (hydratedRef.current) saveJSON('equippedCosmetics', equippedCosmetics); }, [equippedCosmetics]);
   useEffect(() => { if (hydratedRef.current) saveJSON('episodeProgress', episodeProgress); }, [episodeProgress]);
   useEffect(() => { if (hydratedRef.current) saveJSON('wordBank', wordBank); }, [wordBank]);
 
@@ -239,6 +247,20 @@ export function AppProvider({ children }) {
     });
   }, []);
 
+  /** يشتري إكسسوار دائم لبيبو بالجواهر (لو مش مملوك أصلًا). بيرجع true لو نجحت العملية */
+  const buyCosmetic = useCallback((item) => {
+    if (ownedCosmetics.includes(item.id)) return true;
+    if (gems < item.price) return false;
+    setGems(prev => prev - item.price);
+    setOwnedCosmetics(prev => [...prev, item.id]);
+    return true;
+  }, [gems, ownedCosmetics]);
+
+  /** يلبس/يخلع إكسسوار مملوك بمكانه (slot) المخصص — لبس عنصر جديد بنفس الـ slot بيستبدل القديم تلقائيًا */
+  const equipCosmetic = useCallback((slot, itemId) => {
+    setEquippedCosmetics(prev => ({ ...prev, [slot]: prev[slot] === itemId ? null : itemId }));
+  }, []);
+
   const coverKey = (trackId, episodeId) => `${trackId}::${episodeId}`;
 
   /** يشتري ملصق تخصيص الغلاف بالجواهر (لو مش مملوك أصلًا). بيرجع true لو نجحت العملية */
@@ -269,7 +291,7 @@ export function AppProvider({ children }) {
   }, []);
 
   const logout = useCallback(async () => {
-    await removeKeys(['user', 'track', 'gems', 'stationery', 'library', 'episodeProgress', 'wordBank', 'bookCovers', 'ownedStickers']);
+    await removeKeys(['user', 'track', 'gems', 'stationery', 'library', 'episodeProgress', 'wordBank', 'bookCovers', 'ownedStickers', 'ownedCosmetics', 'equippedCosmetics']);
     await cancelBiboReminders();
     setUser(null);
     setTrack(null);
@@ -280,6 +302,8 @@ export function AppProvider({ children }) {
     setWordBank({});
     setBookCovers({});
     setOwnedStickers([]);
+    setOwnedCosmetics([]);
+    setEquippedCosmetics({ hat: null, glasses: null, ring: null });
   }, []);
 
   const value = {
@@ -292,6 +316,7 @@ export function AppProvider({ children }) {
     voiceOn, setVoiceOn,
     library, addLibraryEntry,
     bookCovers, ownedStickers, buySticker, setBookCoverColor, toggleBookSticker,
+    ownedCosmetics, equippedCosmetics, buyCosmetic, equipCosmetic,
     episodeProgress, getEpisodeState, completeEpisode,
     wordBank, addWordToBank, rescueWord, getWordBankWords,
     hydrated, logout,
@@ -305,4 +330,3 @@ export const useApp = () => {
   if (!ctx) throw new Error('useApp must be used inside AppProvider');
   return ctx;
 };
-
