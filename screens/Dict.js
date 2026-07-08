@@ -1,9 +1,32 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView } from 'react-native';
+import React, { useState, useRef, useMemo } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, TextInput } from 'react-native';
+import * as Speech from 'expo-speech';
 import { useApp } from '../context/AppContext';
-import { t } from '../data';
+import { t, TRACKS } from '../data';
 import { PageHeader, GemsBadge } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
+
+/** يصنّف نوع الكلمة النحوي التفصيلي إلى 3 فئات بسيطة: اسم / فعل / صفة */
+function classifyGrammar(g) {
+  if (!g) return 'other';
+  const s = g.toLowerCase();
+  if (s.includes('noun')) return 'noun';
+  if (s.includes('verb')) return 'verb';
+  if (s.includes('adjective')) return 'adjective';
+  return 'other';
+}
+
+const TYPE_FILTERS = [
+  { key: 'all',       label: 'All',       labelAr: 'الكل'  },
+  { key: 'noun',      label: 'Noun',      labelAr: 'اسم'   },
+  { key: 'verb',      label: 'Verb',      labelAr: 'فعل'   },
+  { key: 'adjective', label: 'Adjective', labelAr: 'صفة'   },
+];
+
+/** ينطق كلمة إنجليزية مباشرة (للتمارين والمطابقة الصوتية) */
+function speakEn(text) {
+  try { Speech.stop(); Speech.speak(text, { language: 'en-US', pitch: 1.0, rate: 0.95 }); } catch (e) {}
+}
 
 const SECTIONS = [
   { key: 'learned',   label: 'Learned',    labelAr: 'تعلمتها',  icon: '✅', color: '#2E8B57' },
@@ -68,7 +91,7 @@ const bl = StyleSheet.create({
   ar:      { fontSize: 11, color: 'rgba(255,255,255,0.4)', marginLeft: 2 },
 });
 
-function Ex1({ words, onDone }) {
+function Ex1({ words, onDone, lang }) {
   const q       = useRef(shuffle(words)).current;
   const [idx,    setIdx]    = useState(0);
   const [chosen, setChosen] = useState(null);
@@ -89,15 +112,18 @@ function Ex1({ words, onDone }) {
     <View style={ex.doneCard}>
       <Text style={{ fontSize: 44 }}>🎉</Text>
       <Text style={ex.doneScore}>{score}/{q.length}</Text>
-      <TouchableOpacity style={ex.doneBtn} onPress={onDone}><Text style={ex.doneBtnTxt}>Next →</Text></TouchableOpacity>
+      <TouchableOpacity style={ex.doneBtn} onPress={onDone}><Text style={ex.doneBtnTxt}>{lang === 'ar' ? 'التالي ←' : 'Next →'}</Text></TouchableOpacity>
     </View>
   );
   return (
     <View style={ex.card}>
-      <Text style={ex.label}>English → Arabic ({idx + 1}/{q.length})</Text>
+      <Text style={ex.label}>{lang === 'ar' ? `إنجليزي ← عربي (${idx + 1}/${q.length})` : `English → Arabic (${idx + 1}/${q.length})`}</Text>
       <Text style={{ fontSize: 48, marginBottom: 8 }}>{cur.emoji}</Text>
-      <Text style={ex.bigWord}>{cur.en}</Text>
-      <Text style={ex.qTxt}>What does this mean?</Text>
+      <TouchableOpacity onPress={() => speakEn(cur.en)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }} accessibilityRole="button" accessibilityLabel="Play pronunciation">
+        <Text style={ex.bigWord}>{cur.en}</Text>
+        <Text style={{ fontSize: 20 }}>🔊</Text>
+      </TouchableOpacity>
+      <Text style={ex.qTxt}>{lang === 'ar' ? 'ما معنى هذه الكلمة؟' : 'What does this mean?'}</Text>
       <View style={ex.opts}>
         {opts.current.map(w => {
           const isSel = chosen === w.id; const isOk = w.id === cur.id;
@@ -113,7 +139,7 @@ function Ex1({ words, onDone }) {
   );
 }
 
-function Ex2({ words, onDone }) {
+function Ex2({ words, onDone, lang }) {
   const q       = useRef(shuffle(words)).current;
   const [idx,    setIdx]    = useState(0);
   const [chosen, setChosen] = useState(null);
@@ -134,15 +160,15 @@ function Ex2({ words, onDone }) {
     <View style={ex.doneCard}>
       <Text style={{ fontSize: 44 }}>🎉</Text>
       <Text style={ex.doneScore}>{score}/{q.length}</Text>
-      <TouchableOpacity style={ex.doneBtn} onPress={onDone}><Text style={ex.doneBtnTxt}>Done ✓</Text></TouchableOpacity>
+      <TouchableOpacity style={ex.doneBtn} onPress={onDone}><Text style={ex.doneBtnTxt}>{lang === 'ar' ? 'تم ✓' : 'Done ✓'}</Text></TouchableOpacity>
     </View>
   );
   return (
     <View style={ex.card}>
-      <Text style={ex.label}>Arabic → English ({idx + 1}/{q.length})</Text>
+      <Text style={ex.label}>{lang === 'ar' ? `عربي ← إنجليزي (${idx + 1}/${q.length})` : `Arabic → English (${idx + 1}/${q.length})`}</Text>
       <Text style={{ fontSize: 48, marginBottom: 8 }}>{cur.emoji}</Text>
       <Text style={ex.bigWordAr}>{cur.ar}</Text>
-      <Text style={ex.qTxt}>What is the English word?</Text>
+      <Text style={ex.qTxt}>{lang === 'ar' ? 'ما الكلمة الإنجليزية المقابلة؟' : 'What is the English word?'}</Text>
       <View style={ex.opts}>
         {opts.current.map(w => {
           const isSel = chosen === w.id; const isOk = w.id === cur.id;
@@ -158,7 +184,7 @@ function Ex2({ words, onDone }) {
   );
 }
 
-function Ex3({ words, onDone }) {
+function Ex3({ words, onDone, lang }) {
   const pairs   = useRef(shuffle(words).slice(0, 6)).current;
   const enCol   = useRef(shuffle([...pairs])).current;
   const arCol   = useRef(shuffle([...pairs])).current;
@@ -180,6 +206,8 @@ function Ex3({ words, onDone }) {
   };
   const handleEn = (id) => {
     if (matched.includes(id) || wrong.includes(id)) return;
+    const w = enCol.find(x => x.id === id);
+    if (w) speakEn(w.en);
     const ns = selEn === id ? null : id;
     setSelEn(ns);
     if (ns && selAr) check(ns, selAr);
@@ -195,13 +223,13 @@ function Ex3({ words, onDone }) {
     <View style={ex.doneCard}>
       <Text style={{ fontSize: 44 }}>🎉</Text>
       <Text style={ex.doneScore}>{pairs.length}/{pairs.length}</Text>
-      <TouchableOpacity style={ex.doneBtn} onPress={onDone}><Text style={ex.doneBtnTxt}>Done ✓</Text></TouchableOpacity>
+      <TouchableOpacity style={ex.doneBtn} onPress={onDone}><Text style={ex.doneBtnTxt}>{lang === 'ar' ? 'تم ✓' : 'Done ✓'}</Text></TouchableOpacity>
     </View>
   );
   return (
     <View style={ex.card}>
-      <Text style={ex.label}>Matching ({matched.length}/{pairs.length})</Text>
-      <Text style={ex.qTxt}>Connect each word with its meaning</Text>
+      <Text style={ex.label}>{lang === 'ar' ? `مطابقة (${matched.length}/${pairs.length})` : `Matching (${matched.length}/${pairs.length})`}</Text>
+      <Text style={ex.qTxt}>{lang === 'ar' ? 'اربط كل كلمة بمعناها' : 'Connect each word with its meaning'}</Text>
       <View style={ex.matchGrid}>
         <View style={ex.matchCol}>
           {enCol.map(w => {
@@ -256,8 +284,29 @@ export default function Dict({ onBack }) {
   const [section, setSection] = useState(null);
   const [mode,    setMode]    = useState(null);
   const [exKey,   setExKey]   = useState(0);
+  const [search,      setSearch]      = useState('');
+  const [trackFilter, setTrackFilter] = useState('all');
+  const [typeFilter,  setTypeFilter]  = useState('all');
 
-  const allWords    = getWordBankWords();
+  const allWordsRaw = getWordBankWords();
+
+  // المسارات اللي فعليًا عندك كلمات منها (ما نعرض فلتر لمسار ماله كلمات)
+  const availableTracks = useMemo(() => {
+    const ids = new Set(allWordsRaw.map(w => w.trackId));
+    return TRACKS.filter(tr => ids.has(tr.id));
+  }, [allWordsRaw]);
+
+  const allWords = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return allWordsRaw.filter(w => {
+      if (trackFilter !== 'all' && w.trackId !== trackFilter) return false;
+      if (typeFilter !== 'all' && classifyGrammar(w.grammar) !== typeFilter) return false;
+      if (q && !w.en.toLowerCase().includes(q) && !w.ar.includes(q)) return false;
+      return true;
+    });
+  }, [allWordsRaw, search, trackFilter, typeFilter]);
+
+  const hasActiveFilters = search.trim() || trackFilter !== 'all' || typeFilter !== 'all';
   const reviewWords = allWords.filter(w => w.status === 'review' || w.status === 'forgotten');
   const exWords     = section ? allWords.filter(w => w.status === section) : reviewWords;
   const secData     = SECTIONS.find(s => s.key === section);
@@ -267,24 +316,24 @@ export default function Dict({ onBack }) {
 
   if (mode) return (
     <SafeAreaView style={s.safe}>
-      <PageHeader title={mode === 'ex1' ? 'English → Arabic' : mode === 'ex2' ? 'Arabic → English' : 'Matching'} onBack={endEx} backLabel={T('back')} />
+      <PageHeader title={mode === 'ex1' ? (lang === 'ar' ? 'إنجليزي ← عربي' : 'English → Arabic') : mode === 'ex2' ? (lang === 'ar' ? 'عربي ← إنجليزي' : 'Arabic → English') : (lang === 'ar' ? 'مطابقة' : 'Matching')} onBack={endEx} backLabel={T('back')} />
       <ScrollView contentContainerStyle={s.pageContent}>
-        {mode === 'ex1' ? <Ex1 key={String(exKey)} words={exWords} onDone={endEx} /> :
-         mode === 'ex2' ? <Ex2 key={String(exKey)} words={exWords} onDone={endEx} /> :
-         <Ex3 key={String(exKey)} words={exWords} onDone={endEx} />}
+        {mode === 'ex1' ? <Ex1 key={String(exKey)} words={exWords} onDone={endEx} lang={lang} /> :
+         mode === 'ex2' ? <Ex2 key={String(exKey)} words={exWords} onDone={endEx} lang={lang} /> :
+         <Ex3 key={String(exKey)} words={exWords} onDone={endEx} lang={lang} />}
       </ScrollView>
     </SafeAreaView>
   );
 
-  if (allWords.length === 0) {
+  if (allWordsRaw.length === 0) {
     return (
       <SafeAreaView style={s.safe}>
-        <PageHeader title="📖 My Dictionary" onBack={onBack} backLabel={T('back')} right={<GemsBadge gems={gems} />} />
+        <PageHeader title={lang === 'ar' ? '📖 قاموسي' : '📖 My Dictionary'} onBack={onBack} backLabel={T('back')} right={<GemsBadge gems={gems} />} />
         <View style={s.emptyWrap}>
           <BiboCharacter
             state="idea"
             size={88}
-            message={lang === 'ar' ? 'مفيش كلمات لسه! كل كلمة تتعلمها في القصة هتظهر هنا 📖' : "No words yet! Every word you learn in the story will show up here 📖"}
+            message={lang === 'ar' ? 'لا توجد كلمات بعد! كل كلمة تتعلمها في القصة ستظهر هنا 📖' : "No words yet! Every word you learn in the story will show up here 📖"}
           />
         </View>
       </SafeAreaView>
@@ -293,15 +342,70 @@ export default function Dict({ onBack }) {
 
   return (
     <SafeAreaView style={s.safe}>
-      <PageHeader title="📖 My Dictionary" onBack={onBack} backLabel={T('back')} right={<GemsBadge gems={gems} />} />
+      <PageHeader title={lang === 'ar' ? '📖 قاموسي' : '📖 My Dictionary'} onBack={onBack} backLabel={T('back')} right={<GemsBadge gems={gems} />} />
       <ScrollView contentContainerStyle={s.pageContent}>
         <BiboCharacter
           layout="row"
           size={52}
           style={{ marginBottom: 14 }}
           state="idea"
-          message={lang === 'ar' ? 'راجع كلماتك القديمة كل يوم عشان تفتكرها! 💡' : 'Review old words daily so you never forget them! 💡'}
+          message={lang === 'ar' ? 'راجع كلماتك القديمة يوميًا حتى لا تنساها! 💡' : 'Review old words daily so you never forget them! 💡'}
         />
+        <View style={s.searchBox}>
+          <Text style={{ fontSize: 16 }}>🔍</Text>
+          <TextInput
+            style={s.searchInput}
+            value={search}
+            onChangeText={setSearch}
+            placeholder={lang === 'ar' ? 'ابحث عن كلمة...' : 'Search a word...'}
+            placeholderTextColor="rgba(255,255,255,0.3)"
+            autoCapitalize="none"
+          />
+          {search ? (
+            <TouchableOpacity onPress={() => setSearch('')} accessibilityRole="button" accessibilityLabel={lang === 'ar' ? 'مسح البحث' : 'Clear search'}>
+              <Text style={{ fontSize: 15, color: 'rgba(255,255,255,0.4)' }}>✕</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+
+        {availableTracks.length > 1 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterRow} contentContainerStyle={{ gap: 8 }}>
+            <TouchableOpacity
+              style={[s.filterChip, trackFilter === 'all' ? s.filterChipActive : null]}
+              onPress={() => setTrackFilter('all')} accessibilityRole="button">
+              <Text style={[s.filterChipTxt, trackFilter === 'all' ? s.filterChipTxtActive : null]}>{lang === 'ar' ? 'كل المسارات' : 'All tracks'}</Text>
+            </TouchableOpacity>
+            {availableTracks.map(tr => (
+              <TouchableOpacity
+                key={tr.id}
+                style={[s.filterChip, trackFilter === tr.id ? s.filterChipActive : null]}
+                onPress={() => setTrackFilter(tr.id === trackFilter ? 'all' : tr.id)} accessibilityRole="button">
+                <Text style={[s.filterChipTxt, trackFilter === tr.id ? s.filterChipTxtActive : null]}>{tr.icon} {lang === 'ar' ? tr.nameAr : tr.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        ) : null}
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterRow} contentContainerStyle={{ gap: 8 }}>
+          {TYPE_FILTERS.map(f => (
+            <TouchableOpacity
+              key={f.key}
+              style={[s.filterChip, typeFilter === f.key ? s.filterChipActive : null]}
+              onPress={() => setTypeFilter(f.key)} accessibilityRole="button">
+              <Text style={[s.filterChipTxt, typeFilter === f.key ? s.filterChipTxtActive : null]}>{lang === 'ar' ? f.labelAr : f.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {allWords.length === 0 ? (
+          <View style={s.noResultsWrap}>
+            <Text style={s.noResultsTxt}>{lang === 'ar' ? 'ما فيه كلمات مطابقة لهذا البحث/الفلتر' : 'No words match this search/filter'}</Text>
+            <TouchableOpacity onPress={() => { setSearch(''); setTrackFilter('all'); setTypeFilter('all'); }}>
+              <Text style={s.clearFiltersTxt}>{lang === 'ar' ? 'مسح الفلاتر' : 'Clear filters'}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+        <>
         <View style={s.statsRow}>
           {SECTIONS.map(sec => {
             const count = allWords.filter(w => w.status === sec.key).length;
@@ -319,14 +423,25 @@ export default function Dict({ onBack }) {
           <SectionBlock key={sec.key} sec={sec} words={allWords.filter(w => w.status === sec.key)} lang={lang} />
         ))}
 
-        <Text style={s.exTitle}>Exercises</Text>
-        <Text style={s.exSub}>{section ? 'Exercises for this section' : 'Exercises on review and forgotten words'}</Text>
+        <Text style={s.exTitle}>{lang === 'ar' ? 'تمارين' : 'Exercises'}</Text>
+        <Text style={s.exSub}>{section ? (lang === 'ar' ? 'تمارين لهذا القسم' : 'Exercises for this section') : (lang === 'ar' ? 'تمارين على الكلمات المراجعة والمنسية' : 'Exercises on review and forgotten words')}</Text>
+        {exWords.length < 4 ? (
+          <Text style={s.exWarnTxt}>
+            {lang === 'ar' ? '⚠️ تحتاجين 4 كلمات على الأقل بهذا التصفية لبدء تمرين' : '⚠️ You need at least 4 words in this selection to start an exercise'}
+          </Text>
+        ) : null}
         {[
-          { key: 'ex1', label: 'English → Arabic', icon: '🔤', sub: 'Choose the Arabic meaning' },
-          { key: 'ex2', label: 'Arabic → English', icon: '🔡', sub: 'Choose the English word'  },
-          { key: 'ex3', label: 'Matching',          icon: '🔗', sub: 'Connect words with meanings' },
+          { key: 'ex1', label: lang === 'ar' ? 'إنجليزي ← عربي' : 'English → Arabic', icon: '🔤', sub: lang === 'ar' ? 'اختر المعنى الصحيح بالعربي' : 'Choose the Arabic meaning' },
+          { key: 'ex2', label: lang === 'ar' ? 'عربي ← إنجليزي' : 'Arabic → English', icon: '🔡', sub: lang === 'ar' ? 'اختر الكلمة الإنجليزية الصحيحة' : 'Choose the English word'  },
+          { key: 'ex3', label: lang === 'ar' ? 'مطابقة' : 'Matching',          icon: '🔗', sub: lang === 'ar' ? 'اربط الكلمات بمعانيها' : 'Connect words with meanings' },
         ].map(e => (
-          <TouchableOpacity key={e.key} style={s.exCard} onPress={() => startEx(e.key)} accessibilityRole="button">
+          <TouchableOpacity
+            key={e.key}
+            style={[s.exCard, exWords.length < 4 ? { opacity: 0.4 } : null]}
+            onPress={() => exWords.length >= 4 && startEx(e.key)}
+            disabled={exWords.length < 4}
+            accessibilityRole="button"
+          >
             <Text style={{ fontSize: 26 }}>{e.icon}</Text>
             <View style={{ flex: 1 }}>
               <Text style={s.exLabel}>{e.label}</Text>
@@ -335,6 +450,8 @@ export default function Dict({ onBack }) {
             <Text style={s.exArrow}>←</Text>
           </TouchableOpacity>
         ))}
+        </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -354,4 +471,15 @@ const s = StyleSheet.create({
   exLabel:   { fontSize: 15, fontWeight: '700', color: '#fff' },
   exSub2:    { fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 },
   exArrow:   { color: '#2E8B57', fontSize: 18, fontWeight: '700' },
+  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 10 },
+  searchInput: { flex: 1, color: '#fff', fontSize: 14 },
+  filterRow: { marginBottom: 10 },
+  filterChip: { borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
+  filterChipActive: { borderColor: '#2E8B57', backgroundColor: 'rgba(46,139,87,0.2)' },
+  filterChipTxt: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '600' },
+  filterChipTxtActive: { color: '#a5d6a7' },
+  noResultsWrap: { alignItems: 'center', padding: 24 },
+  noResultsTxt: { color: 'rgba(255,255,255,0.4)', fontSize: 13, textAlign: 'center', marginBottom: 10 },
+  clearFiltersTxt: { color: '#2E8B57', fontSize: 14, fontWeight: '700' },
+  exWarnTxt: { color: '#FFB300', fontSize: 12, marginBottom: 10, textAlign: 'center' },
 });
