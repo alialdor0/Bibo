@@ -305,3 +305,4 @@ export const useApp = () => {
   if (!ctx) throw new Error('useApp must be used inside AppProvider');
   return ctx;
 };
+
