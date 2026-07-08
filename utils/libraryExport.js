@@ -94,3 +94,69 @@ export async function exportBookPDF(book, lang) {
     return false;
   }
 }
+
+/** كرت إنجاز صغير (غلاف فقط + الإحصائيات) بحجم يناسب المشاركة السريعة، بعكس التصدير الكامل اللي بيشمل الكلمات والقصة */
+function buildAchievementHTML(book, lang, coverColor, stickerEmojis) {
+  const isAr = lang === 'ar';
+  const dir = isAr ? 'rtl' : 'ltr';
+  const title = isAr ? book.trackNameAr : book.trackName;
+  const date = new Date(book.completedAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-US');
+  const color = coverColor || book.color || '#2E8B57';
+  const hasAccuracy = typeof book.accuracy === 'number' && book.totalAnswers > 0;
+
+  return `<!DOCTYPE html>
+  <html dir="${dir}">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      @page { size: 500px 650px; margin: 0; }
+      body { font-family: -apple-system, 'Segoe UI', Tahoma, sans-serif; background: #fdfdfb; margin: 0; }
+      .card { width: 500px; height: 650px; box-sizing: border-box; padding: 36px 28px; text-align: center;
+              background: linear-gradient(160deg, ${color}22, #fdfdfb 60%); border: 6px solid ${color}; }
+      .brand { color: ${color}; font-weight: 800; font-size: 14px; letter-spacing: 1px; margin-bottom: 18px; }
+      .icon { font-size: 90px; margin-top: 10px; }
+      .stickers { font-size: 26px; margin-top: 6px; letter-spacing: 6px; }
+      h1 { font-size: 30px; color: ${color}; margin: 18px 0 6px; }
+      .sub { color: #777; font-size: 14px; margin-bottom: 26px; }
+      .stats { display: flex; justify-content: center; gap: 26px; margin-top: 10px; }
+      .stat { text-align: center; }
+      .stat .v { font-size: 20px; font-weight: 800; color: #222; }
+      .stat .l { font-size: 11px; color: #999; margin-top: 2px; }
+      .footer { margin-top: 34px; color: #bbb; font-size: 11px; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="brand">🐦 BIBO LINGO</div>
+      <div class="icon">${escapeHtml(book.icon || '📖')}</div>
+      ${stickerEmojis && stickerEmojis.length ? `<div class="stickers">${stickerEmojis.join(' ')}</div>` : ''}
+      <h1>${escapeHtml(title)}</h1>
+      <div class="sub">${isAr ? 'اكتملت في' : 'Completed on'} ${date}</div>
+      <div class="stats">
+        <div class="stat"><div class="v">${(book.words || []).length}</div><div class="l">${isAr ? 'كلمة' : 'words'}</div></div>
+        <div class="stat"><div class="v">+${book.gemsEarned || 0} 💎</div><div class="l">${isAr ? 'جواهر' : 'gems'}</div></div>
+        ${hasAccuracy ? `<div class="stat"><div class="v">${book.accuracy}%</div><div class="l">${isAr ? 'دقة' : 'accuracy'}</div></div>` : ''}
+      </div>
+      <div class="footer">${isAr ? 'رحلتي في تعلم الإنجليزية مع بيبو' : 'My English learning journey with Bibo'}</div>
+    </div>
+  </body>
+  </html>`;
+}
+
+/**
+ * يشارك "إنجاز" — كرت مصغّر لغلاف الكتاب المكتمل — على وسائل التواصل عبر شاشة المشاركة الأصلية.
+ * coverColor/stickerEmojis اختياريين لو المستخدم خصّص الغلاف. بيرجع true لو نجح.
+ */
+export async function shareBookAchievement(book, lang, coverColor, stickerEmojis) {
+  if (!Print) return false;
+  try {
+    const html = buildAchievementHTML(book, lang, coverColor, stickerEmojis);
+    const { uri } = await Print.printToFileAsync({ html, base64: false, width: 500, height: 650 });
+    if (Sharing && (await Sharing.isAvailableAsync())) {
+      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: lang === 'ar' ? 'مشاركة الإنجاز' : 'Share achievement' });
+    }
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
