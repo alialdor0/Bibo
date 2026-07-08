@@ -337,3 +337,4 @@ const s = StyleSheet.create({
   wordPhon:        { color: 'rgba(255,255,255,0.4)', fontSize: 11, fontStyle: 'italic' },
   wordAr:          { color: 'rgba(255,255,255,0.7)', fontSize: 13 },
 });
+
