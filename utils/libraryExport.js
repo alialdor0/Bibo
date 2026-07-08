@@ -160,3 +160,4 @@ export async function shareBookAchievement(book, lang, coverColor, stickerEmojis
     return false;
   }
 }
+
