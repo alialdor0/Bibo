@@ -48,7 +48,7 @@ export const i18n = {
     eraserLeft:    'ممحاة متبقية',
     pagesLeft:     'صفحات متبقية',
     openGift:      'افتح هديتك',
-    giftDesc:      'شاهد إعلاناً قصيراً واحصل على مكافأتك',
+    giftDesc:      'دوس على الصندوق واحصل على مكافأة مفاجئة',
     language:      'اللغة',
     darkMode:      'الوضع الليلي',
     offline:       'وضع أوف لاين',
@@ -112,7 +112,7 @@ export const i18n = {
     eraserLeft:    'eraser left',
     pagesLeft:     'pages left',
     openGift:      'Open your gift',
-    giftDesc:      'Watch a short ad and claim your reward',
+    giftDesc:      'Tap the box for a surprise reward',
     language:      'Language',
     darkMode:      'Dark Mode',
     offline:       'Offline Mode',
@@ -367,6 +367,26 @@ export const STORE_ITEMS = [
   { id:'paper_bundle', type:'paper',  name:'Mega Bundle',    nameAr:'حزمة ضخمة',     icon:'📚', color:'#8B4513', price:45,  pages:150,desc:'150 pages for the dedicated learner' },
 ];
 
+// ── إكسسوارات بيبو الدائمة (Cosmetics) — تُشترى مرة واحدة وتبقى للأبد ──
+// كل عنصر له slot واحد بس (hat / glasses / ring)، والمستخدم يقدر يلبس عنصر واحد بكل slot بنفس الوقت.
+export const COSMETIC_ITEMS = [
+  { id: 'hat_cap',     slot: 'hat',     emoji: '🧢', name: 'Cap',         nameAr: 'كاب رياضي',    price: 25 },
+  { id: 'hat_grad',    slot: 'hat',     emoji: '🎓', name: 'Grad Cap',    nameAr: 'قبعة تخرّج',    price: 35 },
+  { id: 'hat_top',     slot: 'hat',     emoji: '🎩', name: 'Top Hat',     nameAr: 'قبعة أنيقة',    price: 45 },
+  { id: 'hat_crown',   slot: 'hat',     emoji: '👑', name: 'Crown',       nameAr: 'تاج ملكي',      price: 70 },
+  { id: 'glasses_reg', slot: 'glasses', emoji: '👓', name: 'Glasses',     nameAr: 'نظارة طبية',    price: 20 },
+  { id: 'glasses_sun', slot: 'glasses', emoji: '🕶️', name: 'Sunglasses',  nameAr: 'نظارة شمسية',   price: 30 },
+  { id: 'ring_gold',   slot: 'ring',    color: '#FFD700', name: 'Gold Ring',  nameAr: 'حلقة ذهبية',   price: 30 },
+  { id: 'ring_royal',  slot: 'ring',    color: '#7b5fd4', name: 'Royal Ring', nameAr: 'حلقة ملكية',   price: 30 },
+  { id: 'ring_ruby',   slot: 'ring',    color: '#E91E63', name: 'Ruby Ring',  nameAr: 'حلقة ياقوتية', price: 30 },
+];
+
+export const COSMETIC_SLOTS = [
+  { key: 'hat',     label: 'Hats',     labelAr: 'القبعات' },
+  { key: 'glasses', label: 'Glasses',  labelAr: 'النظارات' },
+  { key: 'ring',    label: 'Rings',    labelAr: 'الحلقات' },
+];
+
 export const GIFT_REWARDS = [
   { type:'gems',   amount:10,  icon:'💎', label:'10 Gems',          labelAr:'10 جواهر' },
   { type:'gems',   amount:25,  icon:'💎', label:'25 Gems',          labelAr:'25 جواهر' },
@@ -417,4 +437,3 @@ export const getZodiac = (day, monthEn) => {
 export const getTrack    = (id)    => TRACKS.find(tr => tr.id === id) || TRACKS[0];
 export const itemLabel   = (item, lang) => lang === 'ar' ? item[1] : item[0];
 export const fullName    = (u)     => { const p = getPrefix(u.job); return (p ? p + ' ' : '') + u.firstName + ' ' + u.lastName; };
-
