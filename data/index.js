@@ -375,6 +375,20 @@ export const GIFT_REWARDS = [
   { type:'paper',  item:'paper_small', icon:'📄', label:'20 Free Pages', labelAr:'20 صفحة مجانية' },
 ];
 
+// ── تخصيص غلاف الكتاب بالمكتبة ──
+export const COVER_COLORS = ['#2E8B57', '#3F51B5', '#E91E63', '#FF9800', '#9C27B0', '#00BCD4', '#F44336', '#8BC34A'];
+
+export const COVER_STICKERS = [
+  { id: 'star',     emoji: '⭐', price: 15, name: 'Star',     nameAr: 'نجمة' },
+  { id: 'heart',    emoji: '❤️', price: 15, name: 'Heart',    nameAr: 'قلب' },
+  { id: 'sparkles', emoji: '✨', price: 15, name: 'Sparkles', nameAr: 'بريق' },
+  { id: 'balloon',  emoji: '🎈', price: 15, name: 'Balloon',  nameAr: 'بالون' },
+  { id: 'rainbow',  emoji: '🌈', price: 20, name: 'Rainbow',  nameAr: 'قوس قزح' },
+  { id: 'rocket',   emoji: '🚀', price: 20, name: 'Rocket',   nameAr: 'صاروخ' },
+  { id: 'crown',    emoji: '👑', price: 25, name: 'Crown',    nameAr: 'تاج' },
+  { id: 'trophy',   emoji: '🏆', price: 25, name: 'Trophy',   nameAr: 'كأس' },
+];
+
 // ── دوال مساعدة ──
 export const getLevel    = (score) => LEVEL_TITLES.find(l => score >= l.min && score <= l.max) || LEVEL_TITLES[0];
 export const getPrefix   = (jobEn) => { const j = JOBS.find(x => x.en === jobEn); return j ? j.prefix : ''; };
