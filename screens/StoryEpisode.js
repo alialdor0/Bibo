@@ -114,6 +114,8 @@ export default function StoryEpisode({ onLeave }) {
   const directionRef = useRef('toArabic');
   const lineDirectionsRef = useRef([]);
   const arrangeOptsRef = useRef([]);
+  const startTimeRef = useRef(null); // وقت بداية الحلقة الفعلي (لحساب مدة الإنجاز)
+  const answerStatsRef = useRef({ correct: 0, total: 0 }); // إحصائية دقة الإجابات
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const flashAnim = useRef(new Animated.Value(0)).current;
 
@@ -172,6 +174,17 @@ export default function StoryEpisode({ onLeave }) {
   }, [lineIdx, started]);
 
   useEffect(() => { stopWordAudio(); return () => stopWordAudio(); }, []);
+
+  // بيسجّل وقت بداية الحلقة أول ما تبدأ فعليًا (سواء بداية جديدة أو استكمال محفوظ)
+  useEffect(() => {
+    if (started && !startTimeRef.current) startTimeRef.current = Date.now();
+  }, [started]);
+
+  // بيسجّل كل إجابة (صح/غلط) عشان نحسب نسبة الدقة لكل حلقة
+  const recordAnswer = (ok) => {
+    answerStatsRef.current.total += 1;
+    if (ok) answerStatsRef.current.correct += 1;
+  };
 
   // يبني خطة اتجاهات متساوية (نص إنجليزي↔عربي، نص عربي↔إنجليزي) لكل كلمات السطر الحالي
   useEffect(() => {
@@ -300,6 +313,9 @@ export default function StoryEpisode({ onLeave }) {
     completeEpisode(trackId, episodeNum);
     AsyncStorage.removeItem(progressKey).catch(() => {});
     const allWords = lines.flatMap(l => l.words || []);
+    const timeSpentSec = startTimeRef.current ? Math.round((Date.now() - startTimeRef.current) / 1000) : null;
+    const { correct, total } = answerStatsRef.current;
+    const accuracy = total > 0 ? Math.round((correct / total) * 100) : 100;
     addLibraryEntry({
       trackId,
       episodeId: episodeNum,
@@ -311,6 +327,10 @@ export default function StoryEpisode({ onLeave }) {
       words: allWords,
       gemsEarned: gemsThisEpisode,
       lines: (episode.full_episode?.text || lines.map(l => l.text)).map((txt, i) => ({ text: txt, ar: lines[i]?.arabic || '' })),
+      timeSpentSec,
+      correctAnswers: correct,
+      totalAnswers: total,
+      accuracy,
     });
     setPhase('done');
   };
@@ -319,6 +339,7 @@ export default function StoryEpisode({ onLeave }) {
     if (chosen) return;
     setChosen(opt);
     const ok = opt === (directionRef.current === 'toArabic' ? word.ar : word.word);
+    recordAnswer(ok);
     flash(ok, ok ? 'correct_answer' : 'wrong_answer', ok ? 'correct' : 'wrong');
     if (ok) awardGems(1);
     setTimeout(() => {
@@ -329,6 +350,7 @@ export default function StoryEpisode({ onLeave }) {
 
   const checkBlank = () => {
     const ok = typed.trim().toLowerCase() === word.word.toLowerCase();
+    recordAnswer(ok);
     flash(ok, ok ? 'correct_answer' : 'wrong_answer', ok ? 'correct' : 'wrong');
     if (ok) {
       awardGems(1);
@@ -356,6 +378,7 @@ export default function StoryEpisode({ onLeave }) {
     const built = arrangePicked.map(p => p.word);
     const target = line.arrange_words_exercise.correct_order;
     const ok = built.length === target.length && built.every((w, i) => w === target[i]);
+    recordAnswer(ok);
     flash(ok, ok ? 'correct_answer' : 'wrong_answer', ok ? 'correct' : 'wrong');
     if (ok) { awardGems(3); setTimeout(() => setPhase('pronounce'), 800); }
     else { playSfx('eraser'); setTimeout(() => setArrangePicked([]), 500); }
