@@ -1,62 +1,218 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, Alert, Modal } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, Alert, Modal, Animated, Easing } from 'react-native';
 import { useApp } from '../context/AppContext';
-import { t, STORE_ITEMS, GIFT_REWARDS } from '../data';
+import { t, STORE_ITEMS, GIFT_REWARDS, COSMETIC_ITEMS, COSMETIC_SLOTS } from '../data';
 import { PageHeader, GemsBadge, StationeryBar } from '../components/BiboCard';
+import BiboCharacter from '../components/BiboCharacter';
 import { playSfx } from '../utils/sfx';
 
 const SECTIONS = [
-  { key: 'pen',    label: 'Pens',    labelAr: 'الأقلام',    icon: '🖊️' },
-  { key: 'eraser', label: 'Erasers', labelAr: 'الممحاة',    icon: '🧹' },
-  { key: 'paper',  label: 'Paper',   labelAr: 'الأوراق',    icon: '📄' },
+  { key: 'pen',       label: 'Pens',       labelAr: 'الأقلام',     icon: '🖊️' },
+  { key: 'eraser',    label: 'Erasers',    labelAr: 'الممحاة',     icon: '🧹' },
+  { key: 'paper',     label: 'Paper',      labelAr: 'الأوراق',     icon: '📄' },
+  { key: 'cosmetics', label: 'Bibo style', labelAr: 'إطلالة بيبو', icon: '🎩' },
 ];
 
+const PARTICLE_EMOJIS = ['💎', '✨', '🎉', '⭐', '💎', '✨'];
+
+/**
+ * صندوق الهدية المتحرك — بديل الـ Alert الصامت القديم.
+ * 3 مراحل: idle (بينبض بهدوء) → shake (اهتزاز عند الفتح) → burst (ينفجر ويطلع الجائزة).
+ */
+function GiftBox({ visible, lang, onOpened, onClose }) {
+  const idleAnim  = useRef(new Animated.Value(0)).current;
+  const shakeAnim = useRef(new Animated.Value(0)).current;
+  const boxScale  = useRef(new Animated.Value(1)).current;
+  const boxOpacity= useRef(new Animated.Value(1)).current;
+  const rewardScale = useRef(new Animated.Value(0)).current;
+  const particles = useRef(PARTICLE_EMOJIS.map(() => new Animated.Value(0))).current;
+
+  const [phase, setPhase] = useState('idle'); // idle | shaking | burst
+  const [reward, setReward] = useState(null);
+
+  React.useEffect(() => {
+    if (!visible) return;
+    setPhase('idle');
+    setReward(null);
+    boxScale.setValue(1);
+    boxOpacity.setValue(1);
+    rewardScale.setValue(0);
+    particles.forEach(p => p.setValue(0));
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(idleAnim, { toValue: 1, duration: 650, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(idleAnim, { toValue: 0, duration: 650, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [visible]);
+
+  const handleOpen = () => {
+    if (phase !== 'idle') return;
+    setPhase('shaking');
+    playSfx('wrong'); // نقرة إحساس بالتوتر قبل الفتح — بديل مؤقت لصوت اهتزاز مخصص
+    Animated.sequence([
+      Animated.timing(shakeAnim, { toValue: 1,  duration: 60, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -1, duration: 60, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 1,  duration: 60, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -1, duration: 60, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 1,  duration: 60, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 0,  duration: 60, useNativeDriver: true }),
+    ]).start(() => {
+      setPhase('burst');
+      const picked = GIFT_REWARDS[Math.floor(Math.random() * GIFT_REWARDS.length)];
+      setReward(picked);
+      playSfx('win');
+
+      Animated.parallel([
+        Animated.timing(boxScale,   { toValue: 1.4, duration: 220, useNativeDriver: true }),
+        Animated.timing(boxOpacity, { toValue: 0,   duration: 220, useNativeDriver: true }),
+        Animated.spring(rewardScale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }),
+        ...particles.map(p =>
+          Animated.timing(p, { toValue: 1, duration: 500, easing: Easing.out(Easing.quad), useNativeDriver: true })
+        ),
+      ]).start();
+
+      onOpened(picked);
+    });
+  };
+
+  const shakeTranslate = shakeAnim.interpolate({ inputRange: [-1, 1], outputRange: [-8, 8] });
+  const idleTranslate  = idleAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -6] });
+
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <View style={s.modalBg}>
+        <View style={s.modalCard}>
+          <Text style={s.modalTitle}>{lang === 'ar' ? 'هدية بانتظارك' : 'A gift awaits'}</Text>
+          <Text style={s.modalDesc}>
+            {phase === 'burst'
+              ? (lang === 'ar' ? 'مبروك! 🎊' : 'Congrats! 🎊')
+              : (lang === 'ar' ? 'دوس على الصندوق لتفتحه' : 'Tap the box to open it')}
+          </Text>
+
+          <View style={s.giftStage}>
+            {particles.map((p, i) => {
+              const angle = (i / particles.length) * Math.PI * 2;
+              const tx = p.interpolate({ inputRange: [0, 1], outputRange: [0, Math.cos(angle) * 70] });
+              const ty = p.interpolate({ inputRange: [0, 1], outputRange: [0, Math.sin(angle) * 70] });
+              const op = p.interpolate({ inputRange: [0, 0.7, 1], outputRange: [1, 1, 0] });
+              return (
+                <Animated.Text
+                  key={i}
+                  style={[s.particle, { opacity: op, transform: [{ translateX: tx }, { translateY: ty }] }]}
+                >
+                  {PARTICLE_EMOJIS[i]}
+                </Animated.Text>
+              );
+            })}
+
+            {phase !== 'burst' ? (
+              <TouchableOpacity activeOpacity={0.8} onPress={handleOpen}>
+                <Animated.Text
+                  style={[
+                    s.giftBoxEmoji,
+                    { transform: [{ translateX: shakeTranslate }, { translateY: phase === 'idle' ? idleTranslate : 0 }, { scale: boxScale }], opacity: boxOpacity },
+                  ]}
+                >
+                  🎁
+                </Animated.Text>
+              </TouchableOpacity>
+            ) : (
+              <Animated.View style={[s.rewardCard, { transform: [{ scale: rewardScale }] }]}>
+                <Text style={s.rewardIcon}>{reward?.icon}</Text>
+                <Text style={s.rewardLabel}>{lang === 'ar' ? reward?.labelAr : reward?.label}</Text>
+              </Animated.View>
+            )}
+          </View>
+
+          {phase === 'burst' ? (
+            <TouchableOpacity style={s.watchBtn} onPress={onClose}>
+              <Text style={s.watchBtnTxt}>{lang === 'ar' ? 'رائع!' : 'Awesome!'}</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={s.modalClose} onPress={onClose}>
+              <Text style={s.modalCloseTxt}>{lang === 'ar' ? 'إغلاق' : 'Close'}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function Store({ onBack }) {
-  const { lang, gems, stationery, buyItem, claimGift } = useApp();
+  const {
+    lang, gems, stationery, buyItem, claimGift,
+    ownedCosmetics, equippedCosmetics, buyCosmetic, equipCosmetic,
+  } = useApp();
   const T = (k) => t(k, lang);
 
   const [tab,        setTab]        = useState('pen');
   const [giftModal,  setGiftModal]  = useState(false);
-  const [giftResult, setGiftResult] = useState(null);
-  const [watching,   setWatching]   = useState(false);
 
-  const items = STORE_ITEMS.filter(i => i.type === tab);
+  const stationeryItems = STORE_ITEMS.filter(i => i.type === tab);
 
   const handleBuy = (item) => {
     if (gems < item.price) {
       playSfx('wrong');
-      Alert.alert('Not enough gems', 'You need ' + item.price + ' gems. Watch an ad to get more!');
+      Alert.alert(
+        lang === 'ar' ? 'الجواهر غير كافية' : 'Not enough gems',
+        lang === 'ar' ? `تحتاج إلى ${item.price} جوهرة. أكمل حلقات أو افتح صندوق الهدية لتجمع المزيد!` : `You need ${item.price} gems. Finish episodes or open the gift box to earn more!`
+      );
       return;
     }
     Alert.alert(
-      'Buy ' + item.name + '?',
-      item.price + ' gems will be deducted.',
+      lang === 'ar' ? `شراء ${item.nameAr}؟` : 'Buy ' + item.name + '?',
+      lang === 'ar' ? `سيتم خصم ${item.price} جوهرة.` : item.price + ' gems will be deducted.',
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Buy', onPress: () => {
+        { text: lang === 'ar' ? 'إلغاء' : 'Cancel', style: 'cancel' },
+        { text: lang === 'ar' ? 'شراء' : 'Buy', onPress: () => {
           const success = buyItem(item);
-          if (success) { playSfx('win'); Alert.alert('Purchased!', item.name + ' is now in your stationery.'); }
+          if (success) { playSfx('win'); Alert.alert(lang === 'ar' ? 'تم الشراء!' : 'Purchased!', (lang === 'ar' ? item.nameAr : item.name) + (lang === 'ar' ? ' أصبح ضمن قرطاسيتك.' : ' is now in your stationery.')); }
           else playSfx('wrong');
         }},
       ]
     );
   };
 
-  const handleWatchAd = () => {
-    setWatching(true);
-    setTimeout(() => {
-      setWatching(false);
-      const reward = GIFT_REWARDS[Math.floor(Math.random() * GIFT_REWARDS.length)];
-      claimGift(reward);
-      playSfx('win');
-      setGiftResult(reward);
-      setGiftModal(false);
-      Alert.alert('Gift Claimed!', lang === 'ar' ? reward.labelAr : reward.label);
-    }, 2000);
+  const handleBuyCosmetic = (item) => {
+    if (gems < item.price) {
+      playSfx('wrong');
+      Alert.alert(
+        lang === 'ar' ? 'الجواهر غير كافية' : 'Not enough gems',
+        lang === 'ar' ? `تحتاج إلى ${item.price} جوهرة لشراء هذا العنصر.` : `You need ${item.price} gems to buy this item.`
+      );
+      return;
+    }
+    const name = lang === 'ar' ? item.nameAr : item.name;
+    Alert.alert(
+      lang === 'ar' ? `شراء ${name}؟` : `Buy ${name}?`,
+      lang === 'ar' ? `سيتم خصم ${item.price} جوهرة، وستمتلك العنصر للأبد.` : `${item.price} gems will be deducted. This item is yours forever.`,
+      [
+        { text: lang === 'ar' ? 'إلغاء' : 'Cancel', style: 'cancel' },
+        { text: lang === 'ar' ? 'شراء' : 'Buy', onPress: () => {
+          const success = buyCosmetic(item);
+          if (success) { playSfx('win'); equipCosmetic(item.slot, item.id); }
+          else playSfx('wrong');
+        }},
+      ]
+    );
+  };
+
+  const handleCosmeticTap = (item) => {
+    const owned = ownedCosmetics.includes(item.id);
+    if (owned) { playSfx('correct'); equipCosmetic(item.slot, item.id); }
+    else handleBuyCosmetic(item);
+  };
+
+  const handleGiftReward = (reward) => {
+    claimGift(reward);
   };
 
   const isOwned = (item) => {
-    if (item.type === 'pen')    return stationery.pen.id === item.id;
+    if (item.type === 'pen') return stationery.pen.id === item.id;
     return false;
   };
 
@@ -73,20 +229,20 @@ export default function Store({ onBack }) {
 
         {/* شريط القرطاسية الحالية */}
         <View style={s.currentCard}>
-          <Text style={s.currentTitle}>My Stationery</Text>
+          <Text style={s.currentTitle}>{lang === 'ar' ? 'أدواتي' : 'My Stationery'}</Text>
           <StationeryBar stationery={stationery} />
           <View style={s.currentDetails}>
             <View style={s.detailItem}>
               <Text style={s.detailIcon}>🖊️</Text>
-              <Text style={s.detailTxt}>{stationery.pen.inkLeft}% ink</Text>
+              <Text style={s.detailTxt}>{stationery.pen.inkLeft}% {lang === 'ar' ? 'حبر' : 'ink'}</Text>
             </View>
             <View style={s.detailItem}>
               <Text style={s.detailIcon}>🧹</Text>
-              <Text style={s.detailTxt}>{stationery.eraser.uses} uses left</Text>
+              <Text style={s.detailTxt}>{stationery.eraser.uses} {lang === 'ar' ? 'استخدام متبقٍ' : 'uses left'}</Text>
             </View>
             <View style={s.detailItem}>
               <Text style={s.detailIcon}>📄</Text>
-              <Text style={s.detailTxt}>{stationery.pages.left} pages left</Text>
+              <Text style={s.detailTxt}>{stationery.pages.left} {lang === 'ar' ? 'صفحة متبقية' : 'pages left'}</Text>
             </View>
           </View>
         </View>
@@ -119,50 +275,101 @@ export default function Store({ onBack }) {
           ))}
         </View>
 
-        {/* المنتجات */}
-        {items.map(item => (
-          <View key={item.id} style={[s.itemCard, { borderColor: item.color + '44' }]}>
-            <View style={[s.itemIcon, { backgroundColor: item.color + '22' }]}>
-              <Text style={s.itemEmoji}>{item.icon}</Text>
+        {/* قسم إطلالة بيبو الدائمة */}
+        {tab === 'cosmetics' ? (
+          <>
+            <View style={s.biboPreviewWrap}>
+              <BiboCharacter state="welcome" size={100} />
+              <Text style={s.biboPreviewHint}>
+                {lang === 'ar' ? 'دوس على أي عنصر تمتلكه لتلبسه أو تخلعه' : 'Tap an owned item to equip or unequip it'}
+              </Text>
             </View>
-            <View style={s.itemInfo}>
-              <Text style={s.itemName}>{lang === 'ar' ? item.nameAr : item.name}</Text>
-              <Text style={s.itemDesc}>{item.desc}</Text>
-              {item.type === 'pen'    ? <Text style={s.itemStat}>{item.ink} ink units</Text>    : null}
-              {item.type === 'eraser' ? <Text style={s.itemStat}>{item.uses} uses</Text>         : null}
-              {item.type === 'paper'  ? <Text style={s.itemStat}>{item.pages} pages</Text>       : null}
-            </View>
-            <TouchableOpacity
-              style={[s.buyBtn, isOwned(item) ? s.buyBtnOwned : gems < item.price ? s.buyBtnDisabled : { backgroundColor: item.color + 'cc' }]}
-              onPress={() => handleBuy(item)}
-              disabled={isOwned(item)}
-              accessibilityRole="button">
-              {isOwned(item) ? (
-                <Text style={s.buyBtnTxt}>✓ {T('owned')}</Text>
-              ) : (
-                <View style={s.buyBtnInner}>
-                  <Text style={s.buyBtnGem}>💎</Text>
-                  <Text style={s.buyBtnTxt}>{item.price}</Text>
+
+            {COSMETIC_SLOTS.map(slot => {
+              const slotItems = COSMETIC_ITEMS.filter(c => c.slot === slot.key);
+              return (
+                <View key={slot.key} style={s.slotGroup}>
+                  <Text style={s.slotTitle}>{lang === 'ar' ? slot.labelAr : slot.label}</Text>
+                  <View style={s.cosmeticsGrid}>
+                    {slotItems.map(item => {
+                      const owned = ownedCosmetics.includes(item.id);
+                      const equipped = equippedCosmetics[item.slot] === item.id;
+                      return (
+                        <TouchableOpacity
+                          key={item.id}
+                          style={[s.cosmeticCard, equipped ? s.cosmeticCardEquipped : null]}
+                          onPress={() => handleCosmeticTap(item)}
+                        >
+                          {item.color ? (
+                            <View style={[s.cosmeticSwatch, { backgroundColor: item.color }]} />
+                          ) : (
+                            <Text style={s.cosmeticEmoji}>{item.emoji}</Text>
+                          )}
+                          <Text style={s.cosmeticName} numberOfLines={1}>{lang === 'ar' ? item.nameAr : item.name}</Text>
+                          {equipped ? (
+                            <View style={s.equippedBadge}><Text style={s.equippedBadgeTxt}>{lang === 'ar' ? 'مُجهّز' : 'Equipped'}</Text></View>
+                          ) : owned ? (
+                            <Text style={s.cosmeticOwnedTxt}>{lang === 'ar' ? 'دوس للّبس' : 'Tap to wear'}</Text>
+                          ) : (
+                            <View style={s.cosmeticPriceRow}>
+                              <Text style={s.buyBtnGem}>💎</Text>
+                              <Text style={s.cosmeticPriceTxt}>{item.price}</Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
                 </View>
-              )}
-            </TouchableOpacity>
-          </View>
-        ))}
+              );
+            })}
+          </>
+        ) : (
+          /* المنتجات الاستهلاكية */
+          stationeryItems.map(item => (
+            <View key={item.id} style={[s.itemCard, { borderColor: item.color + '44' }]}>
+              <View style={[s.itemIcon, { backgroundColor: item.color + '22' }]}>
+                <Text style={s.itemEmoji}>{item.icon}</Text>
+              </View>
+              <View style={s.itemInfo}>
+                <Text style={s.itemName}>{lang === 'ar' ? item.nameAr : item.name}</Text>
+                <Text style={s.itemDesc}>{item.desc}</Text>
+                {item.type === 'pen'    ? <Text style={s.itemStat}>{item.ink} {lang === 'ar' ? 'وحدة حبر' : 'ink units'}</Text> : null}
+                {item.type === 'eraser' ? <Text style={s.itemStat}>{item.uses} {lang === 'ar' ? 'استخدام' : 'uses'}</Text>       : null}
+                {item.type === 'paper'  ? <Text style={s.itemStat}>{item.pages} {lang === 'ar' ? 'صفحة' : 'pages'}</Text>        : null}
+              </View>
+              <TouchableOpacity
+                style={[s.buyBtn, isOwned(item) ? s.buyBtnOwned : gems < item.price ? s.buyBtnDisabled : { backgroundColor: item.color + 'cc' }]}
+                onPress={() => handleBuy(item)}
+                disabled={isOwned(item)}
+                accessibilityRole="button">
+                {isOwned(item) ? (
+                  <Text style={s.buyBtnTxt}>✓ {T('owned')}</Text>
+                ) : (
+                  <View style={s.buyBtnInner}>
+                    <Text style={s.buyBtnGem}>💎</Text>
+                    <Text style={s.buyBtnTxt}>{item.price}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+          ))
+        )}
 
         {/* كيفية كسب الجواهر */}
         <View style={s.earnCard}>
-          <Text style={s.earnTitle}>How to earn gems 💎</Text>
+          <Text style={s.earnTitle}>{lang === 'ar' ? 'كيف تكسب الجواهر 💎' : 'How to earn gems 💎'}</Text>
           {[
-            { icon: '📝', label: 'Complete a word phase', gems: '+2' },
-            { icon: '🎬', label: 'Finish an episode',     gems: '+10' },
-            { icon: '🚨', label: 'Rescue a word',          gems: '+3' },
-            { icon: '🤝', label: 'Complete Co-op story',   gems: '+25' },
-            { icon: '🔥', label: '7-day streak bonus',     gems: '+15' },
-            { icon: '🎁', label: 'Watch a gift ad',         gems: '+10' },
+            { icon: '📝', labelAr: 'إكمال مرحلة كلمات',    label: 'Complete a word phase', gems: '+2' },
+            { icon: '🎬', labelAr: 'إنهاء حلقة',            label: 'Finish an episode',     gems: '+10' },
+            { icon: '🚨', labelAr: 'إنقاذ كلمة',            label: 'Rescue a word',         gems: '+3' },
+            { icon: '🤝', labelAr: 'إكمال قصة تعاونية',     label: 'Complete Co-op story',  gems: '+25' },
+            { icon: '🔥', labelAr: 'مكافأة تتابع 7 أيام',   label: '7-day streak bonus',    gems: '+15' },
+            { icon: '🎁', labelAr: 'فتح صندوق الهدية اليومي',  label: 'Open the daily gift box', gems: '🎲' },
           ].map(e => (
             <View key={e.label} style={s.earnRow}>
               <Text style={s.earnIcon}>{e.icon}</Text>
-              <Text style={s.earnLabel}>{e.label}</Text>
+              <Text style={s.earnLabel}>{lang === 'ar' ? e.labelAr : e.label}</Text>
               <Text style={s.earnGems}>{e.gems}</Text>
             </View>
           ))}
@@ -170,32 +377,12 @@ export default function Store({ onBack }) {
 
       </ScrollView>
 
-      {/* نافذة الهدية */}
-      <Modal visible={giftModal} transparent animationType="fade">
-        <View style={s.modalBg}>
-          <View style={s.modalCard}>
-            <Text style={s.modalTitle}>{T('openGift')}</Text>
-            <Text style={s.modalDesc}>{T('giftDesc')}</Text>
-            <View style={s.giftPreview}>
-              {GIFT_REWARDS.map((r, i) => (
-                <View key={String(i)} style={s.giftPreviewItem}>
-                  <Text style={s.giftPreviewIcon}>{r.icon}</Text>
-                  <Text style={s.giftPreviewLabel}>{lang === 'ar' ? r.labelAr : r.label}</Text>
-                </View>
-              ))}
-            </View>
-            <TouchableOpacity
-              style={[s.watchBtn, watching ? { opacity: 0.6 } : null]}
-              onPress={handleWatchAd}
-              disabled={watching}>
-              <Text style={s.watchBtnTxt}>{watching ? 'Watching ad...' : 'Watch Ad & Claim Gift'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={s.modalClose} onPress={() => setGiftModal(false)}>
-              <Text style={s.modalCloseTxt}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      <GiftBox
+        visible={giftModal}
+        lang={lang}
+        onOpened={handleGiftReward}
+        onClose={() => setGiftModal(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -219,7 +406,7 @@ const s = StyleSheet.create({
   tab:             { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 10, gap: 2 },
   tabActive:       { backgroundColor: '#1B3A6B' },
   tabIcon:         { fontSize: 18 },
-  tabTxt:          { fontSize: 11, color: 'rgba(255,255,255,0.4)' },
+  tabTxt:          { fontSize: 10, color: 'rgba(255,255,255,0.4)' },
   tabTxtActive:    { color: '#fff', fontWeight: '700' },
   itemCard:        { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderRadius: 14, padding: 14, marginBottom: 10 },
   itemIcon:        { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
@@ -234,20 +421,40 @@ const s = StyleSheet.create({
   buyBtnInner:     { flexDirection: 'row', alignItems: 'center', gap: 4 },
   buyBtnGem:       { fontSize: 14 },
   buyBtnTxt:       { color: '#fff', fontSize: 13, fontWeight: '700' },
+
+  biboPreviewWrap: { alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 16, paddingVertical: 20, marginBottom: 16 },
+  biboPreviewHint: { color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 10, textAlign: 'center', paddingHorizontal: 20 },
+  slotGroup:       { marginBottom: 16 },
+  slotTitle:       { color: '#fff', fontWeight: '800', fontSize: 13, marginBottom: 10 },
+  cosmeticsGrid:   { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  cosmeticCard:    { width: '31%', aspectRatio: 0.9, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.1)', borderRadius: 14, alignItems: 'center', justifyContent: 'center', padding: 6 },
+  cosmeticCardEquipped: { borderColor: '#a5d6a7', backgroundColor: 'rgba(165,214,167,0.12)' },
+  cosmeticEmoji:   { fontSize: 30, marginBottom: 4 },
+  cosmeticSwatch:  { width: 30, height: 30, borderRadius: 15, marginBottom: 4, borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)' },
+  cosmeticName:    { color: '#fff', fontSize: 10, fontWeight: '600', textAlign: 'center' },
+  cosmeticOwnedTxt:{ color: 'rgba(255,255,255,0.4)', fontSize: 9, marginTop: 4 },
+  cosmeticPriceRow:{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4 },
+  cosmeticPriceTxt:{ color: '#FFB300', fontSize: 11, fontWeight: '800' },
+  equippedBadge:   { backgroundColor: '#a5d6a7', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, marginTop: 4 },
+  equippedBadgeTxt:{ color: '#08080f', fontSize: 9, fontWeight: '800' },
+
   earnCard:        { backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', borderRadius: 14, padding: 16, marginTop: 8 },
   earnTitle:       { fontSize: 14, fontWeight: '700', color: '#fff', marginBottom: 12 },
   earnRow:         { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
   earnIcon:        { fontSize: 18, width: 28 },
   earnLabel:       { flex: 1, fontSize: 13, color: 'rgba(255,255,255,0.55)' },
   earnGems:        { fontSize: 13, fontWeight: '700', color: '#FFB300' },
+
   modalBg:         { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', padding: 24 },
   modalCard:       { backgroundColor: '#12121f', borderWidth: 1, borderColor: 'rgba(255,179,0,0.3)', borderRadius: 20, padding: 24, width: '100%', alignItems: 'center' },
   modalTitle:      { fontSize: 20, fontWeight: '800', color: '#fff', marginBottom: 8 },
-  modalDesc:       { fontSize: 13, color: 'rgba(255,255,255,0.5)', textAlign: 'center', marginBottom: 20, lineHeight: 20 },
-  giftPreview:     { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10, marginBottom: 20 },
-  giftPreviewItem: { alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: 10, width: '28%' },
-  giftPreviewIcon: { fontSize: 24, marginBottom: 4 },
-  giftPreviewLabel:{ fontSize: 10, color: 'rgba(255,255,255,0.5)', textAlign: 'center' },
+  modalDesc:       { fontSize: 13, color: 'rgba(255,255,255,0.5)', textAlign: 'center', marginBottom: 10, lineHeight: 20 },
+  giftStage:       { width: 200, height: 160, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  giftBoxEmoji:    { fontSize: 80 },
+  particle:        { position: 'absolute', fontSize: 22 },
+  rewardCard:      { alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,179,0,0.4)', borderRadius: 16, paddingHorizontal: 24, paddingVertical: 18 },
+  rewardIcon:      { fontSize: 44, marginBottom: 6 },
+  rewardLabel:     { color: '#fff', fontSize: 14, fontWeight: '700' },
   watchBtn:        { width: '100%', backgroundColor: '#FFB300', borderRadius: 13, padding: 14, alignItems: 'center', marginBottom: 10 },
   watchBtnTxt:     { color: '#000', fontSize: 15, fontWeight: '800' },
   modalClose:      { padding: 10 },
