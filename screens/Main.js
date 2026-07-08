@@ -321,31 +321,70 @@ function ChallengeTab({ onNav }) {
 }
 
 function ProfileTab({ onBack, onNav }) {
-  const { user, lang, gems } = useApp();
+  const { user, lang, gems, companion, library, getWordBankWords, ownedCosmetics } = useApp();
   const T = (k) => t(k, lang);
-  const u = user || { fullName: 'Dr. Ali Al-Husseini', levelTitle: { en: 'Skilled Communicator', color: '#2E8B57', ar: 'متواصل ماهر' }, city: 'Baghdad', country: 'Iraq', job: 'Doctor', age: '32', stats: { streak: 3, wordsLearned: 48, wordsReview: 12, episodesDone: 1, points: 1240 }, badges: [{ icon: '✍️', label: 'Novice Writer' }, { icon: '🔥', label: '3 Days' }, { icon: '⭐', label: 'First Episode' }] };
+
+  if (!user) {
+    // حماية بسيطة: من المفترض ألا يصل المستخدم لهذه الشاشة إلا بعد تسجيل الدخول، ولكن لو حدث أمر غير متوقع نعرض رسالة بدلًا من بيانات وهمية
+    return (
+      <SafeAreaView style={s.safe}>
+        <PageHeader title={T('profile')} onBack={onBack} backLabel={T('back')} />
+        <View style={[s.pageContent, { alignItems: 'center', paddingTop: 60 }]}>
+          <BiboCharacter state="thinking" size={90} />
+          <Text style={{ color: 'rgba(255,255,255,0.5)', marginTop: 16, textAlign: 'center' }}>
+            {lang === 'ar' ? 'لم نتمكن من العثور على بيانات حسابك. يرجى تسجيل الدخول من جديد.' : "We couldn't find your account data. Try signing in again."}
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // إحصائيات حقيقية 100% مبنية على استخدام فعلي — مفيش أي رقم وهمي هون
+  const wordEntries   = getWordBankWords();
+  const wordsLearned  = wordEntries.filter(w => w.status === 'learned').length;
+  const wordsReview   = wordEntries.filter(w => w.status === 'review').length;
+  const episodesDone  = library.length;
+  const streak        = companion?.streak || 0;
+  const levelColor    = user.levelTitle?.color || '#2E8B57';
+  const levelLabel    = lang === 'ar' ? (user.levelTitle?.ar || '') : (user.levelTitle?.en || '');
+
+  // أوسمة تُحسب لحظيًا من التقدّم الفعلي، وليست قائمة ثابتة مخزّنة
+  const badges = [];
+  if (episodesDone >= 1) badges.push({ icon: '⭐', label: lang === 'ar' ? 'أول حلقة' : 'First Episode' });
+  if (streak >= 3)        badges.push({ icon: '🔥', label: lang === 'ar' ? `${streak} أيام متتالية` : `${streak}-day streak` });
+  if (wordsLearned >= 1)  badges.push({ icon: '✍️', label: lang === 'ar' ? 'كاتب مبتدئ' : 'Novice Writer' });
+  if (wordsLearned >= 20) badges.push({ icon: '🏆', label: lang === 'ar' ? 'خبير الكلمات' : 'Word Master' });
+  if (ownedCosmetics.length >= 1) badges.push({ icon: '🎩', label: lang === 'ar' ? 'أنيق بيبو' : 'Bibo Fashionista' });
+
+  const bibbleState = streak >= 3 ? 'celebrate' : 'welcome';
+  const bibbleMsg = lang === 'ar'
+    ? `مرحبًا ${user.fullName?.split(' ')[0] || ''}! فخور فيك 🎉`
+    : `Hi ${user.fullName?.split(' ')[0] || ''}! Proud of you 🎉`;
 
   return (
     <SafeAreaView style={s.safe}>
       <PageHeader title={T('profile')} onBack={onBack} backLabel={T('back')} right={<GemsBadge gems={gems} />} />
       <ScrollView contentContainerStyle={s.pageContent}>
         <View style={s.profileCard}>
-          <View style={s.avatar} importantForAccessibility="no-hide-descendants">
-            <Text style={{ fontSize: 40 }}>🐦</Text>
-          </View>
-          <Text style={s.profileName}>{u.fullName}</Text>
-          <Text style={s.profileMeta}>{u.city}, {u.country}</Text>
-          <Text style={s.profileMeta}>{u.job} · {u.age}</Text>
-          <View style={[s.levelPill, { borderColor: u.levelTitle?.color }]}>
-            <Text style={[s.levelPillTxt, { color: u.levelTitle?.color }]}>{u.levelTitle?.en}</Text>
-          </View>
+          <BiboCharacter state={bibbleState} message={bibbleMsg} size={90} />
+          <Text style={[s.profileName, { marginTop: 12 }]}>{user.fullName || (lang === 'ar' ? 'صديق بيبو' : "Bibo's friend")}</Text>
+          {user.age ? (
+            <Text style={s.profileMeta}>
+              {user.age} {lang === 'ar' ? 'سنة' : 'yrs'}{user.zodiac ? `  ${user.zodiac.emoji} ${lang === 'ar' ? user.zodiac.ar : user.zodiac.en}` : ''}
+            </Text>
+          ) : null}
+          {levelLabel ? (
+            <View style={[s.levelPill, { borderColor: levelColor }]}>
+              <Text style={[s.levelPillTxt, { color: levelColor }]}>{levelLabel}</Text>
+            </View>
+          ) : null}
           <View
             style={s.streakRow}
             accessible={true}
-            accessibilityLabel={`${u.stats?.streak} ${lang === 'ar' ? 'يوم متتالي' : 'day streak'}`}
+            accessibilityLabel={`${streak} ${lang === 'ar' ? 'يوم متتالي' : 'day streak'}`}
           >
             <Text style={{ fontSize: 18 }} importantForAccessibility="no">🔥</Text>
-            <Text style={s.streakRowTxt}>{u.stats?.streak} {lang === 'ar' ? 'يوم متتالي' : 'day streak'}</Text>
+            <Text style={s.streakRowTxt}>{streak} {lang === 'ar' ? 'يوم متتالي' : 'day streak'}</Text>
           </View>
         </View>
 
@@ -361,28 +400,46 @@ function ProfileTab({ onBack, onNav }) {
           <Text style={s.settingArrow} importantForAccessibility="no">›</Text>
         </TouchableOpacity>
 
-        <Text style={s.sectionTitle}>Badges</Text>
-        <View style={s.badgesRow}>
-          {(u.badges || []).map((b, i) => (
-            <View
-              key={String(i)}
-              style={s.badgeItem}
-              accessible={true}
-              accessibilityLabel={b.label}
-            >
-              <Text style={{ fontSize: 24 }} importantForAccessibility="no">{b.icon}</Text>
-              <Text style={s.badgeLabel}>{b.label}</Text>
-            </View>
-          ))}
-        </View>
+        <TouchableOpacity
+          style={s.dictLinkCard}
+          onPress={() => onNav && onNav('store')}
+          accessible={true}
+          accessibilityRole="button"
+          accessibilityLabel={lang === 'ar' ? 'إطلالة بيبو' : "Bibo's style"}
+        >
+          <Text style={{ fontSize: 22 }} importantForAccessibility="no">🎩</Text>
+          <Text style={s.dictLinkTxt}>{lang === 'ar' ? 'إطلالة بيبو' : "Bibo's style"}</Text>
+          <Text style={s.settingArrow} importantForAccessibility="no">›</Text>
+        </TouchableOpacity>
 
-        <Text style={s.sectionTitle}>Statistics</Text>
+        <Text style={s.sectionTitle}>{lang === 'ar' ? 'الأوسمة' : 'Badges'}</Text>
+        {badges.length > 0 ? (
+          <View style={s.badgesRow}>
+            {badges.map((b, i) => (
+              <View
+                key={String(i)}
+                style={s.badgeItem}
+                accessible={true}
+                accessibilityLabel={b.label}
+              >
+                <Text style={{ fontSize: 24 }} importantForAccessibility="no">{b.icon}</Text>
+                <Text style={s.badgeLabel}>{b.label}</Text>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <Text style={s.emptyBadgesTxt}>
+            {lang === 'ar' ? 'أكمل أول حلقة لتحصل على أول وسام! 🎯' : 'Finish your first episode to earn your first badge! 🎯'}
+          </Text>
+        )}
+
+        <Text style={s.sectionTitle}>{lang === 'ar' ? 'الإحصائيات' : 'Statistics'}</Text>
         <View style={s.statsGrid}>
           {[
-            { icon: '📝', val: u.stats?.wordsLearned, label: 'Words Learned' },
-            { icon: '🔁', val: u.stats?.wordsReview,  label: 'For Review'    },
-            { icon: '🎬', val: u.stats?.episodesDone, label: 'Episodes Done' },
-            { icon: '⭐', val: u.stats?.points,        label: 'Points'        },
+            { icon: '📝', val: wordsLearned, label: lang === 'ar' ? 'كلمة مُتقنة'     : 'Words Learned' },
+            { icon: '🔁', val: wordsReview,  label: lang === 'ar' ? 'للمراجعة'        : 'For Review'    },
+            { icon: '🎬', val: episodesDone, label: lang === 'ar' ? 'حلقة مكتملة'     : 'Episodes Done' },
+            { icon: '💎', val: gems,         label: lang === 'ar' ? 'جوهرة'           : 'Gems'          },
           ].map((st, i) => (
             <View
               key={String(i)}
@@ -630,6 +687,7 @@ const s = StyleSheet.create({
   badgesRow:         { flexDirection: 'row', gap: 10, marginBottom: 16 },
   badgeItem:         { alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
   badgeLabel:        { fontSize: 10, color: 'rgba(255,255,255,0.5)' },
+  emptyBadgesTxt:    { fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 16, lineHeight: 18 },
   statsGrid:         { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
   statCardLg:        { width: '47%', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 14, padding: 14, alignItems: 'center', gap: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
   statValLg:         { fontSize: 24, fontWeight: '800', color: '#a5d6a7' },
