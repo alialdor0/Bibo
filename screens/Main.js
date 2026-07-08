@@ -559,7 +559,7 @@ export default function Main({ onNav }) {
   const T = (k) => t(k, lang);
 
   const handleNav = (dest) => {
-    const tabs = ['home', 'library', 'challenge', 'profile', 'settings', 'store'];
+    const tabs = ['home', 'library', 'challenge', 'profile', 'settings'];
     if (tabs.includes(dest)) setTab(dest);
     else onNav(dest);
   };
