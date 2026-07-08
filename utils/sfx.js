@@ -7,6 +7,11 @@
 // win.mp3, lose.mp3, correct.mp3, wrong.mp3,
 // pageTurn.mp3, writing.mp3, eraser.mp3,
 // rescueStart.mp3 (صفارة إنذار خفيفة), rescueSuccess.mp3 (تنفس الصعداء)
+//
+// ملاحظة: rescueStart.mp3 و rescueSuccess.mp3 لسه مش مرفوعين بالريبو،
+// فتم إيقافهم مؤقتًا (require() بتفشل بناء التطبيق كله لو الملف مش موجود
+// فعليًا على القرص، حتى لو محاط بـ try/catch — الفشل بيصير وقت البناء
+// مش وقت التشغيل). لما ترفع الملفين، رجّع السطرين المعلّقين تحت.
 // ─────────────────────────────────────────────────────────────
 const USE_SFX = true;
 
@@ -21,8 +26,8 @@ const SFX_FILES = {
   pageTurn:       require('../assets/sfx/pageTurn.mp3'),
   writing:        require('../assets/sfx/writing.mp3'),
   eraser:         require('../assets/sfx/eraser.mp3'),
-  rescueStart:    require('../assets/sfx/rescueStart.mp3'),
-  rescueSuccess:  require('../assets/sfx/rescueSuccess.mp3'),
+  // rescueStart:    require('../assets/sfx/rescueStart.mp3'),
+  // rescueSuccess:  require('../assets/sfx/rescueSuccess.mp3'),
 };
 
 /**
