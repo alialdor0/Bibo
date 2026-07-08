@@ -23,6 +23,8 @@ export function AppProvider({ children }) {
   const [stationery, setStationery] = useState(DEFAULT_STATIONERY);
   const [voiceOn, setVoiceOn] = useState(true);
   const [library, setLibrary] = useState([]);
+  const [bookCovers, setBookCovers] = useState({}); // { "trackId::episodeId": { color, stickers:[ids] } }
+  const [ownedStickers, setOwnedStickers] = useState([]); // ["star","heart",...]
   const [episodeProgress, setEpisodeProgress] = useState({});
   const [wordBank, setWordBank] = useState({}); // { [trackId]: { [wordId]: entry } }
   const [hydrated, setHydrated] = useState(false);
@@ -40,6 +42,8 @@ export function AppProvider({ children }) {
         stationery: DEFAULT_STATIONERY,
         voiceOn: true,
         library: [],
+        bookCovers: {},
+        ownedStickers: [],
         episodeProgress: {},
         wordBank: {},
       });
@@ -51,6 +55,8 @@ export function AppProvider({ children }) {
       setStationery(saved.stationery);
       setVoiceOn(saved.voiceOn);
       setLibrary(saved.library);
+      setBookCovers(saved.bookCovers);
+      setOwnedStickers(saved.ownedStickers);
       setEpisodeProgress(saved.episodeProgress);
       setWordBank(saved.wordBank);
       hydratedRef.current = true;
@@ -84,6 +90,8 @@ export function AppProvider({ children }) {
   useEffect(() => { if (hydratedRef.current) saveJSON('stationery', stationery); }, [stationery]);
   useEffect(() => { if (hydratedRef.current) saveJSON('voiceOn', voiceOn); }, [voiceOn]);
   useEffect(() => { if (hydratedRef.current) saveJSON('library', library); }, [library]);
+  useEffect(() => { if (hydratedRef.current) saveJSON('bookCovers', bookCovers); }, [bookCovers]);
+  useEffect(() => { if (hydratedRef.current) saveJSON('ownedStickers', ownedStickers); }, [ownedStickers]);
   useEffect(() => { if (hydratedRef.current) saveJSON('episodeProgress', episodeProgress); }, [episodeProgress]);
   useEffect(() => { if (hydratedRef.current) saveJSON('wordBank', wordBank); }, [wordBank]);
 
@@ -231,8 +239,37 @@ export function AppProvider({ children }) {
     });
   }, []);
 
+  const coverKey = (trackId, episodeId) => `${trackId}::${episodeId}`;
+
+  /** يشتري ملصق تخصيص الغلاف بالجواهر (لو مش مملوك أصلًا). بيرجع true لو نجحت العملية */
+  const buySticker = useCallback((stickerId, price) => {
+    if (ownedStickers.includes(stickerId)) return true;
+    if (gems < price) return false;
+    setGems(prev => prev - price);
+    setOwnedStickers(prev => [...prev, stickerId]);
+    return true;
+  }, [gems, ownedStickers]);
+
+  /** بيغيّر لون غلاف كتاب معيّن بالمكتبة */
+  const setBookCoverColor = useCallback((trackId, episodeId, color) => {
+    const key = coverKey(trackId, episodeId);
+    setBookCovers(prev => ({ ...prev, [key]: { ...(prev[key] || {}), color } }));
+  }, []);
+
+  /** بيضيف/بيشيل ملصق من غلاف كتاب معيّن (بحد أقصى 3 ملصقات على نفس الغلاف) */
+  const toggleBookSticker = useCallback((trackId, episodeId, stickerId) => {
+    const key = coverKey(trackId, episodeId);
+    setBookCovers(prev => {
+      const current = prev[key] || {};
+      const stickers = current.stickers || [];
+      const has = stickers.includes(stickerId);
+      const next = has ? stickers.filter(s => s !== stickerId) : [...stickers, stickerId].slice(0, 3);
+      return { ...prev, [key]: { ...current, stickers: next } };
+    });
+  }, []);
+
   const logout = useCallback(async () => {
-    await removeKeys(['user', 'track', 'gems', 'stationery', 'library', 'episodeProgress', 'wordBank']);
+    await removeKeys(['user', 'track', 'gems', 'stationery', 'library', 'episodeProgress', 'wordBank', 'bookCovers', 'ownedStickers']);
     await cancelBiboReminders();
     setUser(null);
     setTrack(null);
@@ -241,6 +278,8 @@ export function AppProvider({ children }) {
     setLibrary([]);
     setEpisodeProgress({});
     setWordBank({});
+    setBookCovers({});
+    setOwnedStickers([]);
   }, []);
 
   const value = {
@@ -252,6 +291,7 @@ export function AppProvider({ children }) {
     stationery, useInk, useEraser, usePage, buyItem, claimGift,
     voiceOn, setVoiceOn,
     library, addLibraryEntry,
+    bookCovers, ownedStickers, buySticker, setBookCoverColor, toggleBookSticker,
     episodeProgress, getEpisodeState, completeEpisode,
     wordBank, addWordToBank, rescueWord, getWordBankWords,
     hydrated, logout,
