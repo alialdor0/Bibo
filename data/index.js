@@ -327,33 +327,12 @@ export const RESCUE_WORDS = [
   {id:9, en:'depends',  ar:'يعتمد',  emoji:'⚖️', daysLeft:3, pron:'ديبندز'},
 ];
 
-// ── لوحة المتصدرين ──
-export const LEADERBOARD = {
-  weekly: [
-    {rank:1, name:'Sara Al-Omari',    city:'Riyadh',    words:124, streak:7,  track:'❤️'},
-    {rank:2, name:'Ahmed Al-Kawari',  city:'Doha',      words:118, streak:12, track:'🏥'},
-    {rank:3, name:'Mona Al-Harbi',    city:'Jeddah',    words:105, streak:5,  track:'⚖️'},
-    {rank:4, name:'Khalid Al-Shamri', city:'Kuwait',    words:97,  streak:9,  track:'🕵️'},
-    {rank:5, name:'Reem Al-Salem',    city:'Muscat',    words:89,  streak:4,  track:'👨‍👩‍👧'},
-    {rank:6, name:'Ali Al-Husseini',  city:'Baghdad',   words:48,  streak:3,  track:'🕵️', isMe:true},
-    {rank:7, name:'Noura Al-Qahtani', city:'Abu Dhabi', words:45,  streak:2,  track:'❤️'},
-  ],
-  alltime: [
-    {rank:1, name:'Ahmed Al-Kawari',  city:'Doha',      words:1840, streak:90, track:'🏥'},
-    {rank:2, name:'Sara Al-Omari',    city:'Riyadh',    words:1620, streak:75, track:'❤️'},
-    {rank:3, name:'Mona Al-Harbi',    city:'Jeddah',    words:1340, streak:60, track:'⚖️'},
-    {rank:4, name:'Khalid Al-Shamri', city:'Kuwait',    words:1180, streak:45, track:'🕵️'},
-    {rank:5, name:'Ali Al-Husseini',  city:'Baghdad',   words:48,   streak:3,  track:'🕵️', isMe:true},
-  ],
-};
+// ── معدّل بيبو التحفيزي — رقم مرجعي ثابت لبيبو كشخصية بالتطبيق، مش تظاهر بمستخدم حقيقي آخر ──
+export const BIBO_PACE = { weeklyWords: 15, totalWords: 150 };
 
-// ── الأصدقاء ──
-export const FRIENDS = [
-  {id:1, name:'Sara Al-Omari',    city:'Riyadh',    track:'❤️', level:'Advanced Narrator',    online:true},
-  {id:2, name:'Ahmed Al-Kawari',  city:'Doha',      track:'🏥', level:'Expert Storyteller',   online:true},
-  {id:3, name:'Khalid Al-Shamri', city:'Kuwait',    track:'🕵️', level:'Skilled Communicator', online:false},
-  {id:4, name:'Mona Al-Harbi',    city:'Jeddah',    track:'⚖️', level:'Rising Speaker',       online:false},
-];
+// ── لوحة المتصدرين ──
+// ملاحظة: القائمة القديمة هنا كانت تحتوي أسماء ومستخدمين وهميين — تمت إزالتها.
+// شاشة Leaderboard.js تستخدم الآن BIBO_PACE بدلًا منها (سباق حقيقي مع بيبو، بدون بيانات مزيّفة).
 
 // ── متجر القرطاسية ──
 export const STORE_ITEMS = [
@@ -385,6 +364,14 @@ export const COSMETIC_SLOTS = [
   { key: 'hat',     label: 'Hats',     labelAr: 'القبعات' },
   { key: 'glasses', label: 'Glasses',  labelAr: 'النظارات' },
   { key: 'ring',    label: 'Rings',    labelAr: 'الحلقات' },
+];
+
+// ── تحديات أسبوعية — مبنية على استخدام حقيقي فقط، بدون أي بيانات وهمية أو منافسين مزيّفين ──
+// كل تحدي بيتصفّر تلقائيًا كل أسبوع (حسب توقيت ISO week)
+export const WEEKLY_CHALLENGES = [
+  { id: 'words',    metric: 'wordsLearned', target: 10, reward: 20, icon: '📝', label: 'Learn 10 new words',      labelAr: 'تعلّم 10 كلمات جديدة' },
+  { id: 'episodes', metric: 'episodesDone', target: 2,  reward: 25, icon: '🎬', label: 'Finish 2 episodes',       labelAr: 'أكمل حلقتين' },
+  { id: 'rescue',   metric: 'wordsRescued', target: 3,  reward: 15, icon: '🆘', label: 'Rescue 3 fading words',   labelAr: 'أنقذ 3 كلمات مهدَّدة بالنسيان' },
 ];
 
 export const GIFT_REWARDS = [
