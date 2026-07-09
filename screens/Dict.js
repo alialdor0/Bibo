@@ -29,9 +29,9 @@ function speakEn(text) {
 }
 
 const SECTIONS = [
-  { key: 'learned',   label: 'Learned',    labelAr: 'تعلمتها',  icon: '✅', color: '#2E8B57' },
+  { key: 'learned',   label: 'Learned',    labelAr: 'متقنة',   icon: '✅', color: '#2E8B57' },
   { key: 'review',    label: 'Review',     labelAr: 'للمراجعة', icon: '🔁', color: '#FFB300' },
-  { key: 'forgotten', label: 'Forgotten',  labelAr: 'نسيتها',   icon: '❌', color: '#c0392b' },
+  { key: 'forgotten', label: 'Forgotten',  labelAr: 'منسية',   icon: '❌', color: '#c0392b' },
 ];
 
 function shuffle(arr) {
@@ -168,7 +168,7 @@ function Ex2({ words, onDone, lang }) {
       <Text style={ex.label}>{lang === 'ar' ? `عربي ← إنجليزي (${idx + 1}/${q.length})` : `Arabic → English (${idx + 1}/${q.length})`}</Text>
       <Text style={{ fontSize: 48, marginBottom: 8 }}>{cur.emoji}</Text>
       <Text style={ex.bigWordAr}>{cur.ar}</Text>
-      <Text style={ex.qTxt}>{lang === 'ar' ? 'ما الكلمة الإنجليزية المقابلة؟' : 'What is the English word?'}</Text>
+      <Text style={ex.qTxt}>{lang === 'ar' ? 'ما الكلمة الإنجليزية؟' : 'What is the English word?'}</Text>
       <View style={ex.opts}>
         {opts.current.map(w => {
           const isSel = chosen === w.id; const isOk = w.id === cur.id;
@@ -290,7 +290,7 @@ export default function Dict({ onBack }) {
 
   const allWordsRaw = getWordBankWords();
 
-  // المسارات اللي فعليًا عندك كلمات منها (ما نعرض فلتر لمسار ماله كلمات)
+  // المسارات التي توجد فيها كلمات فعليًا (لا نعرض فلتر لمسار لا يحتوي كلمات)
   const availableTracks = useMemo(() => {
     const ids = new Set(allWordsRaw.map(w => w.trackId));
     return TRACKS.filter(tr => ids.has(tr.id));
@@ -399,7 +399,7 @@ export default function Dict({ onBack }) {
 
         {allWords.length === 0 ? (
           <View style={s.noResultsWrap}>
-            <Text style={s.noResultsTxt}>{lang === 'ar' ? 'ما فيه كلمات مطابقة لهذا البحث/الفلتر' : 'No words match this search/filter'}</Text>
+            <Text style={s.noResultsTxt}>{lang === 'ar' ? 'لا توجد نتائج مطابقة' : 'No words match this search/filter'}</Text>
             <TouchableOpacity onPress={() => { setSearch(''); setTrackFilter('all'); setTypeFilter('all'); }}>
               <Text style={s.clearFiltersTxt}>{lang === 'ar' ? 'مسح الفلاتر' : 'Clear filters'}</Text>
             </TouchableOpacity>
@@ -427,11 +427,11 @@ export default function Dict({ onBack }) {
         <Text style={s.exSub}>{section ? (lang === 'ar' ? 'تمارين لهذا القسم' : 'Exercises for this section') : (lang === 'ar' ? 'تمارين على الكلمات المراجعة والمنسية' : 'Exercises on review and forgotten words')}</Text>
         {exWords.length < 4 ? (
           <Text style={s.exWarnTxt}>
-            {lang === 'ar' ? '⚠️ تحتاجين 4 كلمات على الأقل بهذا التصفية لبدء تمرين' : '⚠️ You need at least 4 words in this selection to start an exercise'}
+            {lang === 'ar' ? '⚠️ تحتاج 4 كلمات على الأقل لبدء التمرين' : '⚠️ You need at least 4 words in this selection to start an exercise'}
           </Text>
         ) : null}
         {[
-          { key: 'ex1', label: lang === 'ar' ? 'إنجليزي ← عربي' : 'English → Arabic', icon: '🔤', sub: lang === 'ar' ? 'اختر المعنى الصحيح بالعربي' : 'Choose the Arabic meaning' },
+          { key: 'ex1', label: lang === 'ar' ? 'إنجليزي ← عربي' : 'English → Arabic', icon: '🔤', sub: lang === 'ar' ? 'اختر المعنى الصحيح بالعربية' : 'Choose the Arabic meaning' },
           { key: 'ex2', label: lang === 'ar' ? 'عربي ← إنجليزي' : 'Arabic → English', icon: '🔡', sub: lang === 'ar' ? 'اختر الكلمة الإنجليزية الصحيحة' : 'Choose the English word'  },
           { key: 'ex3', label: lang === 'ar' ? 'مطابقة' : 'Matching',          icon: '🔗', sub: lang === 'ar' ? 'اربط الكلمات بمعانيها' : 'Connect words with meanings' },
         ].map(e => (
