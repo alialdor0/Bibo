@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Switch, SafeAreaView, Alert, Animated } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../context/AppContext';
-import { t, STORE_ITEMS, GIFT_REWARDS, LEADERBOARD } from '../data';
+import { t, STORE_ITEMS, GIFT_REWARDS, WEEKLY_CHALLENGES } from '../data';
 import { BiboMsg, PageHeader, GemsBadge, StationeryBar } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
 import BottomNav from '../components/BottomNav';
@@ -262,16 +262,40 @@ function ChallengeCard({ icon, title, subtitle, badge, badgeColor, onPress }) {
   );
 }
 
+function WeeklyChallengeCard({ ch, progress, claimed, lang, onClaim }) {
+  const current = Math.min(progress, ch.target);
+  const pct = Math.round((current / ch.target) * 100);
+  const complete = progress >= ch.target;
+  return (
+    <View style={s.weeklyCard}>
+      <View style={s.weeklyTop}>
+        <Text style={{ fontSize: 24 }}>{ch.icon}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={s.weeklyLabel}>{lang === 'ar' ? ch.labelAr : ch.label}</Text>
+          <Text style={s.weeklyProgTxt}>{current}/{ch.target}</Text>
+        </View>
+        {claimed ? (
+          <View style={s.weeklyDoneBadge}><Text style={s.weeklyDoneBadgeTxt}>✓</Text></View>
+        ) : complete ? (
+          <TouchableOpacity style={s.weeklyClaimBtn} onPress={onClaim} accessibilityRole="button">
+            <Text style={s.weeklyClaimBtnTxt}>💎 {ch.reward}</Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={s.weeklyRewardTxt}>💎{ch.reward}</Text>
+        )}
+      </View>
+      <View style={s.weeklyBarTrack}>
+        <View style={[s.weeklyBarFill, { width: `${pct}%`, backgroundColor: complete ? '#2E8B57' : '#FFB300' }]} />
+      </View>
+    </View>
+  );
+}
+
 function ChallengeTab({ onNav }) {
-  const { lang, gems, user, track, library, companion, getWordBankWords } = useApp();
+  const { lang, gems, weeklyProgress, claimWeeklyReward, getWordBankWords } = useApp();
   const T = (k) => t(k, lang);
 
   const urgent = getWordBankWords().filter(w => w.episodesLeft <= 0);
-
-  const myWords = new Set((library || []).flatMap(b => (b.words || []).map(w => w.word))).size;
-  const rankData = [...LEADERBOARD.weekly.filter(p => !p.isMe), { words: myWords, isMe: true }]
-    .sort((a, b) => b.words - a.words);
-  const myRank = { rank: rankData.findIndex(p => p.isMe) + 1 };
 
   return (
     <SafeAreaView style={s.root}>
@@ -289,6 +313,18 @@ function ChallengeTab({ onNav }) {
           message={lang === 'ar' ? 'اختر تحديًا وابدأ الآن! 🔥' : 'Pick a challenge and start now! 🔥'}
         />
 
+        <Text style={s.weeklyTitle}>{lang === 'ar' ? 'تحديات هذا الأسبوع' : "This week's challenges"}</Text>
+        {WEEKLY_CHALLENGES.map(ch => (
+          <WeeklyChallengeCard
+            key={ch.id}
+            ch={ch}
+            lang={lang}
+            progress={weeklyProgress[ch.metric] || 0}
+            claimed={weeklyProgress.claimed.includes(ch.id)}
+            onClaim={() => claimWeeklyReward(ch.id, ch.reward)}
+          />
+        ))}
+
         <ChallengeCard
           icon="🆘"
           title={lang === 'ar' ? 'إنقاذ الكلمات' : 'Word Rescue'}
@@ -300,17 +336,15 @@ function ChallengeTab({ onNav }) {
 
         <ChallengeCard
           icon="🏅"
-          title={lang === 'ar' ? 'قائمة المتصدرين' : 'Leaderboard'}
-          subtitle={lang === 'ar' ? 'اطّلع على ترتيبك بين المتعلمين' : 'See where you rank among learners'}
-          badge={myRank ? '#' + myRank.rank : null}
-          badgeColor="#FFB300"
+          title={lang === 'ar' ? 'سباق مع بيبو' : 'Race with Bibo'}
+          subtitle={lang === 'ar' ? 'شوف وين وصلت مقارنة بمعدّل بيبو الأسبوعي' : "See how you compare to Bibo's weekly pace"}
           onPress={() => onNav('leaderboard')}
         />
 
         <ChallengeCard
           icon="🤝"
-          title={lang === 'ar' ? 'تحدي تعاوني' : 'Co-op Challenge'}
-          subtitle={lang === 'ar' ? 'أكمل قصة مع صديق واربحا معًا' : 'Finish a story with a friend and earn together'}
+          title={lang === 'ar' ? 'التعاون مع بيبو' : 'Co-op with Bibo'}
+          subtitle={lang === 'ar' ? 'اكتب قصة سوا مع بيبو واربحا معًا' : 'Write a story together with Bibo and earn together'}
           onPress={() => onNav('coop')}
         />
       </ScrollView>
@@ -672,6 +706,18 @@ const s = StyleSheet.create({
   challengeBadge:    { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5, minWidth: 30, alignItems: 'center' },
   challengeBadgeTxt: { fontSize: 13, fontWeight: '800' },
   challengeArrow:    { color: 'rgba(255,255,255,0.25)', fontSize: 22 },
+  weeklyTitle:       { fontSize: 14, fontWeight: '800', color: '#fff', marginBottom: 10 },
+  weeklyCard:        { backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)', borderRadius: 14, padding: 12, marginBottom: 10 },
+  weeklyTop:         { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+  weeklyLabel:       { color: '#fff', fontSize: 13, fontWeight: '700' },
+  weeklyProgTxt:     { color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 2 },
+  weeklyRewardTxt:   { color: '#FFB300', fontSize: 12, fontWeight: '700' },
+  weeklyClaimBtn:    { backgroundColor: '#FFB300', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },
+  weeklyClaimBtnTxt: { color: '#08080f', fontSize: 12, fontWeight: '800' },
+  weeklyDoneBadge:   { backgroundColor: 'rgba(46,139,87,0.25)', borderRadius: 14, width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  weeklyDoneBadgeTxt:{ color: '#a5d6a7', fontSize: 14, fontWeight: '800' },
+  weeklyBarTrack:    { height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.08)', overflow: 'hidden' },
+  weeklyBarFill:     { height: '100%', borderRadius: 3 },
   dictLinkCard:      { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 14, padding: 14, marginBottom: 16 },
   dictLinkTxt:       { flex: 1, fontSize: 14, fontWeight: '700', color: '#fff' },
   pageContent:       { padding: 16, paddingBottom: 40 },
