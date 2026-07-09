@@ -1,569 +1,332 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, TextInput } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Animated, SafeAreaView, Alert } from 'react-native';
 import { useApp } from '../context/AppContext';
-import { t } from '../data';
-import { getEpisode, getTotalEpisodes } from '../data/episodes';
-import { buildTemplateVars, fillDeep } from '../utils/templateEngine';
-import { biboSay } from '../data/biboPhrases';
-import { playSfx } from '../utils/sfx';
-import { speakWord, stopWordAudio } from '../utils/episodeAudio';
+import { t, TRACKS, TRACK_SOUNDS, COOP_STORY, COOP_WORDS } from '../data';
+import { PageHeader, GemsBadge } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
-import WordInfoModal from '../components/WordInfoModal';
-import Avatar from '../components/Avatar';
-import CinematicReading from '../components/CinematicReading';
+import { playSfx } from '../utils/sfx';
 
-function shuffle(arr) {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-/** يبني اختيارات متعددة (الترجمة الصح + 2 مشتتات) لكلمة معينة */
-function buildChoices(word, vocabulary) {
-  const distractorPool = vocabulary.filter(v => v.id !== word.id && v.arabic !== word.ar);
-  const distractors = shuffle(distractorPool).slice(0, 2).map(v => v.arabic);
-  return shuffle([word.ar, ...distractors]);
-}
-
-export default function StoryEpisode({ onLeave }) {
-  const { lang, track, user, addGems, addLibraryEntry, getEpisodeState, completeEpisode, addWordToBank } = useApp();
+function TutorialScreen({ lang, onDone }) {
+  const [page, setPage] = useState(0);
   const T = (k) => t(k, lang);
-  const trackId = track?.id || 'spy';
-
-  const episodeState = getEpisodeState(trackId);
-  const episodeNum = episodeState.unlocked || 1;
-  const rawEpisode = getEpisode(trackId, episodeNum);
-  const totalEpisodes = getTotalEpisodes(trackId);
-
-  const vars = useMemo(() => buildTemplateVars(user), [user]);
-  const episode = useMemo(() => rawEpisode ? fillDeep(rawEpisode, vars) : null, [rawEpisode, vars]);
-
-  const [started, setStarted] = useState(false);
-  const [lineIdx, setLineIdx] = useState(0);
-  const [wordIdx, setWordIdx] = useState(0);
-  const [phase, setPhase] = useState('context'); // context | choice | blank | arrange | done
-  const [chosen, setChosen] = useState(null);
-  const [typed, setTyped] = useState('');
-  const [feedback, setFeedback] = useState(null); // { type, msg }
-  const [arrangePicked, setArrangePicked] = useState([]);
-  const [gemsThisEpisode, setGemsThisEpisode] = useState(0);
-  const [hintVisible, setHintVisible] = useState(false);
-  const [eliminatedChoice, setEliminatedChoice] = useState(null);
-  const [infoWordId, setInfoWordId] = useState(null);
-  const [lineHintUsed, setLineHintUsed] = useState(false);
-  const [showCinema, setShowCinema] = useState(false);
-  const choicesRef = useRef([]);
-  const arrangeOptsRef = useRef([]);
-
-  const vocabById = useMemo(() => {
-    const map = {};
-    (episode?.vocabulary || []).forEach(v => { map[v.id] = v; });
-    return map;
-  }, [episode]);
-
-  const lines = episode?.lines || [];
-  const line = lines[lineIdx];
-  const word = line?.words?.[wordIdx];
-  const bibo = episode?.bibo_messages || {};
-
-  useEffect(() => { stopWordAudio(); return () => stopWordAudio(); }, []);
-
-  useEffect(() => {
-    if (word && phase === 'choice') choicesRef.current = buildChoices(word, episode.vocabulary);
-  }, [word, phase]);
-
-  useEffect(() => {
-    if (line && phase === 'arrange' && line.arrange_words_exercise) {
-      arrangeOptsRef.current = shuffle(line.arrange_words_exercise.words_to_arrange);
-      setArrangePicked([]);
-    }
-  }, [line, phase]);
-
-  // كل ما نتحرك لكلمة/مرحلة جديدة، التلميح يترجع مقفول من الأول
-  useEffect(() => {
-    setHintVisible(false);
-    setEliminatedChoice(null);
-  }, [lineIdx, wordIdx, phase]);
-
-  // كل ما نتحرك لسطر جديد، سجل استخدام التلميح يترجع من الأول (لمكافأة "بدون تلميح")
-  useEffect(() => { setLineHintUsed(false); }, [lineIdx]);
-
-  const bMsg = (key, fallbackCat) => bibo[key] || biboSay(fallbackCat, lang);
-
-  const flash = (ok, msgKey, fallbackCat) => {
-    playSfx(ok ? 'correct' : 'wrong');
-    setFeedback({ type: ok ? 'correct' : 'wrong', msg: bMsg(msgKey, fallbackCat) });
-    setTimeout(() => setFeedback(null), 900);
-  };
-
-  const awardGems = (n) => { addGems(n); setGemsThisEpisode(g => g + n); };
-
-  // بيستخدم بيانات المفردة الكاملة (audio_url الحقيقي) مش نسخة السطر المختصرة
-  const playWord = (w) => {
-    const full = vocabById[w.id] || w;
-    speakWord(full.word, full.audio_url);
-  };
-
-  const openWordInfo = (id) => setInfoWordId(id);
-  const closeWordInfo = () => setInfoWordId(null);
-
-  // تلميح بيبو الذكي: 50/50 في الاختيار، النطق في إكمال الفراغ، أول كلمة في الترتيب
-  const requestHint = () => {
-    if (hintVisible || phase === 'context') return;
-    playSfx('pageTurn');
-    setHintVisible(true);
-    setLineHintUsed(true);
-    if (phase === 'choice' && !eliminatedChoice) {
-      const wrongOpts = choicesRef.current.filter(o => o !== word.ar);
-      setEliminatedChoice(wrongOpts[Math.floor(Math.random() * wrongOpts.length)]);
-    }
-  };
-
-  const hintText = () => {
-    if (phase === 'choice') return lang === 'ar' ? 'شيلتلك إجابة غلط 👀' : 'I removed a wrong answer for you 👀';
-    if (phase === 'blank')  return (lang === 'ar' ? 'نطقها: ' : 'It sounds like: ') + word.pron;
-    if (phase === 'arrange') return (lang === 'ar' ? 'أول كلمة: ' : 'First word: ') + line.arrange_words_exercise.correct_order[0];
-    return '';
-  };
-
-  const advanceAfterWord = () => {
-    const nextWordIdx = wordIdx + 1;
-    if (nextWordIdx >= (line.words || []).length) {
-      if (line.arrange_words_exercise) { setPhase('arrange'); }
-      else finishLine();
-    } else {
-      setWordIdx(nextWordIdx);
-      setPhase('choice');
-      setChosen(null); setTyped('');
-    }
-  };
-
-  const finishLine = () => {
-    playSfx('pageTurn');
-    const bonusEarned = !lineHintUsed;
-    if (bonusEarned) awardGems(2);
-    setFeedback({
-      type: 'correct',
-      msg: bonusEarned
-        ? (lang === 'ar' ? 'لعبتها من غير أي تلميح! +2 💎' : 'You did it with no hints! +2 💎')
-        : bMsg('line_complete', 'episodeComplete'),
-    });
-    setTimeout(() => {
-      setFeedback(null);
-      const nextLine = lineIdx + 1;
-      if (nextLine >= lines.length) {
-        finishEpisode();
-      } else {
-        setLineIdx(nextLine);
-        setWordIdx(0);
-        setPhase('context');
-        setChosen(null); setTyped('');
-      }
-    }, 900);
-  };
-
-  const finishEpisode = () => {
-    playSfx('win');
-    completeEpisode(trackId, episodeNum);
-    const allWords = lines.flatMap(l => l.words || []);
-    addLibraryEntry({
-      trackId,
-      episodeId: episodeNum,
-      trackName: episode.title,
-      trackNameAr: episode.title_arabic,
-      icon: track?.icon || '📖',
-      color: track?.color || '#2E8B57',
-      completedAt: Date.now(),
-      words: allWords,
-      gemsEarned: gemsThisEpisode,
-      lines: (episode.full_episode?.text || lines.map(l => l.text)).map((txt, i) => ({ text: txt, ar: lines[i]?.arabic || '' })),
-    });
-    setPhase('done');
-  };
-
-  const handleChoice = (opt) => {
-    if (chosen) return;
-    setChosen(opt);
-    const ok = opt === word.ar;
-    flash(ok, ok ? 'correct_answer' : 'wrong_answer', ok ? 'correct' : 'wrong');
-    if (ok) awardGems(1);
-    setTimeout(() => {
-      if (ok) { setPhase('blank'); setChosen(null); }
-      else setChosen(null);
-    }, 800);
-  };
-
-  const checkBlank = () => {
-    const ok = typed.trim().toLowerCase() === word.word.toLowerCase();
-    flash(ok, ok ? 'correct_answer' : 'wrong_answer', ok ? 'correct' : 'wrong');
-    if (ok) {
-      awardGems(1);
-      addWordToBank(
-        trackId, word.id,
-        { word: word.word, ar: word.ar, phonetic: word.phonetic, pron: word.pron, emoji: word.emoji, grammar: word.grammar },
-        episodeNum,
-        episode.word_expiry?.non_protected_expire_after_episode
-      );
-      setTimeout(advanceAfterWord, 800);
-    } else setTyped('');
-  };
-
-  const pickArrangeWord = (w, idx) => {
-    if (arrangePicked.some(p => p.idx === idx)) return;
-    playSfx('writing');
-    setArrangePicked(prev => [...prev, { word: w, idx }]);
-  };
-
-  const undoArrangeWord = (idx) => {
-    setArrangePicked(prev => prev.filter(p => p.idx !== idx));
-  };
-
-  const checkArrange = () => {
-    const built = arrangePicked.map(p => p.word);
-    const target = line.arrange_words_exercise.correct_order;
-    const ok = built.length === target.length && built.every((w, i) => w === target[i]);
-    flash(ok, ok ? 'correct_answer' : 'wrong_answer', ok ? 'correct' : 'wrong');
-    if (ok) { awardGems(3); setTimeout(finishLine, 800); }
-    else { playSfx('eraser'); setTimeout(() => setArrangePicked([]), 500); }
-  };
-
-  // ── حلقة مش موجودة (خلصنا الموسم أو مفيش بيانات) ──
-  if (!rawEpisode) {
-    return (
-      <SafeAreaView style={s.safe}>
-        <View style={s.center}>
-          <BiboCharacter
-            state="celebrate"
-            size={92}
-            message={lang === 'ar'
-              ? (episodeNum > totalEpisodes ? 'خلصت كل حلقات الموسم! مبروك 🏆' : 'الحلقة دي لسه بتتجهز... جرب تاني قريب 📖')
-              : (episodeNum > totalEpisodes ? 'You finished the whole season! Congrats 🏆' : "This episode isn't ready yet... check back soon 📖")}
-          />
-          <TouchableOpacity style={s.restartBtn} onPress={onLeave}>
-            <Text style={s.restartTxt}>{lang === 'ar' ? 'رجوع' : 'Back'}</Text>
+  const PAGES = [
+    { icon: '🤝', title: lang === 'ar' ? 'التعاون مع بيبو' : 'Co-op with Bibo',
+      body: lang === 'ar' ? 'أنت وبيبو بتكملوا قصة وحدة سوا. كل وحد منكم إله دور.' : 'You and Bibo complete one story together. Each of you plays a role.' },
+    { icon: '👤', title: lang === 'ar' ? 'دورك' : 'Your role',
+      body: lang === 'ar' ? 'أنت تكتب جمل البطل الرئيسي. كل جملة تعلّمك كلمات جديدة.' : 'You write the main story lines. Each line teaches you new vocabulary.' },
+    { icon: '🐦', title: lang === 'ar' ? 'دور بيبو' : "Bibo's role",
+      body: lang === 'ar' ? 'بيبو يكمّل كل جملة بصوته، ويضيف عمقًا للقصة.' : 'Bibo completes each line with his voice, adding depth to the story.' },
+    { icon: '🎵', title: lang === 'ar' ? 'مؤثرات صوتية' : 'Sound Effects',
+      body: lang === 'ar' ? 'كل مسار إله أصوات مميزة بتشتغل أثناء القصة.' : 'Each track has unique sounds that play during the story.' },
+    { icon: '🏆', title: lang === 'ar' ? 'تعلّم مع بيبو' : 'Learn Together',
+      body: lang === 'ar' ? 'بتكسب كلمات وجواهر مع كل قصة تكملها مع بيبو!' : 'Earn words and gems with every story you finish with Bibo!' },
+  ];
+  const p = PAGES[page];
+  return (
+    <SafeAreaView style={s.safe}>
+      <PageHeader
+        title={lang === 'ar' ? 'كيف تشتغل' : 'How it works'}
+        right={<TouchableOpacity onPress={onDone} style={s.skipBtn}><Text style={s.skipTxt}>{lang === 'ar' ? 'تخطّي' : 'Skip'}</Text></TouchableOpacity>}
+      />
+      <View style={s.tutWrap}>
+        <View style={s.tutDots}>
+          {PAGES.map((_, i) => <View key={String(i)} style={[s.tutDot, i === page ? s.tutDotActive : null]} />)}
+        </View>
+        <View style={s.tutCard}>
+          <Text style={s.tutIcon}>{p.icon}</Text>
+          <Text style={s.tutTitle}>{p.title}</Text>
+          <Text style={s.tutBody}>{p.body}</Text>
+        </View>
+        <View style={s.tutBtns}>
+          {page > 0 ? (
+            <TouchableOpacity style={s.tutBackBtn} onPress={() => setPage(page - 1)}>
+              <Text style={s.tutBackTxt}>{lang === 'ar' ? '← رجوع' : '← Back'}</Text>
+            </TouchableOpacity>
+          ) : <View style={{ width: 80 }} />}
+          <TouchableOpacity style={s.tutNextBtn} onPress={() => page === PAGES.length - 1 ? onDone() : setPage(page + 1)}>
+            <Text style={s.tutNextTxt}>{page === PAGES.length - 1 ? (lang === 'ar' ? 'يلا نبدأ! 🚀' : "Let's go! 🚀") : (lang === 'ar' ? 'التالي →' : 'Next →')}</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
-    );
-  }
-
-  // ── مقدمة الحلقة ──
-  if (!started) {
-    return (
-      <SafeAreaView style={s.safe}>
-        <View style={s.center}>
-          <Text style={s.epNum}>{lang === 'ar' ? 'الحلقة' : 'Episode'} {episodeNum}</Text>
-          <Text style={s.epTitle}>{lang === 'ar' ? episode.title_arabic : episode.title}</Text>
-          <BiboCharacter state="welcome" size={100} message={bMsg('episode_start', 'levelUp')} style={{ marginVertical: 18 }} />
-          <TouchableOpacity style={s.startBtn2} onPress={() => { setStarted(true); playSfx('pageTurn'); }}>
-            <Text style={s.startBtn2Txt}>▶ {lang === 'ar' ? 'ابدأ' : 'Start'}</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  // ── خلصت الحلقة ──
-  if (phase === 'done') {
-    const next = episode.next_episode;
-    return (
-      <SafeAreaView style={s.safe}>
-        <ScrollView contentContainerStyle={s.center}>
-          <BiboCharacter state="celebrate" size={100} message={bMsg('episode_complete', 'episodeComplete')} />
-          <View style={s.doneStatsRow}>
-            <View style={s.doneStat}><Text style={s.doneStatVal}>{lines.reduce((n, l) => n + (l.words?.length || 0), 0)}</Text><Text style={s.doneStatLbl}>{lang === 'ar' ? 'كلمة' : 'words'}</Text></View>
-            <View style={s.doneStat}><Text style={s.doneStatVal}>+{gemsThisEpisode}</Text><Text style={s.doneStatLbl}>💎</Text></View>
-          </View>
-
-          <View style={s.wordsSummaryCard}>
-            <Text style={s.wordsSummaryTitle}>{lang === 'ar' ? 'الكلمات اللي اتعلمتها 🌟' : 'Words you learned 🌟'}</Text>
-            <View style={s.wordsSummaryGrid}>
-              {lines.flatMap(l => l.words || []).map((w, i) => (
-                <View key={String(w.id) + i} style={s.wordsSummaryChip}>
-                  <Text style={s.wordsSummaryEmoji}>{w.emoji}</Text>
-                  <Text style={s.wordsSummaryTxt}>{w.word}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-          {next ? (
-            <View style={s.nextCard}>
-              <Text style={s.nextLabel}>{lang === 'ar' ? 'الحلقة الجاية' : 'Next episode'}</Text>
-              <Text style={s.nextTitle}>{lang === 'ar' ? next.title_arabic : next.title}</Text>
-              <Text style={s.nextPreview}>{next.preview}</Text>
-            </View>
-          ) : null}
-          <TouchableOpacity style={s.cinemaBtn} onPress={() => setShowCinema(true)}>
-            <Text style={s.cinemaBtnTxt}>🎬 {lang === 'ar' ? 'اقرأ القصة كاملة' : 'Read the full story'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={s.restartBtn} onPress={onLeave}>
-            <Text style={s.restartTxt}>{lang === 'ar' ? 'رجوع للرئيسية' : 'Back to Home'}</Text>
-          </TouchableOpacity>
-        </ScrollView>
-
-        <CinematicReading visible={showCinema} episode={episode} lang={lang} onClose={() => setShowCinema(false)} />
-      </SafeAreaView>
-    );
-  }
-
-  // بيدوّر لو السطر الحالي بيتكلم عن شخصية مساعدة (partner) عشان نعرّفها بأفاتار
-  const linePartner = (episode.partners || []).find(p => p.name && line.text.includes(p.name));
-
-  // ── مرحلة عرض السطر (context) ──
-  const renderContext = () => (
-    <View>
-      {linePartner ? (
-        <View style={s.partnerCard}>
-          <Avatar name={linePartner.name} size={40} />
-          <View style={{ flex: 1 }}>
-            <Text style={s.partnerName}>{linePartner.name}</Text>
-            <Text style={s.partnerLoc}>📍 {linePartner.city}, {linePartner.country}</Text>
-          </View>
-        </View>
-      ) : null}
-      <View style={s.lineCard}>
-        <TouchableOpacity
-          style={s.lineTextRow}
-          onPress={() => playWord({ id: `line-${lineIdx}`, word: line.text })}
-          accessible={true}
-          accessibilityRole="button"
-          accessibilityLabel={lang === 'ar' ? 'استمع للجملة' : 'Listen to the sentence'}
-        >
-          <Text style={s.lineText}>{line.text}</Text>
-          <Text style={s.lineSpeakIcon} importantForAccessibility="no">🔊</Text>
-        </TouchableOpacity>
-        <Text style={s.lineAr}>{line.arabic}</Text>
       </View>
-      {line.protected_word_ids?.length ? (
-        <Text style={s.protectedNote}>{bMsg('protected_word', 'idea')}</Text>
-      ) : null}
-      <Text style={s.newWordsLabel}>{lang === 'ar' ? 'كلمات جديدة في السطر ده' : 'New words in this line'}</Text>
-      <View style={s.chipsRow}>
-        {(line.words || []).map((w, i) => (
-          <View key={String(w.id) + i} style={s.chipWrap}>
-            <TouchableOpacity style={s.chip} onPress={() => playWord(w)}>
-              <Text style={s.chipEmoji}>{w.emoji}</Text>
-              <Text style={s.chipWord}>{w.word}</Text>
-              <Text style={s.chipAr}>{w.ar}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={s.infoBtn} onPress={() => openWordInfo(w.id)} accessibilityRole="button" accessibilityLabel={lang === 'ar' ? 'معلومات الكلمة' : 'Word info'}>
-              <Text style={s.infoBtnTxt}>ℹ️</Text>
-            </TouchableOpacity>
+    </SafeAreaView>
+  );
+}
+
+function CoopGame({ trackId, lang, onEnd, addGems }) {
+  const track     = TRACKS.find(tr => tr.id === trackId) || TRACKS[0];
+  const sounds    = TRACK_SOUNDS[trackId] || TRACK_SOUNDS.spy;
+  const lines     = COOP_STORY[trackId]   || COOP_STORY.spy;
+  const wordLines = COOP_WORDS[trackId]   || COOP_WORDS.spy;
+
+  const [lineIdx,   setLineIdx]   = useState(0);
+  const [wordIdx,   setWordIdx]   = useState(0);
+  const [typed,     setTyped]     = useState('');
+  const [done,      setDone]      = useState([]);
+  const [showBibo,  setShowBibo]  = useState(false);
+  const [gameOver,  setGameOver]  = useState(false);
+  const [soundLog,  setSoundLog]  = useState([]);
+
+  const currentLine = wordLines[lineIdx] || [];
+  const currentWord = currentLine[wordIdx] || '';
+  const story = lines[lineIdx];
+
+  const addSound = (trigger) => {
+    const match = sounds.sounds.find(sd => sd.trigger === trigger);
+    if (!match) return;
+    const id = Date.now();
+    setSoundLog(prev => [{ ...match, id }, ...prev.slice(0, 2)]);
+    setTimeout(() => setSoundLog(prev => prev.filter(sd => sd.id !== id)), 2000);
+  };
+
+  const checkWord = () => {
+    if (typed.trim().toLowerCase() !== currentWord.toLowerCase()) { setTyped(''); addSound('danger moment'); playSfx('wrong'); return; }
+    setTyped(''); addSound('correct answer'); playSfx('correct');
+    const nextWord = wordIdx + 1;
+    if (nextWord >= currentLine.length) {
+      setShowBibo(true); addSound('mission start'); playSfx('pageTurn');
+      setTimeout(() => {
+        setShowBibo(false);
+        setDone(prev => [...prev, lineIdx]);
+        const nextLine = lineIdx + 1;
+        if (nextLine >= lines.length) { setGameOver(true); playSfx('win'); }
+        else { setLineIdx(nextLine); setWordIdx(0); }
+      }, 2200);
+    } else setWordIdx(nextWord);
+  };
+
+  const handleLeave = () => Alert.alert(
+    lang === 'ar' ? 'مغادرة القصة؟' : 'Leave Story?',
+    lang === 'ar' ? 'بيبو رح يستنّاك ترجع لاحقًا.' : 'Bibo will wait for you to come back later.',
+    [
+      { text: lang === 'ar' ? 'كمّل' : 'Stay', style: 'cancel' },
+      { text: lang === 'ar' ? 'مغادرة' : 'Leave', style: 'destructive', onPress: onEnd },
+    ]
+  );
+
+  if (gameOver) return (
+    <SafeAreaView style={s.safe}>
+      <ScrollView contentContainerStyle={s.doneWrap}>
+        <BiboCharacter state="celebrate" size={80} message={lang === 'ar' ? 'قصة رهيبة! 🎉' : 'Amazing story! 🎉'} />
+        <Text style={s.doneTitle}>{lang === 'ar' ? 'القصة اكتملت!' : 'Story Complete!'}</Text>
+        <Text style={s.doneSub}>+{lines.length * 5} {lang === 'ar' ? 'جوهرة' : 'gems earned'}</Text>
+        <View style={[s.trackBadge, { borderColor: track.color }]}>
+          <Text style={[s.trackBadgeTxt, { color: track.color }]}>{track.icon} {track.name}</Text>
+        </View>
+        {lines.map((line, i) => (
+          <View key={String(i)} style={s.doneLineWrap}>
+            <Text style={s.doneHero}>{'👤 ' + line.hero}</Text>
+            <Text style={s.donePartner}>{'🐦 ' + line.partner}</Text>
           </View>
         ))}
-      </View>
-      <TouchableOpacity style={s.startBtn2} onPress={() => { setPhase('choice'); setWordIdx(0); }}>
-        <Text style={s.startBtn2Txt}>{lang === 'ar' ? 'يلا نتعلم 🎯' : "Let's learn 🎯"}</Text>
-      </TouchableOpacity>
-    </View>
-  );
-
-  const renderChoice = () => (
-    <View>
-      <View style={s.wordCard}>
-        <Text style={s.wordEmojiBig}>{word.emoji}</Text>
-        <Text style={s.wordEn}>{word.word}</Text>
-        <View style={s.wordCardBtns}>
-          <TouchableOpacity onPress={() => playWord(word)} style={s.speakBtn}><Text style={s.speakTxt}>🔊</Text></TouchableOpacity>
-          <TouchableOpacity onPress={() => openWordInfo(word.id)} style={s.speakBtn}><Text style={s.speakTxt}>ℹ️</Text></TouchableOpacity>
-        </View>
-      </View>
-      <Text style={s.qLabel}>{lang === 'ar' ? 'اختر الترجمة الصحيحة' : 'Choose the correct meaning'} · {wordIdx + 1}/{line.words.length}</Text>
-      {choicesRef.current.filter(opt => opt !== eliminatedChoice).map((opt, i) => {
-        const isChosen = chosen === opt;
-        const isCorrect = opt === word.ar;
-        const showState = chosen && (isChosen || isCorrect);
-        return (
-          <TouchableOpacity
-            key={String(i)}
-            style={[s.optBtn, showState ? (isCorrect ? s.optCorrect : s.optWrong) : null]}
-            onPress={() => handleChoice(opt)}
-            disabled={!!chosen}
-          >
-            <Text style={s.optTxt}>{opt}</Text>
-          </TouchableOpacity>
-        );
-      })}
-    </View>
-  );
-
-  const renderBlank = () => {
-    const sentence = line.text.replace(new RegExp(word.word, 'i'), '____');
-    return (
-      <View>
-        <View style={s.blankTopRow}>
-          <Text style={[s.qLabel, { flex: 1, marginBottom: 0 }]}>{lang === 'ar' ? 'أكمل الجملة من القصة' : 'Complete the sentence'} · {wordIdx + 1}/{line.words.length}</Text>
-          <TouchableOpacity onPress={() => openWordInfo(word.id)}><Text style={s.speakTxt}>ℹ️</Text></TouchableOpacity>
-        </View>
-        <Text style={s.blankSentence}>{sentence}</Text>
-        {hintVisible ? <Text style={s.blankHint}>💡 {hintText()}</Text> : null}
-        <View style={s.inputRow}>
-          <TextInput
-            style={s.input}
-            value={typed}
-            onChangeText={(v) => { setTyped(v); playSfx('writing'); }}
-            onSubmitEditing={checkBlank}
-            placeholder={word.phonetic}
-            placeholderTextColor="rgba(255,255,255,0.25)"
-            autoCapitalize="none"
-            returnKeyType="done"
-          />
-          <TouchableOpacity style={s.checkBtn} onPress={checkBlank}>
-            <Text style={s.checkBtnTxt}>✓</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  };
-
-  const renderArrange = () => {
-    const ex = line.arrange_words_exercise;
-    return (
-      <View>
-        <Text style={s.qLabel}>{lang === 'ar' ? 'رتّب الكلمات لتكوين السطر' : 'Arrange the words'}</Text>
-        <Text style={s.lineAr}>{ex.arabic}</Text>
-        {hintVisible ? <Text style={s.blankHint}>💡 {hintText()}</Text> : null}
-        <View style={s.builtRow}>
-          {arrangePicked.length === 0 ? <Text style={s.builtPlaceholder}>...</Text> : arrangePicked.map((p, i) => (
-            <TouchableOpacity key={String(i)} style={s.builtChip} onPress={() => undoArrangeWord(p.idx)}>
-              <Text style={s.builtChipTxt}>{p.word}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        <View style={s.chipsRow}>
-          {arrangeOptsRef.current.map((w, i) => {
-            const used = arrangePicked.some(p => p.idx === i);
-            return (
-              <TouchableOpacity key={String(i)} style={[s.arrangeChip, used ? { opacity: 0.25 } : null]} disabled={used} onPress={() => pickArrangeWord(w, i)}>
-                <Text style={s.arrangeChipTxt}>{w}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-        <TouchableOpacity style={[s.startBtn2, arrangePicked.length === 0 ? { opacity: 0.4 } : null]} disabled={arrangePicked.length === 0} onPress={checkArrange}>
-          <Text style={s.startBtn2Txt}>✓ {lang === 'ar' ? 'تحقق' : 'Check'}</Text>
+        <TouchableOpacity style={s.doneBtn} onPress={() => { addGems(lines.length * 5); onEnd(); }}>
+          <Text style={s.doneBtnTxt}>{lang === 'ar' ? 'الرجوع للرئيسية' : 'Back to Home'}</Text>
         </TouchableOpacity>
-      </View>
-    );
-  };
+      </ScrollView>
+    </SafeAreaView>
+  );
 
   return (
     <SafeAreaView style={s.safe}>
-      <View style={s.header}>
-        <TouchableOpacity style={s.leaveBtn} onPress={onLeave}><Text style={s.leaveTxt}>← {T('leave')}</Text></TouchableOpacity>
-        <Text style={s.headerInfo}>{lang === 'ar' ? 'حلقة' : 'Ep'} {episodeNum} · {lineIdx + 1}/{lines.length}</Text>
+      <View style={s.gameHeader}>
+        <TouchableOpacity style={s.leaveBtn} onPress={handleLeave}>
+          <Text style={s.leaveTxt}>{lang === 'ar' ? 'مغادرة' : 'Leave'}</Text>
+        </TouchableOpacity>
+        <View style={[s.trackMini, { borderColor: track.color + '66' }]}>
+          <Text style={[s.trackMiniTxt, { color: track.color }]}>{track.icon} {lineIdx + 1}/{lines.length}</Text>
+        </View>
+        <View style={s.gameProgressBg}>
+          <View style={[s.gameProgressFill, { width: Math.round(lineIdx / lines.length * 100) + '%', backgroundColor: track.color }]} />
+        </View>
       </View>
-      <ScrollView contentContainerStyle={s.body}>
-        <BiboCharacter
-          layout="row"
-          size={52}
-          style={{ marginBottom: 14 }}
-          state={feedback?.type === 'correct' ? 'celebrate' : feedback?.type === 'wrong' ? 'encourage' : phase === 'arrange' ? 'thinking' : 'attention'}
-          message={
-            feedback ? feedback.msg :
-            hintVisible ? hintText() :
-            ['choice', 'blank', 'arrange'].includes(phase) ? (lang === 'ar' ? 'محتاج مساعدة؟ دوسني 💡' : 'Need help? Tap me 💡') :
-            undefined
-          }
-          onPress={['choice', 'blank', 'arrange'].includes(phase) ? requestHint : undefined}
-          hintBadge={['choice', 'blank', 'arrange'].includes(phase) && !hintVisible}
-        />
-        {phase === 'context' ? renderContext() :
-         phase === 'choice' ? renderChoice() :
-         phase === 'blank' ? renderBlank() :
-         phase === 'arrange' ? renderArrange() : null}
-      </ScrollView>
 
-      <WordInfoModal
-        visible={!!infoWordId}
-        word={vocabById[infoWordId]}
-        lang={lang}
-        onClose={closeWordInfo}
-        onPlay={() => infoWordId && playWord({ id: infoWordId, word: vocabById[infoWordId]?.word })}
-      />
+      {soundLog.length > 0 ? (
+        <View style={s.soundLog}>
+          {soundLog.map(sl => (
+            <View key={String(sl.id)} style={[s.soundLogItem, { borderColor: track.color + '66' }]}>
+              <Text style={s.soundLogIcon}>{sl.icon}</Text>
+              <Text style={[s.soundLogTxt, { color: track.color }]}>{sl.label}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      <ScrollView contentContainerStyle={s.gameContent}>
+        {done.map(i => (
+          <View key={String(i)} style={s.doneLine}>
+            <Text style={s.doneHeroSmall}>{'✅ ' + lines[i].hero}</Text>
+            <Text style={s.donePartnerSmall}>{'🐦 ' + lines[i].partner}</Text>
+          </View>
+        ))}
+        <View style={[s.currentCard, { borderColor: track.color + '44' }]}>
+          <Text style={[s.currentLabel, { color: track.color }]}>{lang === 'ar' ? 'دورك:' : 'Your turn:'}</Text>
+          <Text style={s.currentStory}>{story?.hero}</Text>
+          <View style={s.wordsRow}>
+            {currentLine.map((w, i) => {
+              const st = i < wordIdx ? 'done' : i === wordIdx ? 'current' : 'pending';
+              return (
+                <View key={String(i)} style={[s.wordChip, st === 'done' ? { borderColor: '#2E8B57', backgroundColor: 'rgba(46,139,87,0.15)' } : st === 'current' ? { borderColor: track.color, backgroundColor: track.color + '22' } : { borderColor: 'rgba(255,255,255,0.1)' }]}>
+                  <Text style={[s.wordTxt, st === 'done' ? { color: '#a5d6a7' } : st === 'current' ? { color: track.color, fontWeight: '700' } : { color: 'rgba(255,255,255,0.3)' }]}>{w}</Text>
+                </View>
+              );
+            })}
+          </View>
+          <View style={s.inputRow}>
+            <TextInput style={s.gameInput} value={typed} onChangeText={setTyped} onSubmitEditing={checkWord}
+              placeholder={currentWord} placeholderTextColor="rgba(255,255,255,0.2)"
+              autoCapitalize="none" returnKeyType="done" />
+            <TouchableOpacity style={[s.checkBtn, { backgroundColor: track.color + 'cc' }]} onPress={checkWord}>
+              <Text style={s.checkBtnTxt}>✓</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        {showBibo ? (
+          <View style={[s.partnerCard, { borderColor: track.color + '44', backgroundColor: track.color + '12' }]}>
+            <BiboCharacter layout="row" size={44} state="encourage" />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={[s.partnerLabel, { color: track.color }]}>🐦 {lang === 'ar' ? 'بيبو يكمّل...' : 'Bibo completing...'}</Text>
+              <Text style={s.partnerText}>{story?.partner}</Text>
+            </View>
+          </View>
+        ) : null}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+export default function Coop({ onBack }) {
+  const { lang, gems, addGems, track: userTrack } = useApp();
+  const T = (k) => t(k, lang);
+  const [screen,  setScreen]  = useState('tutorial');
+  const [trackId, setTrackId] = useState(userTrack?.id || 'spy');
+
+  if (screen === 'tutorial') return <TutorialScreen lang={lang} onDone={() => setScreen('home')} />;
+  if (screen === 'game')     return <CoopGame trackId={trackId} lang={lang} onEnd={() => setScreen('home')} addGems={addGems} />;
+
+  const track  = TRACKS.find(tr => tr.id === trackId) || TRACKS[0];
+  const sounds = TRACK_SOUNDS[trackId] || TRACK_SOUNDS.spy;
+
+  return (
+    <SafeAreaView style={s.safe}>
+      <PageHeader title={lang === 'ar' ? 'التعاون مع بيبو' : 'Co-op with Bibo'} onBack={onBack} backLabel={T('back')} right={<GemsBadge gems={gems} />} />
+      <ScrollView contentContainerStyle={s.pageContent}>
+        <View style={[s.explainCard, { borderColor: track.color + '44' }]}>
+          <BiboCharacter state="welcome" size={64} style={{ marginBottom: 12 }} />
+          <Text style={s.explainTitle}>{lang === 'ar' ? 'اكتب قصة مع بيبو!' : 'Write a story with Bibo!'}</Text>
+          <Text style={s.explainBody}>
+            {lang === 'ar'
+              ? 'أكمل قصة واحدة مع بيبو: أنت تكتب جمل البطل، وبيبو يكمّل كل مشهد بصوته.'
+              : 'Complete one story together with Bibo: you write the hero lines, Bibo completes each scene with his voice.'}
+          </Text>
+          <TouchableOpacity style={s.tutBtn} onPress={() => setScreen('tutorial')}>
+            <Text style={s.tutBtnTxt}>{lang === 'ar' ? 'كيف تشتغل' : 'How it works'}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={s.sectionLabel}>{lang === 'ar' ? 'المسار:' : 'Track:'}</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+          {TRACKS.map(tr => (
+            <TouchableOpacity key={tr.id}
+              style={[s.trackChip, trackId === tr.id ? { borderColor: tr.color, backgroundColor: tr.color + '22' } : { borderColor: 'rgba(255,255,255,0.1)' }]}
+              onPress={() => setTrackId(tr.id)}>
+              <Text style={{ fontSize: 20 }}>{tr.icon}</Text>
+              <Text style={[s.trackChipTxt, trackId === tr.id ? { color: tr.color } : null]}>{tr.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        <View style={[s.soundsCard, { borderColor: track.color + '33' }]}>
+          <Text style={[s.soundsTitle, { color: track.color }]}>{track.icon} {track.name} {lang === 'ar' ? '— أصوات' : 'Sounds'}</Text>
+          <Text style={s.soundsAmbient}>{sounds.ambient}</Text>
+          <View style={s.soundsGrid}>
+            {sounds.sounds.map(snd => (
+              <View key={snd.label} style={[s.soundItem, { borderColor: track.color + '33' }]}>
+                <Text style={{ fontSize: 20 }}>{snd.icon}</Text>
+                <Text style={s.soundLabel}>{snd.label}</Text>
+                <Text style={s.soundTrigger}>{snd.trigger}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <TouchableOpacity style={[s.startBtn, { backgroundColor: track.color + 'cc' }]} onPress={() => setScreen('game')}>
+          <Text style={s.startBtnTxt}>{lang === 'ar' ? '🐦 ابدأ مع بيبو' : '🐦 Start with Bibo'}</Text>
+        </TouchableOpacity>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
   safe:            { flex: 1, backgroundColor: '#08080f' },
-  center:          { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  header:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10 },
-  leaveBtn:        { paddingVertical: 6 },
-  leaveTxt:        { color: '#a5d6a7', fontSize: 14, fontWeight: '600' },
-  headerInfo:      { color: 'rgba(255,255,255,0.5)', fontSize: 12 },
-  body:            { padding: 18, paddingBottom: 50 },
-
-  epNum:           { color: '#a5d6a7', fontSize: 14, fontWeight: '700', letterSpacing: 1 },
-  epTitle:         { color: '#fff', fontSize: 24, fontWeight: '800', marginTop: 4, textAlign: 'center' },
-  startBtn2:       { backgroundColor: '#2E8B57', borderRadius: 14, paddingVertical: 14, paddingHorizontal: 32, marginTop: 10 },
-  startBtn2Txt:    { color: '#fff', fontWeight: '800', fontSize: 15, textAlign: 'center' },
-
-  lineCard:        { backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 16, padding: 18, marginBottom: 12 },
-  partnerCard:     { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 14, padding: 10, marginBottom: 10 },
-  partnerName:     { color: '#fff', fontWeight: '800', fontSize: 13 },
-  partnerLoc:      { color: 'rgba(255,255,255,0.45)', fontSize: 11, marginTop: 1 },
-  lineText:        { color: '#fff', fontSize: 17, lineHeight: 26, marginBottom: 8 },
-  lineTextRow:     { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
-  lineSpeakIcon:   { fontSize: 15, color: 'rgba(255,255,255,0.4)', marginBottom: 8 },
-  lineAr:          { color: 'rgba(255,255,255,0.55)', fontSize: 14, lineHeight: 22 },
-  protectedNote:   { color: 'rgba(255,255,255,0.4)', fontSize: 12, marginBottom: 12, fontStyle: 'italic' },
-  newWordsLabel:   { color: '#fff', fontWeight: '700', fontSize: 13, marginBottom: 8 },
-  chipsRow:        { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 },
-  chipWrap:        { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  chip:            { backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', borderRadius: 12, paddingVertical: 8, paddingHorizontal: 10, alignItems: 'center', minWidth: 70 },
-  chipEmoji:       { fontSize: 18 },
-  chipWord:        { color: '#fff', fontSize: 12, fontWeight: '700', marginTop: 2 },
-  chipAr:          { color: 'rgba(255,255,255,0.45)', fontSize: 11 },
-  infoBtn:         { padding: 6 },
-  infoBtnTxt:      { fontSize: 15 },
-
-  wordCard:        { alignItems: 'center', marginBottom: 20 },
-  wordEmojiBig:    { fontSize: 46 },
-  wordEn:          { color: '#fff', fontSize: 26, fontWeight: '800', marginTop: 6 },
-  wordCardBtns:    { flexDirection: 'row', gap: 14, marginTop: 8 },
-  speakBtn:        { padding: 6 },
-  speakTxt:        { fontSize: 22 },
-  qLabel:          { color: 'rgba(255,255,255,0.55)', fontSize: 13, marginBottom: 12, textAlign: 'center' },
-  blankTopRow:     { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  optBtn:          { borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: 14, marginBottom: 10 },
-  optTxt:          { color: '#fff', fontSize: 15, textAlign: 'center' },
-  optCorrect:      { borderColor: '#2E8B57', backgroundColor: 'rgba(46,139,87,0.2)' },
-  optWrong:        { borderColor: '#c0392b', backgroundColor: 'rgba(192,57,43,0.2)' },
-
-  blankSentence:   { color: '#fff', fontSize: 16, lineHeight: 24, textAlign: 'center', marginBottom: 10 },
-  blankHint:       { color: 'rgba(255,255,255,0.4)', fontSize: 12, textAlign: 'center', marginBottom: 14, fontStyle: 'italic' },
-  inputRow:        { flexDirection: 'row', gap: 10 },
-  input:           { flex: 1, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: '#fff', fontSize: 15 },
-  checkBtn:        { backgroundColor: '#2E8B57', borderRadius: 12, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
-  checkBtnTxt:     { color: '#fff', fontSize: 18, fontWeight: '800' },
-
-  builtRow:        { flexDirection: 'row', flexWrap: 'wrap', gap: 8, minHeight: 46, borderBottomWidth: 2, borderBottomColor: 'rgba(255,255,255,0.15)', marginBottom: 18, paddingBottom: 10 },
-  builtPlaceholder:{ color: 'rgba(255,255,255,0.25)', fontSize: 14 },
-  builtChip:       { backgroundColor: 'rgba(46,139,87,0.25)', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },
-  builtChipTxt:    { color: '#fff', fontWeight: '700', fontSize: 14 },
-  arrangeChip:     { backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },
-  arrangeChipTxt:  { color: '#fff', fontSize: 14 },
-
-  doneStatsRow:    { flexDirection: 'row', gap: 16, marginTop: 18, marginBottom: 20 },
-  doneStat:        { alignItems: 'center' },
-  doneStatVal:     { color: '#fff', fontSize: 22, fontWeight: '800' },
-  doneStatLbl:     { color: 'rgba(255,255,255,0.5)', fontSize: 12 },
-  wordsSummaryCard:  { width: '100%', backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderRadius: 16, padding: 16, marginBottom: 20 },
-  wordsSummaryTitle: { color: '#fff', fontSize: 14, fontWeight: '800', marginBottom: 12, textAlign: 'center' },
-  wordsSummaryGrid:  { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
-  wordsSummaryChip:  { alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10, minWidth: 60 },
-  wordsSummaryEmoji: { fontSize: 18 },
-  wordsSummaryTxt:   { color: '#fff', fontSize: 10, fontWeight: '600', marginTop: 3 },
-  nextCard:        { width: '100%', backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderRadius: 16, padding: 16, marginBottom: 20 },
-  nextLabel:       { color: '#a5d6a7', fontSize: 11, fontWeight: '700', marginBottom: 4 },
-  nextTitle:       { color: '#fff', fontSize: 16, fontWeight: '800', marginBottom: 6 },
-  nextPreview:     { color: 'rgba(255,255,255,0.5)', fontSize: 13, lineHeight: 19 },
-  cinemaBtn:       { backgroundColor: 'rgba(255,179,0,0.15)', borderWidth: 1, borderColor: '#FFB300', borderRadius: 13, paddingHorizontal: 26, paddingVertical: 12, marginBottom: 12 },
-  cinemaBtnTxt:    { color: '#FFB300', fontSize: 14, fontWeight: '800', textAlign: 'center' },
-  restartBtn:      { backgroundColor: '#1B3A6B', borderRadius: 13, paddingHorizontal: 28, paddingVertical: 13 },
-  restartTxt:      { color: '#fff', fontSize: 15, fontWeight: '700' },
+  pageContent:     { padding: 16, paddingBottom: 40 },
+  skipBtn:         { padding: 8 },
+  skipTxt:         { color: 'rgba(255,255,255,0.4)', fontSize: 13 },
+  tutWrap:         { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  tutDots:         { flexDirection: 'row', gap: 8, marginBottom: 32 },
+  tutDot:          { width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.15)' },
+  tutDotActive:    { backgroundColor: '#2E8B57', width: 20 },
+  tutCard:         { alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 20, padding: 28, width: '100%', marginBottom: 32 },
+  tutIcon:         { fontSize: 56, marginBottom: 16 },
+  tutTitle:        { fontSize: 22, fontWeight: '800', color: '#fff', marginBottom: 10, textAlign: 'center' },
+  tutBody:         { fontSize: 14, color: 'rgba(255,255,255,0.55)', textAlign: 'center', lineHeight: 24 },
+  tutBtns:         { flexDirection: 'row', justifyContent: 'space-between', width: '100%' },
+  tutBackBtn:      { borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12 },
+  tutBackTxt:      { color: 'rgba(255,255,255,0.5)', fontSize: 14 },
+  tutNextBtn:      { backgroundColor: '#1B3A6B', borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 },
+  tutNextTxt:      { color: '#fff', fontSize: 14, fontWeight: '700' },
+  sectionLabel:    { fontSize: 13, color: 'rgba(255,255,255,0.45)', marginBottom: 10 },
+  explainCard:     { alignItems: 'center', borderWidth: 1, borderRadius: 18, padding: 20, marginBottom: 16, backgroundColor: 'rgba(255,255,255,0.03)' },
+  explainTitle:    { fontSize: 18, fontWeight: '700', color: '#fff', marginBottom: 6 },
+  explainBody:     { fontSize: 13, color: 'rgba(255,255,255,0.5)', textAlign: 'center', lineHeight: 20, marginBottom: 12 },
+  tutBtn:          { borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8 },
+  tutBtnTxt:       { color: 'rgba(255,255,255,0.5)', fontSize: 13 },
+  trackChip:       { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8 },
+  trackChipTxt:    { fontSize: 13, color: 'rgba(255,255,255,0.5)', fontWeight: '600' },
+  soundsCard:      { borderWidth: 1, borderRadius: 14, padding: 14, marginBottom: 16, backgroundColor: 'rgba(255,255,255,0.03)' },
+  soundsTitle:     { fontSize: 14, fontWeight: '700', marginBottom: 4 },
+  soundsAmbient:   { fontSize: 12, color: 'rgba(255,255,255,0.35)', marginBottom: 12, fontStyle: 'italic' },
+  soundsGrid:      { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  soundItem:       { borderWidth: 1, borderRadius: 10, padding: 8, alignItems: 'center', width: '30%' },
+  soundLabel:      { fontSize: 10, color: 'rgba(255,255,255,0.6)', textAlign: 'center', marginTop: 3 },
+  soundTrigger:    { fontSize: 9, color: 'rgba(255,255,255,0.25)', textAlign: 'center', marginTop: 2 },
+  startBtn:        { borderRadius: 13, padding: 14, alignItems: 'center', marginBottom: 10 },
+  startBtnTxt:     { color: '#fff', fontSize: 15, fontWeight: '700' },
+  gameHeader:      { paddingHorizontal: 16, paddingVertical: 10, gap: 6 },
+  leaveBtn:        { alignSelf: 'flex-start', borderWidth: 1, borderColor: 'rgba(192,57,43,0.4)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
+  leaveTxt:        { color: '#c0392b', fontSize: 12, fontWeight: '600' },
+  trackMini:       { alignSelf: 'center', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 3 },
+  trackMiniTxt:    { fontSize: 12, fontWeight: '600' },
+  gameProgressBg:  { height: 3, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' },
+  gameProgressFill:{ height: '100%', borderRadius: 2 },
+  soundLog:        { paddingHorizontal: 16, paddingBottom: 8, gap: 4 },
+  soundLogItem:    { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start' },
+  soundLogIcon:    { fontSize: 16 },
+  soundLogTxt:     { fontSize: 11, fontWeight: '600' },
+  gameContent:     { padding: 16, paddingBottom: 40 },
+  doneLine:        { marginBottom: 6, opacity: 0.45 },
+  doneHeroSmall:   { fontSize: 12, color: '#a5d6a7', lineHeight: 18 },
+  donePartnerSmall:{ fontSize: 12, color: '#7fb3f5', lineHeight: 18 },
+  currentCard:     { borderWidth: 1, borderRadius: 14, padding: 14, marginBottom: 12 },
+  currentLabel:    { fontSize: 11, fontWeight: '700', marginBottom: 8 },
+  currentStory:    { fontSize: 14, color: '#fff', fontStyle: 'italic', lineHeight: 22, marginBottom: 12 },
+  wordsRow:        { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 },
+  wordChip:        { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
+  wordTxt:         { fontSize: 13 },
+  inputRow:        { flexDirection: 'row', gap: 8 },
+  gameInput:       { flex: 1, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: 11, color: '#fff', fontSize: 15 },
+  checkBtn:        { width: 46, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  checkBtnTxt:     { color: '#fff', fontSize: 20, fontWeight: '700' },
+  partnerCard:     { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 12, padding: 12 },
+  partnerLabel:    { fontSize: 11, fontWeight: '700', marginBottom: 4 },
+  partnerText:     { fontSize: 13, color: 'rgba(255,255,255,0.7)', fontStyle: 'italic', lineHeight: 20 },
+  doneWrap:        { alignItems: 'center', padding: 24, paddingBottom: 40 },
+  doneTitle:       { fontSize: 24, fontWeight: '800', color: '#fff', marginTop: 16, marginBottom: 6 },
+  doneSub:         { fontSize: 14, color: 'rgba(255,255,255,0.45)', marginBottom: 12 },
+  trackBadge:      { borderWidth: 2, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 6, marginBottom: 16 },
+  trackBadgeTxt:   { fontSize: 14, fontWeight: '700' },
+  doneLineWrap:    { marginBottom: 10, width: '100%' },
+  doneHero:        { fontSize: 13, color: '#a5d6a7', lineHeight: 20 },
+  donePartner:     { fontSize: 13, color: '#7fb3f5', lineHeight: 20 },
+  doneBtn:         { backgroundColor: '#1B3A6B', borderRadius: 13, paddingHorizontal: 28, paddingVertical: 13, marginTop: 20 },
+  doneBtnTxt:      { color: '#fff', fontSize: 15, fontWeight: '700' },
 });
