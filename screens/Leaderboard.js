@@ -1,95 +1,98 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, SafeAreaView } from 'react-native';
 import { useApp } from '../context/AppContext';
-import { t, LEADERBOARD } from '../data';
+import { t, BIBO_PACE } from '../data';
 import { PageHeader, GemsBadge } from '../components/BiboCard';
+import BiboCharacter from '../components/BiboCharacter';
 
-const MEDAL = { 1: '🥇', 2: '🥈', 3: '🥉' };
+/** صف مقارنة واحد: أنت مقابل بيبو على نفس المقياس */
+function RaceRow({ label, myVal, biboVal, unit, lang }) {
+  const max = Math.max(myVal, biboVal, 1);
+  const myPct   = Math.round((myVal / max) * 100);
+  const biboPct = Math.round((biboVal / max) * 100);
+  const winning = myVal >= biboVal;
 
-function RankRow({ player, maxWords }) {
-  const barW = Math.max(6, Math.round((player.words / maxWords) * 100));
   return (
-    <View style={[s.row, player.isMe ? s.rowMe : null]}>
-      <Text style={[s.rank, player.isMe ? s.rankMe : null]}>{MEDAL[player.rank] || String(player.rank)}</Text>
-      <View style={s.info}>
-        <View style={s.nameRow}>
-          <Text style={[s.name, player.isMe ? s.nameMe : null]}>{player.name}</Text>
-          <Text style={s.track}>{player.track}</Text>
+    <View style={s.raceCard}>
+      <Text style={s.raceLabel}>{label}</Text>
+
+      <View style={s.raceLine}>
+        <Text style={s.raceWho}>{lang === 'ar' ? 'أنت' : 'You'}</Text>
+        <View style={s.raceBarBg}>
+          <View style={[s.raceBarFill, { width: myPct + '%', backgroundColor: winning ? '#2E8B57' : '#7fb3f5' }]} />
         </View>
-        <Text style={s.city}>{player.city}</Text>
-        <View style={s.barBg}>
-          <View style={[s.barFill, { width: barW + '%' }, player.isMe ? s.barFillMe : null]} />
+        <Text style={s.raceVal}>{myVal}</Text>
+      </View>
+
+      <View style={s.raceLine}>
+        <Text style={s.raceWho}>🐦 {lang === 'ar' ? 'بيبو' : 'Bibo'}</Text>
+        <View style={s.raceBarBg}>
+          <View style={[s.raceBarFill, { width: biboPct + '%', backgroundColor: '#FFB300' }]} />
         </View>
+        <Text style={s.raceVal}>{biboVal}</Text>
       </View>
-      <View style={s.stats}>
-        <Text style={[s.words, player.isMe ? s.wordsMe : null]}>{player.words}</Text>
-        <Text style={s.wordsLabel}>words</Text>
-        <Text style={s.streak}>🔥{player.streak}</Text>
-      </View>
+
+      <Text style={[s.raceStatus, { color: winning ? '#a5d6a7' : '#FFB300' }]}>
+        {winning
+          ? (lang === 'ar' ? `أنت متقدم على بيبو بـ ${myVal - biboVal} ${unit}! 🎉` : `You're ahead of Bibo by ${myVal - biboVal} ${unit}! 🎉`)
+          : (lang === 'ar' ? `باقي ${biboVal - myVal} ${unit} تلحق بيبو` : `${biboVal - myVal} ${unit} to catch up with Bibo`)}
+      </Text>
     </View>
   );
 }
 
 export default function Leaderboard({ onBack }) {
-  const { lang, gems, user, track, library, companion } = useApp();
+  const { lang, gems, weeklyProgress, getWordBankWords } = useApp();
   const T = (k) => t(k, lang);
-  const [tab, setTab] = useState('weekly');
 
-  const myWords  = new Set((library || []).flatMap(b => (b.words || []).map(w => w.word))).size;
-  const myStreak = companion?.streak || 1;
-  const myName   = user?.fullName || (lang === 'ar' ? 'أنا' : 'Me');
-  const myCity   = user?.city || (lang === 'ar' ? 'غير محدد' : 'Unknown');
-  const myTrack  = track?.icon || '🕵️';
+  const myWeeklyWords = weeklyProgress?.wordsLearned || 0;
+  const myTotalWords  = useMemo(() => getWordBankWords().filter(w => w.status === 'learned').length, [getWordBankWords]);
 
-  const data = useMemo(() => {
-    const others = LEADERBOARD[tab].filter(p => !p.isMe);
-    const me = { name: myName, city: myCity, words: myWords, streak: myStreak, track: myTrack, isMe: true };
-    return [...others, me]
-      .sort((a, b) => b.words - a.words)
-      .map((p, i) => ({ ...p, rank: i + 1 }));
-  }, [tab, myWords, myStreak, myName, myCity, myTrack]);
-  const maxWords = data[0].words;
-  const myRank  = data.find(p => p.isMe);
+  const weeklyWin = myWeeklyWords >= BIBO_PACE.weeklyWords;
+  const totalWin  = myTotalWords  >= BIBO_PACE.totalWords;
+  const overallLead = weeklyWin && totalWin;
+
+  const biboState = overallLead ? 'celebrate' : weeklyWin ? 'encourage' : 'idea';
+  const biboMsg = overallLead
+    ? (lang === 'ar' ? 'أنت أسرع مني! رهيب 🏆' : "You're faster than me! Amazing 🏆")
+    : (lang === 'ar' ? 'سباق ممتع... يلا نشوف مين بيوصل أول! 🏁' : "Fun race... let's see who gets there first! 🏁");
 
   return (
     <SafeAreaView style={s.safe}>
-      <PageHeader title="Leaderboard" onBack={onBack} backLabel={T('back')} right={<GemsBadge gems={gems} />} />
+      <PageHeader title={lang === 'ar' ? 'سباق مع بيبو' : 'Race with Bibo'} onBack={onBack} backLabel={T('back')} right={<GemsBadge gems={gems} />} />
 
-      {myRank ? (
-        <View style={s.myCard}>
-          <View style={s.myLeft}>
-            <Text style={s.myLabel}>My Rank</Text>
-            <Text style={s.myRank}>{MEDAL[myRank.rank] || '#' + myRank.rank}</Text>
-          </View>
-          <View style={s.myDivider} />
-          <View style={s.myMid}>
-            <Text style={s.myName}>{myRank.name}</Text>
-            <Text style={s.myCity}>{myRank.city} · {myRank.track}</Text>
-          </View>
-          <View style={s.myRight}>
-            <Text style={s.myWords}>{myRank.words}</Text>
-            <Text style={s.myWordsLabel}>words</Text>
-            <Text style={s.myStreak}>🔥 {myRank.streak}</Text>
-          </View>
+      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+        <BiboCharacter state={biboState} message={biboMsg} size={80} style={{ marginBottom: 18, alignSelf: 'center' }} />
+
+        <Text style={s.introTxt}>
+          {lang === 'ar'
+            ? 'بيبو يتعلّم الإنجليزية مثلك تمامًا، وله معدّل ثابت كل أسبوع — شاهد أين أنت منه!'
+            : "Bibo is learning English too, at a steady pace every week — see how you compare!"}
+        </Text>
+
+        <RaceRow
+          label={lang === 'ar' ? 'كلمات هذا الأسبوع' : "This week's words"}
+          myVal={myWeeklyWords}
+          biboVal={BIBO_PACE.weeklyWords}
+          unit={lang === 'ar' ? 'كلمة' : 'words'}
+          lang={lang}
+        />
+
+        <RaceRow
+          label={lang === 'ar' ? 'إجمالي الكلمات المتقنة' : 'Total words mastered'}
+          myVal={myTotalWords}
+          biboVal={BIBO_PACE.totalWords}
+          unit={lang === 'ar' ? 'كلمة' : 'words'}
+          lang={lang}
+        />
+
+        <View style={s.noteCard}>
+          <Text style={s.noteTxt}>
+            {lang === 'ar'
+              ? 'ℹ️ هذا سباق ودّي مع بيبو نفسه لتحفيزك، وليس ترتيبًا بين مستخدمين حقيقيين.'
+              : 'ℹ️ This is a friendly race against Bibo himself to keep you motivated, not a ranking against real users.'}
+          </Text>
         </View>
-      ) : null}
-
-      <View style={s.tabs}>
-        {[['weekly','This Week'],['alltime','All Time']].map(([key, label]) => (
-          <TouchableOpacity key={key}
-            style={[s.tab, tab === key ? s.tabActive : null]}
-            onPress={() => setTab(key)}
-            accessibilityRole="button">
-            <Text style={[s.tabTxt, tab === key ? s.tabTxtActive : null]}>{label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false}>
-        {data.map(player => (
-          <RankRow key={String(player.rank)} player={player} maxWords={maxWords} />
-        ))}
-        <View style={{ height: 24 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -97,40 +100,16 @@ export default function Leaderboard({ onBack }) {
 
 const s = StyleSheet.create({
   safe:        { flex: 1, backgroundColor: '#08080f' },
-  myCard:      { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(46,139,87,0.12)', borderWidth: 1, borderColor: 'rgba(46,139,87,0.35)', borderRadius: 14, marginHorizontal: 16, marginBottom: 12, padding: 12 },
-  myLeft:      { alignItems: 'center', width: 52 },
-  myLabel:     { fontSize: 10, color: 'rgba(255,255,255,0.4)' },
-  myRank:      { fontSize: 26, marginTop: 2 },
-  myDivider:   { width: 1, height: 36, backgroundColor: 'rgba(255,255,255,0.12)', marginHorizontal: 10 },
-  myMid:       { flex: 1 },
-  myName:      { fontSize: 14, fontWeight: '700', color: '#a5d6a7' },
-  myCity:      { fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 3 },
-  myRight:     { alignItems: 'center', minWidth: 52 },
-  myWords:     { fontSize: 20, fontWeight: '800', color: '#a5d6a7' },
-  myWordsLabel:{ fontSize: 10, color: 'rgba(255,255,255,0.4)' },
-  myStreak:    { fontSize: 12, color: '#FFB300', marginTop: 3 },
-  tabs:        { flexDirection: 'row', marginHorizontal: 16, marginBottom: 10, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: 3 },
-  tab:         { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8 },
-  tabActive:   { backgroundColor: '#1B3A6B' },
-  tabTxt:      { fontSize: 13, color: 'rgba(255,255,255,0.4)', fontWeight: '600' },
-  tabTxtActive:{ color: '#fff' },
-  list:        { paddingHorizontal: 16 },
-  row:         { flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 12, marginBottom: 6, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
-  rowMe:       { backgroundColor: 'rgba(46,139,87,0.1)', borderColor: 'rgba(46,139,87,0.4)' },
-  rank:        { fontSize: 18, width: 36, textAlign: 'center', color: 'rgba(255,255,255,0.5)' },
-  rankMe:      { color: '#a5d6a7' },
-  info:        { flex: 1, marginHorizontal: 8 },
-  nameRow:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  name:        { fontSize: 13, fontWeight: '600', color: '#fff' },
-  nameMe:      { color: '#a5d6a7' },
-  track:       { fontSize: 14 },
-  city:        { fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 },
-  barBg:       { height: 3, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 2, marginTop: 5, overflow: 'hidden' },
-  barFill:     { height: '100%', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2 },
-  barFillMe:   { backgroundColor: '#2E8B57' },
-  stats:       { alignItems: 'center', minWidth: 52 },
-  words:       { fontSize: 16, fontWeight: '800', color: '#fff' },
-  wordsMe:     { color: '#a5d6a7' },
-  wordsLabel:  { fontSize: 10, color: 'rgba(255,255,255,0.35)' },
-  streak:      { fontSize: 11, color: '#FFB300', marginTop: 2 },
+  content:     { padding: 16, paddingBottom: 40 },
+  introTxt:    { color: 'rgba(255,255,255,0.55)', fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: 20, paddingHorizontal: 8 },
+  raceCard:    { backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 16, padding: 16, marginBottom: 14 },
+  raceLabel:   { color: '#fff', fontWeight: '800', fontSize: 14, marginBottom: 12 },
+  raceLine:    { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  raceWho:     { width: 56, fontSize: 12, color: 'rgba(255,255,255,0.6)', fontWeight: '700' },
+  raceBarBg:   { flex: 1, height: 10, borderRadius: 5, backgroundColor: 'rgba(255,255,255,0.08)', overflow: 'hidden' },
+  raceBarFill: { height: '100%', borderRadius: 5 },
+  raceVal:     { width: 30, textAlign: 'right', fontSize: 12, color: '#fff', fontWeight: '700' },
+  raceStatus:  { fontSize: 12, fontWeight: '700', marginTop: 6, textAlign: 'center' },
+  noteCard:    { backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 12, padding: 12, marginTop: 6 },
+  noteTxt:     { color: 'rgba(255,255,255,0.4)', fontSize: 11, textAlign: 'center', lineHeight: 17 },
 });
