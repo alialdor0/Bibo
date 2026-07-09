@@ -1,10 +1,41 @@
-import React, { useState, useRef, useMemo } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, TextInput } from 'react-native';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, TextInput, Animated, Easing } from 'react-native';
 import * as Speech from 'expo-speech';
 import { useApp } from '../context/AppContext';
 import { t, TRACKS } from '../data';
 import { PageHeader, GemsBadge } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
+import { playSfx } from '../utils/sfx';
+
+/** إيموجيات صغيرة تتطاير من نقطة معيّنة وتختفي — تُستخدم كتفاعل بصري خفيف عند لحظات الفوز/الخسارة */
+function FlyingEmojis({ burstKey, emojis }) {
+  const anims = useRef(emojis.map(() => new Animated.Value(0))).current;
+  useEffect(() => {
+    anims.forEach(a => a.setValue(0));
+    Animated.stagger(60, anims.map(a => Animated.timing(a, { toValue: 1, duration: 700, easing: Easing.out(Easing.quad), useNativeDriver: true }))).start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [burstKey]);
+  return (
+    <View pointerEvents="none" style={fe.wrap}>
+      {emojis.map((em, i) => {
+        const angle = (i / emojis.length) * Math.PI * 2;
+        const tx = anims[i].interpolate({ inputRange: [0, 1], outputRange: [0, Math.cos(angle) * 60] });
+        const ty = anims[i].interpolate({ inputRange: [0, 1], outputRange: [0, Math.sin(angle) * 60 - 20] });
+        const op = anims[i].interpolate({ inputRange: [0, 0.7, 1], outputRange: [1, 1, 0] });
+        const sc = anims[i].interpolate({ inputRange: [0, 1], outputRange: [0.6, 1.2] });
+        return (
+          <Animated.Text key={i} style={[fe.emoji, { opacity: op, transform: [{ translateX: tx }, { translateY: ty }, { scale: sc }] }]}>
+            {em}
+          </Animated.Text>
+        );
+      })}
+    </View>
+  );
+}
+const fe = StyleSheet.create({
+  wrap:  { position: 'absolute', top: '50%', left: '50%', width: 1, height: 1 },
+  emoji: { position: 'absolute', fontSize: 22 },
+});
 
 /** يصنّف نوع الكلمة النحوي التفصيلي إلى 3 فئات بسيطة: اسم / فعل / صفة */
 function classifyGrammar(g) {
@@ -67,7 +98,7 @@ function SectionBlock({ sec, words, lang }) {
           {words.map(w => (
             <View key={String(w.id)} style={[bl.chip, { borderColor: sec.color + '44', backgroundColor: sec.color + '12' }]}>
               <Text style={{ fontSize: 13 }}>{w.emoji}</Text>
-              <Text style={[bl.en, { color: sec.color }]}>{w.en}</Text>
+              <Text style={[bl.en, { color: sec.color }]}>{w.word}</Text>
               <Text style={bl.ar}>{w.ar}</Text>
             </View>
           ))}
@@ -119,8 +150,8 @@ function Ex1({ words, onDone, lang }) {
     <View style={ex.card}>
       <Text style={ex.label}>{lang === 'ar' ? `إنجليزي ← عربي (${idx + 1}/${q.length})` : `English → Arabic (${idx + 1}/${q.length})`}</Text>
       <Text style={{ fontSize: 48, marginBottom: 8 }}>{cur.emoji}</Text>
-      <TouchableOpacity onPress={() => speakEn(cur.en)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }} accessibilityRole="button" accessibilityLabel="Play pronunciation">
-        <Text style={ex.bigWord}>{cur.en}</Text>
+      <TouchableOpacity onPress={() => speakEn(cur.word)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }} accessibilityRole="button" accessibilityLabel="Play pronunciation">
+        <Text style={ex.bigWord}>{cur.word}</Text>
         <Text style={{ fontSize: 20 }}>🔊</Text>
       </TouchableOpacity>
       <Text style={ex.qTxt}>{lang === 'ar' ? 'ما معنى هذه الكلمة؟' : 'What does this mean?'}</Text>
@@ -175,7 +206,7 @@ function Ex2({ words, onDone, lang }) {
           return (
             <TouchableOpacity key={String(w.id)} style={[ex.opt, { backgroundColor: !isSel ? 'rgba(255,255,255,0.05)' : isOk ? 'rgba(46,139,87,0.3)' : 'rgba(192,57,43,0.3)', borderColor: !isSel ? 'rgba(255,255,255,0.1)' : isOk ? '#2E8B57' : '#c0392b' }]}
               onPress={() => answer(w)}>
-              <Text style={ex.optTxt}>{w.en}</Text>
+              <Text style={ex.optTxt}>{w.word}</Text>
             </TouchableOpacity>
           );
         })}
@@ -207,7 +238,7 @@ function Ex3({ words, onDone, lang }) {
   const handleEn = (id) => {
     if (matched.includes(id) || wrong.includes(id)) return;
     const w = enCol.find(x => x.id === id);
-    if (w) speakEn(w.en);
+    if (w) speakEn(w.word);
     const ns = selEn === id ? null : id;
     setSelEn(ns);
     if (ns && selAr) check(ns, selAr);
@@ -237,7 +268,7 @@ function Ex3({ words, onDone, lang }) {
             return (
               <TouchableOpacity key={String(w.id)} style={[ex.matchBtn, { borderColor: isM ? '#2E8B57' : isW ? '#c0392b' : isSel ? '#FFB300' : 'rgba(255,255,255,0.1)', backgroundColor: isM ? 'rgba(46,139,87,0.2)' : isW ? 'rgba(192,57,43,0.2)' : isSel ? 'rgba(255,179,0,0.15)' : 'rgba(255,255,255,0.04)', opacity: isM ? 0.45 : 1 }]}
                 onPress={() => handleEn(w.id)}>
-                <Text style={ex.matchTxtEn}>{w.en}</Text>
+                <Text style={ex.matchTxtEn}>{w.word}</Text>
               </TouchableOpacity>
             );
           })}
@@ -257,6 +288,159 @@ function Ex3({ words, onDone, lang }) {
     </View>
   );
 }
+
+const DUEL_ROUNDS = 6;
+const DUEL_TIME = 5; // ثواني لكل جولة
+const BIBO_SUCCESS_CHANCE = 0.7; // احتمال إجابة بيبو الصحيحة بدوره — يجعله منافسًا واقعيًا لا آلة مثالية
+
+/** مبارزة الكلمات — تحدي سريع مع بيبو، الأدوار تتبادل بين "دورك" و"دور بيبو" */
+function Duel({ words, onDone, lang, addGems }) {
+  const rounds = useRef(shuffle(words).slice(0, Math.min(DUEL_ROUNDS, words.length))).current;
+  const [idx,        setIdx]        = useState(0);
+  const [myScore,    setMyScore]    = useState(0);
+  const [biboScore,  setBiboScore]  = useState(0);
+  const [timeLeft,   setTimeLeft]   = useState(DUEL_TIME);
+  const [phase,      setPhase]      = useState('mine'); // mine | bibo-thinking | bibo-result | done
+  const [chosen,     setChosen]     = useState(null);
+  const [burst,      setBurst]      = useState({ key: 0, emojis: [] });
+
+  const cur = rounds[idx];
+  const isMyTurn = idx % 2 === 0;
+  const opts = useRef(null);
+  if (!opts.current || opts.current._for !== cur?.id) {
+    opts.current = cur ? shuffle([cur, ...pick(words, cur.id, 3)]) : [];
+    if (cur) opts.current._for = cur.id;
+  }
+
+  const fireBurst = (emojis) => setBurst(b => ({ key: b.key + 1, emojis }));
+
+  const nextRound = () => {
+    setChosen(null);
+    if (idx + 1 >= rounds.length) { setPhase('done'); return; }
+    setIdx(i => i + 1);
+    setTimeLeft(DUEL_TIME);
+    setPhase('mine');
+  };
+
+  // مؤقت دور المستخدم
+  useEffect(() => {
+    if (phase !== 'mine' || !isMyTurn || chosen) return;
+    if (timeLeft <= 0) { playSfx('wrong'); fireBurst(['⌛']); setTimeout(runOpponentOrNext, 500); return; }
+    const t = setTimeout(() => setTimeLeft(s => s - 1), 1000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, timeLeft, isMyTurn, chosen]);
+
+  const runOpponentOrNext = () => nextRound();
+
+  const answerMine = (w) => {
+    if (chosen) return;
+    setChosen(w.id);
+    const ok = w.id === cur.id;
+    if (ok) { setMyScore(s => s + 1); playSfx('correct'); fireBurst(['✅', '⭐']); }
+    else { playSfx('wrong'); fireBurst(['💥']); }
+    setTimeout(nextRound, 700);
+  };
+
+  // دور بيبو: يفكر شوي، بعدين يجاوب باحتمال نجاح ثابت
+  useEffect(() => {
+    if (phase !== 'mine' || isMyTurn) return;
+    setPhase('bibo-thinking');
+    const t = setTimeout(() => {
+      const ok = Math.random() < BIBO_SUCCESS_CHANCE;
+      if (ok) { setBiboScore(s => s + 1); playSfx('win'); fireBurst(['🐦', '✨']); }
+      else { playSfx('wrong'); fireBurst(['😵‍💫', '💫']); }
+      setPhase('bibo-result');
+      setTimeout(nextRound, 1400);
+    }, 1300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, isMyTurn]);
+
+  if (phase === 'done') {
+    const won = myScore > biboScore;
+    const tie = myScore === biboScore;
+    return (
+      <View style={ex.card}>
+        <FlyingEmojis burstKey={burst.key} emojis={burst.emojis} />
+        <BiboCharacter
+          state={won ? 'idea' : tie ? 'encourage' : 'celebrate'}
+          size={72}
+          message={
+            won
+              ? (lang === 'ar' ? 'فزت هذه المرة! 😭' : 'You won this time! 😭')
+              : tie
+              ? (lang === 'ar' ? 'تعادلنا! مبارزة أخرى؟' : "It's a tie! Another duel?")
+              : (lang === 'ar' ? 'فزت هذه المرة! 😋' : 'I won this time! 😋')
+          }
+        />
+        <Text style={duel.finalScore}>{lang === 'ar' ? 'أنت' : 'You'} {myScore} — {biboScore} {lang === 'ar' ? 'بيبو' : 'Bibo'}</Text>
+        <TouchableOpacity style={ex.doneBtn} onPress={() => { addGems(myScore * 2 + 3); onDone(); }}>
+          <Text style={ex.doneBtnTxt}>{lang === 'ar' ? `تم ✓ (+${myScore * 2 + 3} 💎)` : `Done ✓ (+${myScore * 2 + 3} 💎)`}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={ex.card}>
+      <FlyingEmojis burstKey={burst.key} emojis={burst.emojis} />
+      <View style={duel.scoreRow}>
+        <Text style={duel.scoreTxt}>{lang === 'ar' ? 'أنت' : 'You'}: {myScore}</Text>
+        <Text style={duel.roundTxt}>{idx + 1}/{rounds.length}</Text>
+        <Text style={duel.scoreTxt}>🐦 {lang === 'ar' ? 'بيبو' : 'Bibo'}: {biboScore}</Text>
+      </View>
+
+      {isMyTurn ? (
+        <>
+          <View style={duel.timerRow}>
+            <Text style={[duel.timerTxt, timeLeft <= 2 ? { color: '#c0392b' } : null]}>⏱ {timeLeft}</Text>
+          </View>
+          <Text style={ex.label}>{lang === 'ar' ? 'دورك!' : 'Your turn!'}</Text>
+          <Text style={{ fontSize: 44, marginBottom: 6 }}>{cur.emoji}</Text>
+          <Text style={ex.bigWord}>{cur.word}</Text>
+          <Text style={ex.qTxt}>{lang === 'ar' ? 'ما معنى هذه الكلمة؟' : 'What does this mean?'}</Text>
+          <View style={ex.opts}>
+            {opts.current.map(w => {
+              const isSel = chosen === w.id; const isOk = w.id === cur.id;
+              return (
+                <TouchableOpacity key={String(w.id)} style={[ex.opt, { backgroundColor: !isSel ? 'rgba(255,255,255,0.05)' : isOk ? 'rgba(46,139,87,0.3)' : 'rgba(192,57,43,0.3)', borderColor: !isSel ? 'rgba(255,255,255,0.1)' : isOk ? '#2E8B57' : '#c0392b' }]}
+                  onPress={() => answerMine(w)}>
+                  <Text style={ex.optTxt}>{w.ar}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </>
+      ) : (
+        <>
+          <Text style={ex.label}>{lang === 'ar' ? 'دور بيبو' : "Bibo's turn"}</Text>
+          <BiboCharacter
+            state={phase === 'bibo-thinking' ? 'thinking' : biboScore > myScore ? 'celebrate' : 'idea'}
+            size={72}
+          />
+          <Text style={{ fontSize: 36, marginTop: 10 }}>{cur.emoji}</Text>
+          <Text style={ex.bigWord}>{cur.word}</Text>
+          <Text style={duel.biboStatusTxt}>
+            {phase === 'bibo-thinking'
+              ? (lang === 'ar' ? 'بيبو يفكّر... 🤔' : 'Bibo is thinking... 🤔')
+              : cur.ar}
+          </Text>
+        </>
+      )}
+    </View>
+  );
+}
+
+const duel = StyleSheet.create({
+  scoreRow:       { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 12 },
+  scoreTxt:       { color: '#fff', fontSize: 13, fontWeight: '700' },
+  roundTxt:       { color: 'rgba(255,255,255,0.4)', fontSize: 12 },
+  timerRow:       { marginBottom: 8 },
+  timerTxt:       { fontSize: 18, fontWeight: '800', color: '#FFB300' },
+  biboStatusTxt:  { color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 8 },
+  finalScore:     { color: '#fff', fontSize: 18, fontWeight: '800', marginTop: 12, marginBottom: 4 },
+});
 
 const ex = StyleSheet.create({
   card:       { backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 18, padding: 18, alignItems: 'center' },
@@ -279,7 +463,7 @@ const ex = StyleSheet.create({
 });
 
 export default function Dict({ onBack }) {
-  const { lang, gems, getWordBankWords } = useApp();
+  const { lang, gems, addGems, getWordBankWords } = useApp();
   const T = (k) => t(k, lang);
   const [section, setSection] = useState(null);
   const [mode,    setMode]    = useState(null);
@@ -301,7 +485,7 @@ export default function Dict({ onBack }) {
     return allWordsRaw.filter(w => {
       if (trackFilter !== 'all' && w.trackId !== trackFilter) return false;
       if (typeFilter !== 'all' && classifyGrammar(w.grammar) !== typeFilter) return false;
-      if (q && !w.en.toLowerCase().includes(q) && !w.ar.includes(q)) return false;
+      if (q && !w.word.toLowerCase().includes(q) && !w.ar.includes(q)) return false;
       return true;
     });
   }, [allWordsRaw, search, trackFilter, typeFilter]);
@@ -316,10 +500,11 @@ export default function Dict({ onBack }) {
 
   if (mode) return (
     <SafeAreaView style={s.safe}>
-      <PageHeader title={mode === 'ex1' ? (lang === 'ar' ? 'إنجليزي ← عربي' : 'English → Arabic') : mode === 'ex2' ? (lang === 'ar' ? 'عربي ← إنجليزي' : 'Arabic → English') : (lang === 'ar' ? 'مطابقة' : 'Matching')} onBack={endEx} backLabel={T('back')} />
+      <PageHeader title={mode === 'ex1' ? (lang === 'ar' ? 'إنجليزي ← عربي' : 'English → Arabic') : mode === 'ex2' ? (lang === 'ar' ? 'عربي ← إنجليزي' : 'Arabic → English') : mode === 'duel' ? (lang === 'ar' ? 'مبارزة مع بيبو' : 'Duel with Bibo') : (lang === 'ar' ? 'مطابقة' : 'Matching')} onBack={endEx} backLabel={T('back')} />
       <ScrollView contentContainerStyle={s.pageContent}>
         {mode === 'ex1' ? <Ex1 key={String(exKey)} words={exWords} onDone={endEx} lang={lang} /> :
          mode === 'ex2' ? <Ex2 key={String(exKey)} words={exWords} onDone={endEx} lang={lang} /> :
+         mode === 'duel' ? <Duel key={String(exKey)} words={exWords} onDone={endEx} lang={lang} addGems={addGems} /> :
          <Ex3 key={String(exKey)} words={exWords} onDone={endEx} lang={lang} />}
       </ScrollView>
     </SafeAreaView>
@@ -434,6 +619,7 @@ export default function Dict({ onBack }) {
           { key: 'ex1', label: lang === 'ar' ? 'إنجليزي ← عربي' : 'English → Arabic', icon: '🔤', sub: lang === 'ar' ? 'اختر المعنى الصحيح بالعربية' : 'Choose the Arabic meaning' },
           { key: 'ex2', label: lang === 'ar' ? 'عربي ← إنجليزي' : 'Arabic → English', icon: '🔡', sub: lang === 'ar' ? 'اختر الكلمة الإنجليزية الصحيحة' : 'Choose the English word'  },
           { key: 'ex3', label: lang === 'ar' ? 'مطابقة' : 'Matching',          icon: '🔗', sub: lang === 'ar' ? 'اربط الكلمات بمعانيها' : 'Connect words with meanings' },
+          { key: 'duel', label: lang === 'ar' ? 'مبارزة مع بيبو' : 'Duel with Bibo', icon: '⚔️', sub: lang === 'ar' ? 'تحدٍّ سريع بالوقت — أنت مقابل بيبو' : 'A fast timed challenge — you vs Bibo' },
         ].map(e => (
           <TouchableOpacity
             key={e.key}
