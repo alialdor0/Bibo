@@ -314,6 +314,13 @@ export function AppProvider({ children }) {
     return true;
   }, [gems, ownedStickers]);
 
+  /** يمنح ملصقًا مجانًا كهدية من بيبو (سجل الهدايا المتبادلة) — بدون خصم جواهر. بيرجع true لو كان جديدًا فعلًا */
+  const grantSticker = useCallback((stickerId) => {
+    if (ownedStickers.includes(stickerId)) return false;
+    setOwnedStickers(prev => [...prev, stickerId]);
+    return true;
+  }, [ownedStickers]);
+
   /** بيغيّر لون غلاف كتاب معيّن بالمكتبة */
   const setBookCoverColor = useCallback((trackId, episodeId, color) => {
     const key = coverKey(trackId, episodeId);
@@ -358,7 +365,7 @@ export function AppProvider({ children }) {
     stationery, useInk, useEraser, usePage, buyItem, claimGift,
     voiceOn, setVoiceOn,
     library, addLibraryEntry,
-    bookCovers, ownedStickers, buySticker, setBookCoverColor, toggleBookSticker,
+    bookCovers, ownedStickers, buySticker, grantSticker, setBookCoverColor, toggleBookSticker,
     ownedCosmetics, equippedCosmetics, buyCosmetic, equipCosmetic,
     weeklyProgress, claimWeeklyReward,
     episodeProgress, getEpisodeState, completeEpisode,
