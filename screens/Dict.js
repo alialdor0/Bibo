@@ -432,6 +432,156 @@ function Duel({ words, onDone, lang, addGems }) {
   );
 }
 
+const CLUMSY_ROUNDS = 5;
+const CLUMSY_MISTAKE_CHANCE = 0.45; // احتمال إن بيبو يخطئ عمدًا — يخلق فرصة تعليمية للمستخدم يصحّحله
+
+/** بيبو المشاكس — بيبو يحاول يجاوب أول، وأحيانًا يخطئ عمدًا، وعلى المستخدم ملاحظة الخطأ وتصحيحه */
+function ClumsyBibo({ words, onDone, lang, addGems }) {
+  const rounds = useRef(shuffle(words).slice(0, Math.min(CLUMSY_ROUNDS, words.length))).current;
+  const [idx,       setIdx]       = useState(0);
+  const [phase,      setPhase]     = useState('thinking'); // thinking | bibo-answered | user-turn | round-done
+  const [biboPick,   setBiboPick]  = useState(null);
+  const [biboWrong,  setBiboWrong] = useState(false);
+  const [userPick,   setUserPick]  = useState(null);
+  const [earned,     setEarned]    = useState(0);
+  const [burst,      setBurst]     = useState({ key: 0, emojis: [] });
+
+  const cur = rounds[idx];
+  const optsRef = useRef(null);
+  if (!optsRef.current || optsRef.current._for !== cur?.id) {
+    optsRef.current = cur ? shuffle([cur, ...pick(words, cur.id, 3)]) : [];
+    if (cur) optsRef.current._for = cur.id;
+  }
+
+  const fireBurst = (emojis) => setBurst(b => ({ key: b.key + 1, emojis }));
+
+  // بيبو يفكّر، بعدين يختار (صح أو غلط عمدًا حسب الاحتمال)
+  useEffect(() => {
+    if (phase !== 'thinking' || !cur) return;
+    const t = setTimeout(() => {
+      const wrong = Math.random() < CLUMSY_MISTAKE_CHANCE;
+      const choice = wrong ? optsRef.current.find(w => w.id !== cur.id) : cur;
+      setBiboPick(choice.id);
+      setBiboWrong(wrong);
+      if (wrong) { fireBurst(['😵‍💫', '💥']); playSfx('wrong'); }
+      else { fireBurst(['✨']); playSfx('correct'); }
+      setPhase('bibo-answered');
+      setTimeout(() => setPhase('user-turn'), wrong ? 1600 : 1200);
+    }, 1300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, idx]);
+
+  const nextRound = () => {
+    setBiboPick(null); setBiboWrong(false); setUserPick(null);
+    if (idx + 1 >= rounds.length) { setPhase('done'); return; }
+    setIdx(i => i + 1);
+    setPhase('thinking');
+  };
+
+  // لما بيبو يكون صح: المستخدم بس يأكّد
+  const confirmBibo = () => {
+    setEarned(e => e + 1); fireBurst(['👍']); playSfx('correct');
+    setTimeout(nextRound, 700);
+  };
+
+  // لما بيبو يكون غلط: المستخدم لازم يختار الإجابة الصحيحة بنفسه
+  const correctBibo = (w) => {
+    if (userPick) return;
+    setUserPick(w.id);
+    const ok = w.id === cur.id;
+    if (ok) { setEarned(e => e + 2); fireBurst(['❤️', '✨']); playSfx('win'); }
+    else { fireBurst(['💭']); playSfx('wrong'); }
+    setTimeout(nextRound, 900);
+  };
+
+  if (!cur || phase === 'done') {
+    return (
+      <View style={ex.card}>
+        <FlyingEmojis burstKey={burst.key} emojis={burst.emojis} />
+        <BiboCharacter state="celebrate" size={72} message={lang === 'ar' ? 'شكرًا لمساعدتك! 🙏' : 'Thanks for your help! 🙏'} />
+        <Text style={clumsy.finalScore}>{lang === 'ar' ? `كسبت ${earned * 2} 💎` : `You earned ${earned * 2} 💎`}</Text>
+        <TouchableOpacity style={ex.doneBtn} onPress={() => { addGems(earned * 2); onDone(); }}>
+          <Text style={ex.doneBtnTxt}>{lang === 'ar' ? 'تم ✓' : 'Done ✓'}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={ex.card}>
+      <FlyingEmojis burstKey={burst.key} emojis={burst.emojis} />
+      <Text style={clumsy.roundTxt}>{idx + 1}/{rounds.length}</Text>
+      <BiboCharacter
+        state={phase === 'thinking' ? 'thinking' : biboWrong ? 'attention' : 'celebrate'}
+        size={68}
+      />
+      <Text style={{ fontSize: 38, marginTop: 10 }}>{cur.emoji}</Text>
+      <Text style={ex.bigWord}>{cur.word}</Text>
+
+      {phase === 'thinking' ? (
+        <Text style={clumsy.statusTxt}>{lang === 'ar' ? 'بيبو يفكّر بمعنى الكلمة... 🤔' : "Bibo is thinking about the word's meaning... 🤔"}</Text>
+      ) : (
+        <>
+          <View style={clumsy.optsWrap}>
+            {optsRef.current.map(w => {
+              const isBiboPick = biboPick === w.id;
+              const isUserPick = userPick === w.id;
+              const isCorrectAns = w.id === cur.id;
+              const showResult = phase === 'user-turn' && userPick;
+              let bg = 'rgba(255,255,255,0.05)', bd = 'rgba(255,255,255,0.1)';
+              if (isBiboPick) { bg = biboWrong ? 'rgba(192,57,43,0.25)' : 'rgba(46,139,87,0.25)'; bd = biboWrong ? '#c0392b' : '#2E8B57'; }
+              if (showResult && isUserPick) { bg = isCorrectAns ? 'rgba(46,139,87,0.3)' : 'rgba(192,57,43,0.3)'; bd = isCorrectAns ? '#2E8B57' : '#c0392b'; }
+              return (
+                <View key={String(w.id)} style={[clumsy.opt, { backgroundColor: bg, borderColor: bd }]}>
+                  <Text style={ex.optTxt}>{w.ar}</Text>
+                  {isBiboPick ? <Text style={clumsy.biboTag}>🐦</Text> : null}
+                </View>
+              );
+            })}
+          </View>
+
+          {phase === 'bibo-answered' ? (
+            <Text style={clumsy.statusTxt}>
+              {biboWrong ? (lang === 'ar' ? 'بيبو غير متأكد من إجابته... 😳' : "Bibo isn't sure about this one... 😳") : (lang === 'ar' ? 'بيبو يبدو واثقًا! ✨' : 'Bibo looks confident! ✨')}
+            </Text>
+          ) : biboWrong && !userPick ? (
+            <>
+              <Text style={clumsy.promptTxt}>{lang === 'ar' ? 'بيبو أخطأ! اختر الإجابة الصحيحة لتصحيحه 👇' : 'Bibo got it wrong! Tap the correct answer to fix it 👇'}</Text>
+              <View style={clumsy.fixRow}>
+                {optsRef.current.filter(w => w.id !== biboPick).map(w => (
+                  <TouchableOpacity key={String(w.id)} style={clumsy.fixBtn} onPress={() => correctBibo(w)}>
+                    <Text style={clumsy.fixBtnTxt}>{w.ar}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          ) : !biboWrong && !userPick ? (
+            <TouchableOpacity style={clumsy.confirmBtn} onPress={confirmBibo}>
+              <Text style={clumsy.confirmBtnTxt}>{lang === 'ar' ? '👍 بيبو صح، تابع' : '👍 Bibo is right, continue'}</Text>
+            </TouchableOpacity>
+          ) : null}
+        </>
+      )}
+    </View>
+  );
+}
+
+const clumsy = StyleSheet.create({
+  roundTxt:    { color: 'rgba(255,255,255,0.4)', fontSize: 12, marginBottom: 6 },
+  statusTxt:   { color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 10, textAlign: 'center' },
+  promptTxt:   { color: '#FFB300', fontSize: 13, fontWeight: '700', marginTop: 10, marginBottom: 10, textAlign: 'center' },
+  optsWrap:    { width: '100%', marginTop: 14, gap: 8 },
+  opt:         { borderWidth: 1.5, borderRadius: 10, padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  biboTag:     { fontSize: 16 },
+  fixRow:      { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
+  fixBtn:      { borderWidth: 1, borderColor: '#2E8B57', backgroundColor: 'rgba(46,139,87,0.15)', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9 },
+  fixBtnTxt:   { color: '#a5d6a7', fontSize: 13, fontWeight: '700' },
+  confirmBtn:  { backgroundColor: 'rgba(46,139,87,0.25)', borderWidth: 1, borderColor: '#2E8B57', borderRadius: 12, paddingHorizontal: 20, paddingVertical: 11, marginTop: 8 },
+  confirmBtnTxt:{ color: '#a5d6a7', fontSize: 14, fontWeight: '700' },
+  finalScore:  { color: '#fff', fontSize: 18, fontWeight: '800', marginTop: 12, marginBottom: 4 },
+});
+
 const duel = StyleSheet.create({
   scoreRow:       { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 12 },
   scoreTxt:       { color: '#fff', fontSize: 13, fontWeight: '700' },
@@ -500,11 +650,12 @@ export default function Dict({ onBack }) {
 
   if (mode) return (
     <SafeAreaView style={s.safe}>
-      <PageHeader title={mode === 'ex1' ? (lang === 'ar' ? 'إنجليزي ← عربي' : 'English → Arabic') : mode === 'ex2' ? (lang === 'ar' ? 'عربي ← إنجليزي' : 'Arabic → English') : mode === 'duel' ? (lang === 'ar' ? 'مبارزة مع بيبو' : 'Duel with Bibo') : (lang === 'ar' ? 'مطابقة' : 'Matching')} onBack={endEx} backLabel={T('back')} />
+      <PageHeader title={mode === 'ex1' ? (lang === 'ar' ? 'إنجليزي ← عربي' : 'English → Arabic') : mode === 'ex2' ? (lang === 'ar' ? 'عربي ← إنجليزي' : 'Arabic → English') : mode === 'duel' ? (lang === 'ar' ? 'مبارزة مع بيبو' : 'Duel with Bibo') : mode === 'clumsy' ? (lang === 'ar' ? 'بيبو المشاكس' : 'Clumsy Bibo') : (lang === 'ar' ? 'مطابقة' : 'Matching')} onBack={endEx} backLabel={T('back')} />
       <ScrollView contentContainerStyle={s.pageContent}>
         {mode === 'ex1' ? <Ex1 key={String(exKey)} words={exWords} onDone={endEx} lang={lang} /> :
          mode === 'ex2' ? <Ex2 key={String(exKey)} words={exWords} onDone={endEx} lang={lang} /> :
          mode === 'duel' ? <Duel key={String(exKey)} words={exWords} onDone={endEx} lang={lang} addGems={addGems} /> :
+         mode === 'clumsy' ? <ClumsyBibo key={String(exKey)} words={exWords} onDone={endEx} lang={lang} addGems={addGems} /> :
          <Ex3 key={String(exKey)} words={exWords} onDone={endEx} lang={lang} />}
       </ScrollView>
     </SafeAreaView>
@@ -620,6 +771,7 @@ export default function Dict({ onBack }) {
           { key: 'ex2', label: lang === 'ar' ? 'عربي ← إنجليزي' : 'Arabic → English', icon: '🔡', sub: lang === 'ar' ? 'اختر الكلمة الإنجليزية الصحيحة' : 'Choose the English word'  },
           { key: 'ex3', label: lang === 'ar' ? 'مطابقة' : 'Matching',          icon: '🔗', sub: lang === 'ar' ? 'اربط الكلمات بمعانيها' : 'Connect words with meanings' },
           { key: 'duel', label: lang === 'ar' ? 'مبارزة مع بيبو' : 'Duel with Bibo', icon: '⚔️', sub: lang === 'ar' ? 'تحدٍّ سريع بالوقت — أنت مقابل بيبو' : 'A fast timed challenge — you vs Bibo' },
+          { key: 'clumsy', label: lang === 'ar' ? 'بيبو المشاكس' : 'Clumsy Bibo', icon: '🤪', sub: lang === 'ar' ? 'بيبو يحاول الإجابة... صحّح له إن أخطأ!' : 'Bibo tries to answer... correct him if he errs!' },
         ].map(e => (
           <TouchableOpacity
             key={e.key}
