@@ -370,8 +370,11 @@ export default function StoryEpisode({ onLeave }) {
     setArrangePicked(prev => [...prev, { word: w, idx }]);
   };
 
-  const undoArrangeWord = (idx) => {
-    setArrangePicked(prev => prev.filter(p => p.idx !== idx));
+  /** الممحاة — تحذف آخر كلمة أُضيفت للسطر فقط (وليس أي كلمة بمنتصف الجملة، حتى يبقى الترتيب منطقيًا) */
+  const eraseLastWord = () => {
+    if (arrangePicked.length === 0) return;
+    playSfx('eraser');
+    setArrangePicked(prev => prev.slice(0, -1));
   };
 
   const checkArrange = () => {
@@ -593,13 +596,17 @@ export default function StoryEpisode({ onLeave }) {
         <Text style={s.qLabel}>{lang === 'ar' ? 'رتّب الكلمات لتكوين السطر' : 'Arrange the words'}</Text>
         <Text style={s.lineAr}>{ex.arabic}</Text>
         {hintVisible ? <Text style={s.blankHint}>💡 {hintText()}</Text> : null}
+
+        {/* السطر قيد التجميع — ثابت بالأعلى، عرض فقط بدون ضغط */}
         <View style={[s.builtRow, s.forceLTR]}>
           {arrangePicked.length === 0 ? <Text style={s.builtPlaceholder}>...</Text> : arrangePicked.map((p, i) => (
-            <TouchableOpacity key={String(i)} style={[s.builtChip, s.forceLTRChild]} onPress={() => undoArrangeWord(p.idx)}>
+            <View key={String(i)} style={[s.builtChip, s.forceLTRChild]}>
               <Text style={s.builtChipTxt}>{p.word}</Text>
-            </TouchableOpacity>
+            </View>
           ))}
         </View>
+
+        {/* كل الكلمات المتاحة — أقصى مساحة ممكنة حتى تظهر كاملة بدون قطع */}
         <View style={[s.chipsRow, s.forceLTR]}>
           {arrangeOptsRef.current.map((w, i) => {
             const used = arrangePicked.some(p => p.idx === i);
@@ -610,9 +617,22 @@ export default function StoryEpisode({ onLeave }) {
             );
           })}
         </View>
-        <TouchableOpacity style={[s.startBtn2, arrangePicked.length === 0 ? { opacity: 0.4 } : null]} disabled={arrangePicked.length === 0} onPress={checkArrange}>
-          <Text style={s.startBtn2Txt}>✓ {lang === 'ar' ? 'تحقق' : 'Check'}</Text>
-        </TouchableOpacity>
+
+        {/* أزرار التحكم بالأسفل: ممحاة لحذف آخر كلمة + تحقق */}
+        <View style={s.arrangeCtrlRow}>
+          <TouchableOpacity
+            style={[s.eraserBtn, arrangePicked.length === 0 ? { opacity: 0.35 } : null]}
+            disabled={arrangePicked.length === 0}
+            onPress={eraseLastWord}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'ar' ? 'ممحاة، احذف آخر كلمة' : 'Eraser, remove last word'}
+          >
+            <Text style={s.eraserBtnTxt}>🧹 {lang === 'ar' ? 'امسح آخر كلمة' : 'Erase last word'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.startBtn2, s.checkBtnFlex, arrangePicked.length === 0 ? { opacity: 0.4 } : null]} disabled={arrangePicked.length === 0} onPress={checkArrange}>
+            <Text style={s.startBtn2Txt}>✓ {lang === 'ar' ? 'تحقق' : 'Check'}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   };
@@ -673,6 +693,10 @@ const s = StyleSheet.create({
   epTitle:         { color: '#fff', fontSize: 24, fontWeight: '800', marginTop: 4, textAlign: 'center' },
   startBtn2:       { backgroundColor: '#2E8B57', borderRadius: 14, paddingVertical: 14, paddingHorizontal: 32, marginTop: 10 },
   startBtn2Txt:    { color: '#fff', fontWeight: '800', fontSize: 15, textAlign: 'center' },
+  arrangeCtrlRow:  { flexDirection: 'row', gap: 10, marginTop: 10 },
+  checkBtnFlex:    { flex: 1, marginTop: 0, paddingHorizontal: 12 },
+  eraserBtn:       { flex: 1, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.18)', borderRadius: 14, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
+  eraserBtnTxt:    { color: 'rgba(255,255,255,0.7)', fontWeight: '700', fontSize: 13, textAlign: 'center' },
 
   lineCard:        { backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 16, padding: 18, marginBottom: 12 },
   partnerCard:     { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 14, padding: 10, marginBottom: 10 },
