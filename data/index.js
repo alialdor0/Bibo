@@ -275,11 +275,11 @@ export const STORY_LINES = {
 
 // ── بيانات التعاون ──
 export const COOP_STORY = {
-  spy:     [{hero:'Ahmed entered the building.',partner:'His partner Khalid was already waiting.'},{hero:'Ahmed said: Did you bring the files?',partner:'Khalid nodded and opened his bag.'},{hero:'Ahmed received a strange envelope.',partner:'Khalid watched him open it.'},{hero:'Ahmed read the message in silence.',partner:'Khalid stood near the door.'},{hero:'Ahmed said: The mission is dangerous.',partner:'Khalid answered: I know. But important.'}],
-  medical: [{hero:'Dr. Ali rushed into the emergency room.',partner:'Nurse Sara handed him the patient file.'},{hero:'He checked the patient quickly.',partner:'Sara connected the monitor.'},{hero:'Ali said: We need to act fast.',partner:'Sara prepared the equipment.'},{hero:'Ali gave the first injection.',partner:'Sara watched the vital signs.'},{hero:'Ali said: The patient is stable.',partner:'Sara smiled with relief.'}],
-  love:    [{hero:'Rami walked into the garden slowly.',partner:'Layla was reading under the tree.'},{hero:'He called her name softly.',partner:'She looked up and smiled.'},{hero:'Rami said: I have something to tell you.',partner:'Layla closed her book gently.'},{hero:'He handed her a small letter.',partner:'She opened it with trembling hands.'},{hero:'Rami waited for her answer.',partner:'Layla whispered: Yes.'}],
-  crime:   [{hero:'Detective Omar entered the courtroom.',partner:'His partner Nour reviewed the evidence.'},{hero:'Omar spoke clearly to the judge.',partner:'Nour showed the files to the jury.'},{hero:'Omar said: The evidence is clear.',partner:'Nour pointed to the key document.'},{hero:'Omar presented the final witness.',partner:'Nour watched the suspect carefully.'},{hero:'Omar said: We have the truth.',partner:'Nour nodded with confidence.'}],
-  family:  [{hero:'Kareem arrived home after a long day.',partner:'His mother welcomed him warmly.'},{hero:'He sat at the dinner table quietly.',partner:'She placed his favorite food before him.'},{hero:'Kareem said: I have important news.',partner:'She sat down and listened carefully.'},{hero:'He told her about his new opportunity.',partner:'She held his hand and smiled.'},{hero:'Kareem said: I could not do it without you.',partner:'She said: I am always proud of you.'}],
+  spy:     [{hero:'Ahmed entered the building.',partner:'His partner Khalid was already waiting.'},{hero:'Ahmed said, "Did you bring the files?"',partner:'Khalid nodded and opened his bag.'},{hero:'Ahmed received a strange envelope.',partner:'Khalid watched him open it.'},{hero:'Ahmed read the message in silence.',partner:'Khalid stood near the door.'},{hero:'Ahmed said, "The mission is dangerous."',partner:'Khalid answered, "I know, but it\'s important."'}],
+  medical: [{hero:'Dr. Ali rushed into the emergency room.',partner:'Nurse Sara handed him the patient file.'},{hero:'He checked the patient quickly.',partner:'Sara connected the monitor.'},{hero:'Ali said, "We need to act fast."',partner:'Sara prepared the equipment.'},{hero:'Ali gave the first injection.',partner:'Sara watched the vital signs.'},{hero:'Ali said, "The patient is stable."',partner:'Sara smiled with relief.'}],
+  love:    [{hero:'Rami walked into the garden slowly.',partner:'Layla was reading under the tree.'},{hero:'He called her name softly.',partner:'She looked up and smiled.'},{hero:'Rami said, "I have something to tell you."',partner:'Layla closed her book gently.'},{hero:'He handed her a small letter.',partner:'She opened it with trembling hands.'},{hero:'Rami waited for her answer.',partner:'Layla whispered, "Yes."'}],
+  crime:   [{hero:'Detective Omar entered the courtroom.',partner:'His partner Nour reviewed the evidence.'},{hero:'Omar spoke clearly to the judge.',partner:'Nour showed the files to the jury.'},{hero:'Omar said, "The evidence is clear."',partner:'Nour pointed to the key document.'},{hero:'Omar presented the final witness.',partner:'Nour watched the suspect carefully.'},{hero:'Omar said, "We have the truth."',partner:'Nour nodded with confidence.'}],
+  family:  [{hero:'Kareem arrived home after a long day.',partner:'His mother welcomed him warmly.'},{hero:'He sat at the dinner table quietly.',partner:'She placed his favorite food before him.'},{hero:'Kareem said, "I have important news."',partner:'She sat down and listened carefully.'},{hero:'He told her about his new opportunity.',partner:'She held his hand and smiled.'},{hero:'Kareem said, "I could not do it without you."',partner:'She said, "I am always proud of you."'}],
 };
 
 export const COOP_WORDS = {
@@ -290,42 +290,9 @@ export const COOP_WORDS = {
   family:  [['arrived','home'],['sat','quietly'],['important','news'],['told','opportunity'],['could','without']],
 };
 
-// ── كلمات القاموس ──
-export const DICT_WORDS = [
-  {id:1, en:'message',  ar:'رسالة',  emoji:'✉️', status:'learned'},
-  {id:2, en:'building', ar:'مبنى',   emoji:'🏢', status:'learned'},
-  {id:3, en:'envelope', ar:'مغلف',   emoji:'📩', status:'learned'},
-  {id:4, en:'address',  ar:'عنوان',  emoji:'📍', status:'review'},
-  {id:5, en:'arrived',  ar:'وصلت',   emoji:'🚪', status:'learned'},
-  {id:6, en:'slowly',   ar:'ببطء',   emoji:'🐢', status:'learned'},
-  {id:7, en:'dangerous',ar:'خطير',   emoji:'⚠️', status:'review'},
-  {id:8, en:'mission',  ar:'مهمة',   emoji:'🎯', status:'review'},
-  {id:9, en:'serious',  ar:'جاد',    emoji:'😐', status:'learned'},
-  {id:10,en:'walked',   ar:'مشى',    emoji:'🚶', status:'learned'},
-  {id:11,en:'received', ar:'استلمت', emoji:'📬', status:'learned'},
-  {id:12,en:'strange',  ar:'غريب',   emoji:'❓', status:'learned'},
-  {id:13,en:'tonight',  ar:'الليلة', emoji:'🌙', status:'forgotten'},
-  {id:14,en:'careful',  ar:'حذر',    emoji:'🛡️', status:'review'},
-  {id:15,en:'waited',   ar:'انتظر',  emoji:'⏳', status:'learned'},
-  {id:16,en:'corner',   ar:'زاوية',  emoji:'📐', status:'forgotten'},
-  {id:17,en:'thought',  ar:'فكرت',   emoji:'💭', status:'forgotten'},
-  {id:18,en:'country',  ar:'بلد',    emoji:'🏳️', status:'learned'},
-  {id:19,en:'important',ar:'مهم',    emoji:'❗', status:'learned'},
-  {id:20,en:'silence',  ar:'صمت',    emoji:'🤫', status:'learned'},
-];
-
-// ── كلمات الإنقاذ ──
-export const RESCUE_WORDS = [
-  {id:1, en:'tonight',  ar:'الليلة', emoji:'🌙', daysLeft:0, pron:'تونايت'},
-  {id:2, en:'corner',   ar:'زاوية',  emoji:'📐', daysLeft:0, pron:'كورنر'},
-  {id:3, en:'thought',  ar:'فكرت',   emoji:'💭', daysLeft:0, pron:'ثوت'},
-  {id:4, en:'address',  ar:'عنوان',  emoji:'📍', daysLeft:1, pron:'أدريس'},
-  {id:5, en:'careful',  ar:'حذر',    emoji:'🛡️', daysLeft:1, pron:'كيرفل'},
-  {id:6, en:'mission',  ar:'مهمة',   emoji:'🎯', daysLeft:2, pron:'ميشن'},
-  {id:7, en:'dangerous',ar:'خطير',   emoji:'⚠️', daysLeft:2, pron:'دينجرس'},
-  {id:8, en:'answer',   ar:'يرد',    emoji:'📲', daysLeft:3, pron:'أنسر'},
-  {id:9, en:'depends',  ar:'يعتمد',  emoji:'⚖️', daysLeft:3, pron:'ديبندز'},
-];
+// ملاحظة: كانت هنا مصفوفتان ثابتتان (DICT_WORDS, RESCUE_WORDS) بكلمات وهمية جاهزة —
+// تم حذفهما لأنهما غير مستخدمتين بأي مكان بالكود إطلاقًا. شاشتا Dict.js وRescue.js
+// تعتمدان فعليًا على getWordBankWords() من AppContext، وهي بيانات حقيقية من تقدّم المستخدم.
 
 // ── معدّل بيبو التحفيزي — رقم مرجعي ثابت لبيبو كشخصية بالتطبيق، مش تظاهر بمستخدم حقيقي آخر ──
 export const BIBO_PACE = { weeklyWords: 15, totalWords: 150 };
@@ -373,6 +340,17 @@ export const WEEKLY_CHALLENGES = [
   { id: 'episodes', metric: 'episodesDone', target: 2,  reward: 25, icon: '🎬', label: 'Finish 2 episodes',       labelAr: 'أكمل حلقتين' },
   { id: 'rescue',   metric: 'wordsRescued', target: 3,  reward: 15, icon: '🆘', label: 'Rescue 3 fading words',   labelAr: 'أنقذ 3 كلمات مهدَّدة بالنسيان' },
 ];
+
+// ── مستوى بيبو — يرتفع فعليًا مع عدد الحلقات الحقيقية اللي أكملتها، مو رقم عشوائي أو وهمي ──
+// الفكرة: بيبو "يتعلّم معك"، فكل ما أكملت حلقات أكتر، بيبو "يكبر" مستواه هو كمان.
+export const BIBO_LEVELS = [
+  { min: 0,  max: 1,  en: 'Bibo the Hatchling',   ar: 'بيبو الصغير',      color: '#8B4513' },
+  { min: 2,  max: 4,  en: 'Bibo the Learner',      ar: 'بيبو المتعلّم',     color: '#1B3A6B' },
+  { min: 5,  max: 7,  en: 'Bibo the Companion',    ar: 'بيبو الرفيق',      color: '#2E8B57' },
+  { min: 8,  max: 11, en: 'Bibo the Storyteller',  ar: 'بيبو الحكواتي',    color: '#C0C0C0' },
+  { min: 12, max: 999,en: 'Bibo the Master',       ar: 'بيبو الخبير',      color: '#FFB300' },
+];
+export const getBiboLevel = (episodesDone) => BIBO_LEVELS.find(l => episodesDone >= l.min && episodesDone <= l.max) || BIBO_LEVELS[0];
 
 export const GIFT_REWARDS = [
   { type:'gems',   amount:10,  icon:'💎', label:'10 Gems',          labelAr:'10 جواهر' },
