@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Switch, SafeAreaView, Alert, Animated } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../context/AppContext';
-import { t, STORE_ITEMS, GIFT_REWARDS, WEEKLY_CHALLENGES } from '../data';
+import { t, STORE_ITEMS, GIFT_REWARDS, WEEKLY_CHALLENGES, TRACKS } from '../data';
 import { BiboMsg, PageHeader, GemsBadge, StationeryBar } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
 import BottomNav from '../components/BottomNav';
@@ -446,6 +446,18 @@ function ProfileTab({ onBack, onNav }) {
           <Text style={s.settingArrow} importantForAccessibility="no">›</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={s.dictLinkCard}
+          onPress={() => onNav && onNav('bibo-profile')}
+          accessible={true}
+          accessibilityRole="button"
+          accessibilityLabel={lang === 'ar' ? 'ملف بيبو الشخصي' : "Bibo's profile"}
+        >
+          <Text style={{ fontSize: 22 }} importantForAccessibility="no">🐦</Text>
+          <Text style={s.dictLinkTxt}>{lang === 'ar' ? 'ملف بيبو الشخصي' : "Bibo's profile"}</Text>
+          <Text style={s.settingArrow} importantForAccessibility="no">›</Text>
+        </TouchableOpacity>
+
         <Text style={s.sectionTitle}>{lang === 'ar' ? 'الأوسمة' : 'Badges'}</Text>
         {badges.length > 0 ? (
           <View style={s.badgesRow}>
@@ -493,7 +505,7 @@ function ProfileTab({ onBack, onNav }) {
 }
 
 function SettingsTab({ onBack }) {
-  const { lang, setLang, logout, voiceOn, setVoiceOn } = useApp();
+  const { lang, setLang, logout, voiceOn, setVoiceOn, track, setTrack } = useApp();
   const T = (k) => t(k, lang);
 
   const [sound,     setSound]     = useState(true);
@@ -504,6 +516,20 @@ function SettingsTab({ onBack }) {
   const [inputMode, setInputMode] = useState('type');
   const [dailyRev,  setDailyRev]  = useState(10);
   const [fontSize,  setFontSize]  = useState('M');
+  const [showTrackPicker, setShowTrackPicker] = useState(false);
+
+  const handleChangeTrack = (newTrack) => {
+    setShowTrackPicker(false);
+    if (newTrack.id === track?.id) return;
+    Alert.alert(
+      lang === 'ar' ? `التبديل إلى ${newTrack.name}؟` : `Switch to ${newTrack.name}?`,
+      lang === 'ar' ? 'تقدّمك بالمسار الحالي محفوظ وبتقدر ترجعله بأي وقت.' : 'Your progress in the current track stays saved, and you can switch back anytime.',
+      [
+        { text: lang === 'ar' ? 'إلغاء' : 'Cancel', style: 'cancel' },
+        { text: lang === 'ar' ? 'تبديل' : 'Switch', onPress: () => setTrack(newTrack) },
+      ]
+    );
+  };
 
   return (
     <SafeAreaView style={s.safe}>
@@ -528,23 +554,65 @@ function SettingsTab({ onBack }) {
 
         <View style={s.settingSection}>
           <Text style={s.settingSectionTitle}>👤 Account</Text>
-          {[
-            { label: T('editProfile'),  icon: '✏️' },
-            { label: T('changeTrack'),  icon: '🎭' },
-            { label: T('retakeTest'),   icon: '📊' },
-          ].map(item => (
-            <TouchableOpacity
-              key={item.label}
-              style={s.settingRowBtn}
-              accessible={true}
-              accessibilityRole="button"
-              accessibilityLabel={item.label}
-            >
-              <Text style={{ fontSize: 18 }} importantForAccessibility="no">{item.icon}</Text>
-              <Text style={s.settingLabel}>{item.label}</Text>
-              <Text style={s.settingArrow} importantForAccessibility="no">›</Text>
-            </TouchableOpacity>
-          ))}
+
+          <TouchableOpacity
+            style={s.settingRowBtn}
+            onPress={() => Alert.alert(
+              lang === 'ar' ? 'تعديل الملف الشخصي' : 'Edit Profile',
+              lang === 'ar' ? 'هذه الميزة قيد التطوير حاليًا وستتوفر قريبًا.' : 'This feature is under development and will be available soon.'
+            )}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel={T('editProfile')}
+          >
+            <Text style={{ fontSize: 18 }} importantForAccessibility="no">✏️</Text>
+            <Text style={s.settingLabel}>{T('editProfile')}</Text>
+            <Text style={s.settingArrow} importantForAccessibility="no">›</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={s.settingRowBtn}
+            onPress={() => setShowTrackPicker(v => !v)}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel={T('changeTrack')}
+          >
+            <Text style={{ fontSize: 18 }} importantForAccessibility="no">🎭</Text>
+            <Text style={s.settingLabel}>{T('changeTrack')}{track ? ` (${track.icon} ${lang === 'ar' ? track.nameAr : track.name})` : ''}</Text>
+            <Text style={s.settingArrow} importantForAccessibility="no">{showTrackPicker ? '⌄' : '›'}</Text>
+          </TouchableOpacity>
+
+          {showTrackPicker ? (
+            <View style={s.trackPickerWrap}>
+              {TRACKS.map(tr => (
+                <TouchableOpacity
+                  key={tr.id}
+                  style={[s.trackPickerRow, tr.id === track?.id ? { borderColor: tr.color, backgroundColor: tr.color + '15' } : null]}
+                  onPress={() => handleChangeTrack(tr)}
+                >
+                  <Text style={{ fontSize: 18 }}>{tr.icon}</Text>
+                  <Text style={[s.trackPickerTxt, tr.id === track?.id ? { color: tr.color, fontWeight: '700' } : null]}>{lang === 'ar' ? tr.nameAr : tr.name}</Text>
+                  {tr.id === track?.id ? <Text style={{ color: tr.color, fontSize: 13 }}>✓</Text> : null}
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : null}
+
+          <TouchableOpacity
+            style={s.settingRowBtn}
+            onPress={() => Alert.alert(
+              lang === 'ar' ? 'إعادة الاختبار' : 'Retake Test',
+              lang === 'ar' ? 'هذه الميزة قيد التطوير حاليًا وستتوفر قريبًا.' : 'This feature is under development and will be available soon.'
+            )}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel={T('retakeTest')}
+          >
+            <Text style={{ fontSize: 18 }} importantForAccessibility="no">📊</Text>
+            <Text style={s.settingLabel}>{T('retakeTest')}</Text>
+            <Text style={s.settingArrow} importantForAccessibility="no">›</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity style={s.settingRowBtn}
             onPress={() => Alert.alert(
               lang === 'ar' ? 'تسجيل الخروج' : 'Sign Out',
@@ -744,6 +812,9 @@ const s = StyleSheet.create({
   settingRowBtn:     { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)' },
   settingLabel:      { fontSize: 14, color: '#fff', flex: 1 },
   settingArrow:      { color: 'rgba(255,255,255,0.25)', fontSize: 20 },
+  trackPickerWrap:   { paddingHorizontal: 12, paddingBottom: 8, gap: 6 },
+  trackPickerRow:    { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: 10 },
+  trackPickerTxt:    { flex: 1, color: 'rgba(255,255,255,0.6)', fontSize: 13 },
   segmented:         { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 10, margin: 10, padding: 3, gap: 3 },
   segBtn:            { flex: 1, padding: 8, borderRadius: 8, alignItems: 'center' },
   segBtnActive:      { backgroundColor: '#1B3A6B' },
