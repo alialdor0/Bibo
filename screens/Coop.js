@@ -115,7 +115,10 @@ function CoopGame({ trackId, lang, onEnd, addGems }) {
         {lines.map((line, i) => (
           <View key={String(i)} style={s.doneLineWrap}>
             <Text style={s.doneHero}>{'👤 ' + line.hero}</Text>
-            <Text style={s.donePartner}>{'🐦 ' + line.partner}</Text>
+            <View style={s.donePartnerRow}>
+              <BiboCharacter state="idea" size={20} silent showCosmetics={false} />
+              <Text style={s.donePartner}>{line.partner}</Text>
+            </View>
           </View>
         ))}
         <TouchableOpacity style={s.doneBtn} onPress={() => { addGems(lines.length * 5); onEnd(); }}>
@@ -154,7 +157,10 @@ function CoopGame({ trackId, lang, onEnd, addGems }) {
         {done.map(i => (
           <View key={String(i)} style={s.doneLine}>
             <Text style={s.doneHeroSmall}>{'✅ ' + lines[i].hero}</Text>
-            <Text style={s.donePartnerSmall}>{'🐦 ' + lines[i].partner}</Text>
+            <View style={s.donePartnerSmallRow}>
+              <BiboCharacter state="idea" size={16} silent showCosmetics={false} />
+              <Text style={s.donePartnerSmall}>{lines[i].partner}</Text>
+            </View>
           </View>
         ))}
         <View style={[s.currentCard, { borderColor: track.color + '44' }]}>
@@ -305,7 +311,8 @@ const s = StyleSheet.create({
   gameContent:     { padding: 16, paddingBottom: 40 },
   doneLine:        { marginBottom: 6, opacity: 0.45 },
   doneHeroSmall:   { fontSize: 12, color: '#a5d6a7', lineHeight: 18 },
-  donePartnerSmall:{ fontSize: 12, color: '#7fb3f5', lineHeight: 18 },
+  donePartnerSmallRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 1 },
+  donePartnerSmall:{ fontSize: 12, color: '#7fb3f5', lineHeight: 18, flexShrink: 1 },
   currentCard:     { borderWidth: 1, borderRadius: 14, padding: 14, marginBottom: 12 },
   currentLabel:    { fontSize: 11, fontWeight: '700', marginBottom: 8 },
   currentStory:    { fontSize: 14, color: '#fff', fontStyle: 'italic', lineHeight: 22, marginBottom: 12 },
@@ -326,7 +333,8 @@ const s = StyleSheet.create({
   trackBadgeTxt:   { fontSize: 14, fontWeight: '700' },
   doneLineWrap:    { marginBottom: 10, width: '100%' },
   doneHero:        { fontSize: 13, color: '#a5d6a7', lineHeight: 20 },
-  donePartner:     { fontSize: 13, color: '#7fb3f5', lineHeight: 20 },
+  donePartnerRow:  { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  donePartner:     { fontSize: 13, color: '#7fb3f5', lineHeight: 20, flexShrink: 1 },
   doneBtn:         { backgroundColor: '#1B3A6B', borderRadius: 13, paddingHorizontal: 28, paddingVertical: 13, marginTop: 20 },
   doneBtnTxt:      { color: '#fff', fontSize: 15, fontWeight: '700' },
 });
