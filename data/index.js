@@ -402,3 +402,4 @@ export const getZodiac = (day, monthEn) => {
 export const getTrack    = (id)    => TRACKS.find(tr => tr.id === id) || TRACKS[0];
 export const itemLabel   = (item, lang) => lang === 'ar' ? item[1] : item[0];
 export const fullName    = (u)     => { const p = getPrefix(u.job); return (p ? p + ' ' : '') + u.firstName + ' ' + u.lastName; };
+
