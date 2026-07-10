@@ -88,3 +88,4 @@ export default function AppNavigator() {
 const ns = StyleSheet.create({
   loading: { flex: 1, backgroundColor: '#08080f', alignItems: 'center', justifyContent: 'center' },
 });
+
