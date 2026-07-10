@@ -37,4 +37,3 @@ export function getTotalEpisodes(trackId) {
   const season = SEASONS[trackId];
   return season ? season.episodes.length : 0;
 }
-
