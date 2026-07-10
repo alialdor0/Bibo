@@ -20,7 +20,7 @@ const IMAGES = {
   idea:      require('../assets/bibo/idea.png'),
 };
 
-const STATE_META = {
+export const STATE_META = {
   welcome:   { emoji: '🐦', color: '#2E8B57', labelAr: 'ترحيب',  labelEn: 'welcome'   },
   celebrate: { emoji: '🎉', color: '#FFB300', labelAr: 'احتفال', labelEn: 'celebrate' },
   attention: { emoji: '👀', color: '#1B3A6B', labelAr: 'انتباه', labelEn: 'attention' },
@@ -42,7 +42,7 @@ const STATE_META = {
  *  - onPress:  دالة اختيارية — لو موجودة، بيبو يبقى قابل للمس (مفيد لطلب تلميح)
  *  - hintBadge:شارة صغيرة نابضة "💡" فوق بيبو لما يكون عنده تلميح متاح
  */
-export default function BiboCharacter({ state = 'welcome', message, size = 64, layout = 'column', style, onPress, hintBadge = false, showCosmetics = true }) {
+export default function BiboCharacter({ state = 'welcome', message, size = 64, layout = 'column', style, onPress, hintBadge = false, showCosmetics = true, silent = false }) {
   const anim   = useRef(new Animated.Value(0)).current;
   const bubble = useRef(new Animated.Value(0)).current;
   const pulse  = useRef(new Animated.Value(0)).current;
@@ -67,8 +67,8 @@ export default function BiboCharacter({ state = 'welcome', message, size = 64, l
   }, [hintBadge]);
 
   useEffect(() => {
-    if (voiceOn) playBiboSound(state);
-  }, [state, voiceOn]);
+    if (voiceOn && !silent) playBiboSound(state);
+  }, [state, voiceOn, silent]);
 
   useEffect(() => {
     anim.setValue(0);
