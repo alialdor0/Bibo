@@ -206,8 +206,10 @@ export default function StoryEpisode({ onLeave }) {
   }, [word, phase, wordIdx]);
 
   useEffect(() => {
-    if (line && phase === 'arrange' && line.arrange_words_exercise) {
-      arrangeOptsRef.current = shuffle(line.arrange_words_exercise.words_to_arrange);
+    // نستخدم word_order (السطر كامل) بدل arrange_words_exercise.words_to_arrange،
+    // لأن الأخيرة كانت نسخة مبتورة من الجملة (بتوقف بمنتصف الفكرة) بمصدر البيانات نفسه
+    if (line && phase === 'arrange' && line.arrange_words_exercise && line.word_order) {
+      arrangeOptsRef.current = shuffle(line.word_order);
       setArrangePicked([]);
     }
   }, [line, phase]);
@@ -257,7 +259,7 @@ export default function StoryEpisode({ onLeave }) {
   const hintText = () => {
     if (phase === 'choice') return lang === 'ar' ? 'أزلت لك إجابة خاطئة 👀' : 'I removed a wrong answer for you 👀';
     if (phase === 'blank')  return (lang === 'ar' ? 'نطقها: ' : 'It sounds like: ') + word.pron;
-    if (phase === 'arrange') return (lang === 'ar' ? 'أول كلمة: ' : 'First word: ') + line.arrange_words_exercise.correct_order[0];
+    if (phase === 'arrange') return (lang === 'ar' ? 'أول كلمة: ' : 'First word: ') + line.word_order[0];
     return '';
   };
 
@@ -379,7 +381,7 @@ export default function StoryEpisode({ onLeave }) {
 
   const checkArrange = () => {
     const built = arrangePicked.map(p => p.word);
-    const target = line.arrange_words_exercise.correct_order;
+    const target = line.word_order;
     const ok = built.length === target.length && built.every((w, i) => w === target[i]);
     recordAnswer(ok);
     flash(ok, ok ? 'correct_answer' : 'wrong_answer', ok ? 'correct' : 'wrong');
@@ -590,11 +592,10 @@ export default function StoryEpisode({ onLeave }) {
   };
 
   const renderArrange = () => {
-    const ex = line.arrange_words_exercise;
     return (
       <View>
         <Text style={s.qLabel}>{lang === 'ar' ? 'رتّب الكلمات لتكوين السطر' : 'Arrange the words'}</Text>
-        <Text style={s.lineAr}>{ex.arabic}</Text>
+        <Text style={s.lineAr}>{line.arabic}</Text>
         {hintVisible ? <Text style={s.blankHint}>💡 {hintText()}</Text> : null}
 
         {/* السطر قيد التجميع — ثابت بالأعلى، عرض فقط بدون ضغط */}
