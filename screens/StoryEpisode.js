@@ -110,10 +110,10 @@ export default function StoryEpisode({ onLeave }) {
   const [infoWordId, setInfoWordId] = useState(null);
   const [lineHintUsed, setLineHintUsed] = useState(false);
   const [showCinema, setShowCinema] = useState(false);
-  const choicesRef = useRef([]);
+  const [choices, setChoices] = useState([]);
   const directionRef = useRef('toArabic');
   const lineDirectionsRef = useRef([]);
-  const arrangeOptsRef = useRef([]);
+  const [arrangeOpts, setArrangeOpts] = useState([]);
   const startTimeRef = useRef(null); // وقت بداية الحلقة الفعلي (لحساب مدة الإنجاز)
   const answerStatsRef = useRef({ correct: 0, total: 0 }); // إحصائية دقة الإجابات
   const shakeAnim = useRef(new Animated.Value(0)).current;
@@ -201,7 +201,7 @@ export default function StoryEpisode({ onLeave }) {
   useEffect(() => {
     if (word && phase === 'choice') {
       directionRef.current = lineDirectionsRef.current[wordIdx] || 'toArabic';
-      choicesRef.current = buildChoices(word, episode.vocabulary, directionRef.current);
+      setChoices(buildChoices(word, episode.vocabulary, directionRef.current));
     }
   }, [word, phase, wordIdx]);
 
@@ -209,7 +209,7 @@ export default function StoryEpisode({ onLeave }) {
     // نستخدم word_order (السطر كامل) بدل arrange_words_exercise.words_to_arrange،
     // لأن الأخيرة كانت نسخة مبتورة من الجملة (بتوقف بمنتصف الفكرة) بمصدر البيانات نفسه
     if (line && phase === 'arrange' && line.arrange_words_exercise && line.word_order) {
-      arrangeOptsRef.current = shuffle(line.word_order);
+      setArrangeOpts(shuffle(line.word_order));
       setArrangePicked([]);
     }
   }, [line, phase]);
@@ -243,15 +243,31 @@ export default function StoryEpisode({ onLeave }) {
   const openWordInfo = (id) => setInfoWordId(id);
   const closeWordInfo = () => setInfoWordId(null);
 
-  // تلميح بيبو الذكي: 50/50 في الاختيار، النطق في إكمال الفراغ، أول كلمة في الترتيب
+  // تلميح بيبو الذكي: 50/50 بالاختيار (مرة وحدة)، النطق بإكمال الفراغ (مرة وحدة)،
+  // أما بالترتيب فبيبو يقدر يساعد أكتر من مرة — كل ضغطة يحط كلمة صحيحة وحدة، ويخلّي آخر كلمة إلك تحطها بنفسك
   const requestHint = () => {
-    if (hintVisible || phase === 'context') return;
+    if (phase === 'context') return;
+
+    if (phase === 'arrange') {
+      const target = line.word_order;
+      if (!target || arrangePicked.length >= target.length - 1) return;
+      const nextWord = target[arrangePicked.length];
+      const idx = arrangeOpts.findIndex((w, i) => w === nextWord && !arrangePicked.some(p => p.idx === i));
+      if (idx === -1) return;
+      playSfx('pageTurn');
+      setLineHintUsed(true);
+      setArrangePicked(prev => [...prev, { word: arrangeOpts[idx], idx }]);
+      setHintVisible(true);
+      return;
+    }
+
+    if (hintVisible) return;
     playSfx('pageTurn');
     setHintVisible(true);
     setLineHintUsed(true);
     if (phase === 'choice' && !eliminatedChoice) {
       const correctVal = directionRef.current === 'toArabic' ? word.ar : word.word;
-      const wrongOpts = choicesRef.current.filter(o => o !== correctVal);
+      const wrongOpts = choices.filter(o => o !== correctVal);
       setEliminatedChoice(wrongOpts[Math.floor(Math.random() * wrongOpts.length)]);
     }
   };
@@ -259,7 +275,7 @@ export default function StoryEpisode({ onLeave }) {
   const hintText = () => {
     if (phase === 'choice') return lang === 'ar' ? 'أزلت لك إجابة خاطئة 👀' : 'I removed a wrong answer for you 👀';
     if (phase === 'blank')  return (lang === 'ar' ? 'نطقها: ' : 'It sounds like: ') + word.pron;
-    if (phase === 'arrange') return (lang === 'ar' ? 'أول كلمة: ' : 'First word: ') + line.word_order[0];
+    if (phase === 'arrange') return lang === 'ar' ? 'حطّيت لك كلمة! تحتاج مساعدة زيادة؟ 🐦' : 'I placed a word for you! Need more help? 🐦';
     return '';
   };
 
@@ -543,7 +559,7 @@ export default function StoryEpisode({ onLeave }) {
             : (lang === 'ar' ? 'اختر الكلمة الإنجليزية الصحيحة' : 'Choose the correct English word')}
           {' '}· {wordIdx + 1}/{line.words.length}
         </Text>
-        {choicesRef.current.filter(opt => opt !== eliminatedChoice).map((opt, i) => {
+        {choices.filter(opt => opt !== eliminatedChoice).map((opt, i) => {
           const isChosen = chosen === opt;
           const isCorrect = opt === correctVal;
           const showState = chosen && (isChosen || isCorrect);
@@ -607,12 +623,13 @@ export default function StoryEpisode({ onLeave }) {
           ))}
         </View>
 
-        {/* كل الكلمات المتاحة — أقصى مساحة ممكنة حتى تظهر كاملة بدون قطع */}
+        {/* كل الكلمات المتاحة — تختفي من هنا لما تُختار (تظهر بالسطر فوق بدلها)، وترجع تظهر هنا تلقائيًا لو انمسحت */}
         <View style={[s.chipsRow, s.forceLTR]}>
-          {arrangeOptsRef.current.map((w, i) => {
+          {arrangeOpts.map((w, i) => {
             const used = arrangePicked.some(p => p.idx === i);
+            if (used) return null;
             return (
-              <TouchableOpacity key={String(i)} style={[s.arrangeChip, s.forceLTRChild, used ? { opacity: 0.25 } : null]} disabled={used} onPress={() => pickArrangeWord(w, i)}>
+              <TouchableOpacity key={String(i)} style={[s.arrangeChip, s.forceLTRChild]} onPress={() => pickArrangeWord(w, i)}>
                 <Text style={s.arrangeChipTxt}>{w}</Text>
               </TouchableOpacity>
             );
@@ -657,7 +674,11 @@ export default function StoryEpisode({ onLeave }) {
             undefined
           }
           onPress={['choice', 'blank', 'arrange'].includes(phase) ? requestHint : undefined}
-          hintBadge={['choice', 'blank', 'arrange'].includes(phase) && !hintVisible}
+          hintBadge={
+            phase === 'arrange' ? !!(line?.word_order && arrangePicked.length < line.word_order.length - 1) :
+            ['choice', 'blank'].includes(phase) ? !hintVisible :
+            false
+          }
         />
         <Animated.View style={shakeStyle}>
           {phase === 'context' ? renderContext() :
@@ -772,4 +793,3 @@ const s = StyleSheet.create({
   restartBtn:      { backgroundColor: '#1B3A6B', borderRadius: 13, paddingHorizontal: 28, paddingVertical: 13 },
   restartTxt:      { color: '#fff', fontSize: 15, fontWeight: '700' },
 });
-
