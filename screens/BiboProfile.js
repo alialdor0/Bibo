@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView } from 'react-native';
 import { useApp } from '../context/AppContext';
-import { t, BIBO_LEVELS, getBiboLevel, COSMETIC_ITEMS } from '../data';
+import { t, COSMETIC_ITEMS } from '../data';
 import { PageHeader, GemsBadge } from '../components/BiboCard';
 import BiboCharacter, { STATE_META } from '../components/BiboCharacter';
 import { playBiboSound } from '../utils/sounds';
@@ -9,7 +9,7 @@ import { playBiboSound } from '../utils/sounds';
 const STATE_ORDER = ['welcome', 'celebrate', 'attention', 'encourage', 'thinking', 'idea', 'sleep'];
 
 export default function BiboProfile({ onBack }) {
-  const { lang, gems, library, companion, getWordBankWords, equippedCosmetics } = useApp();
+  const { lang, gems, library, companion, getWordBankWords, equippedCosmetics, user } = useApp();
   const T = (k) => t(k, lang);
   const [previewState, setPreviewState] = useState('welcome');
 
@@ -17,10 +17,10 @@ export default function BiboProfile({ onBack }) {
   const wordsTogether  = useMemo(() => getWordBankWords().filter(w => w.status === 'learned').length, [getWordBankWords]);
   const streak         = companion?.streak || 0;
 
-  const level     = getBiboLevel(episodesDone);
-  const levelIdx  = BIBO_LEVELS.indexOf(level);
-  const nextLevel = BIBO_LEVELS[levelIdx + 1];
-  const levelName = lang === 'ar' ? level.ar : level.en;
+  // مستوى بيبو هو نفس مستوى المستخدم بالضبط — بيبو رفيق تعلّم معك، مو نظام منفصل
+  const level     = user?.levelTitle || null;
+  const levelName = level ? (lang === 'ar' ? level.ar : level.en) : (lang === 'ar' ? 'بلا مستوى بعد' : 'No level yet');
+  const levelColor = level?.color || '#2E8B57';
 
   const equippedList = ['hat', 'glasses', 'ring']
     .map(slot => equippedCosmetics?.[slot])
@@ -38,18 +38,18 @@ export default function BiboProfile({ onBack }) {
       <PageHeader title={lang === 'ar' ? 'بطاقة بيبو' : "Bibo's Card"} onBack={onBack} backLabel={T('back')} right={<GemsBadge gems={gems} />} />
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
 
-        {/* بطاقة تعريفية مضغوطة — نفس حجم بيبو الصغير المستخدم بباقي التطبيق، مش صورة بروفايل كبيرة */}
+        {/* بطاقة تعريفية مضغوطة — نفس حجم بيبو الصغير المستخدم بباقي التطبيق، وليست صورة بروفايل كبيرة */}
         <View style={s.idCard}>
           <BiboCharacter state={previewState} size={64} silent />
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={s.biboName}>🐦 Bibo</Text>
-            <View style={[s.levelPill, { borderColor: level.color, alignSelf: 'flex-start' }]}>
-              <Text style={[s.levelPillTxt, { color: level.color }]}>{levelName}</Text>
+            <View style={[s.levelPill, { borderColor: levelColor, alignSelf: 'flex-start' }]}>
+              <Text style={[s.levelPillTxt, { color: levelColor }]}>{levelName}</Text>
             </View>
           </View>
         </View>
 
-        {/* شريط إحصائيات رفيع، مش كروت كبيرة */}
+        {/* شريط إحصائيات رفيع، وليس كروتًا كبيرة */}
         <View style={s.statsStrip}>
           <View style={s.statItem}>
             <Text style={s.statVal}>{episodesDone}</Text>
@@ -68,9 +68,9 @@ export default function BiboProfile({ onBack }) {
         </View>
 
         <Text style={s.levelNote}>
-          {nextLevel
-            ? (lang === 'ar' ? `بعد ${nextLevel.min - episodesDone} حلقة بيوصل بيبو للمستوى التالي 🌱` : `${nextLevel.min - episodesDone} more episodes until Bibo's next level 🌱`)
-            : (lang === 'ar' ? 'بيبو بأعلى مستوى معك! 🏆' : "Bibo's at max level with you! 🏆")}
+          {lang === 'ar'
+            ? 'بيبو يتعلّم معك خطوة بخطوة — مستواه هو نفس مستواك اللغوي بالضبط. 🌱'
+            : "Bibo learns alongside you step by step — his level is exactly your own language level. 🌱"}
         </Text>
 
         {equippedList.length > 0 ? (
