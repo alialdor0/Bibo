@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, SafeAreaView } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { t, BIBO_PACE } from '../data';
 import { PageHeader, GemsBadge } from '../components/BiboCard';
@@ -35,13 +35,28 @@ function RaceRow({ label, myVal, biboVal, unit, lang }) {
       <Text style={[s.raceStatus, { color: winning ? '#a5d6a7' : '#FFB300' }]}>
         {winning
           ? (lang === 'ar' ? `أنت متقدم على بيبو بـ ${myVal - biboVal} ${unit}! 🎉` : `You're ahead of Bibo by ${myVal - biboVal} ${unit}! 🎉`)
-          : (lang === 'ar' ? `باقي ${biboVal - myVal} ${unit} تلحق بيبو` : `${biboVal - myVal} ${unit} to catch up with Bibo`)}
+          : (lang === 'ar' ? `باقي ${biboVal - myVal} ${unit} لتلحق ببيبو` : `${biboVal - myVal} ${unit} to catch up with Bibo`)}
       </Text>
     </View>
   );
 }
 
-export default function Leaderboard({ onBack }) {
+function GameCard({ icon, title, subtitle, color, onPress }) {
+  return (
+    <TouchableOpacity style={[s.gameCard, { borderColor: color + '44' }]} onPress={onPress} accessibilityRole="button">
+      <View style={[s.gameIconWrap, { backgroundColor: color + '22' }]}>
+        <Text style={{ fontSize: 26 }}>{icon}</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={s.gameTitle}>{title}</Text>
+        <Text style={s.gameSub}>{subtitle}</Text>
+      </View>
+      <Text style={s.gameArrow}>←</Text>
+    </TouchableOpacity>
+  );
+}
+
+export default function Leaderboard({ onBack, onNav }) {
   const { lang, gems, weeklyProgress, getWordBankWords } = useApp();
   const T = (k) => t(k, lang);
 
@@ -55,15 +70,41 @@ export default function Leaderboard({ onBack }) {
   const biboState = overallLead ? 'celebrate' : weeklyWin ? 'encourage' : 'idea';
   const biboMsg = overallLead
     ? (lang === 'ar' ? 'أنت أسرع مني! رهيب 🏆' : "You're faster than me! Amazing 🏆")
-    : (lang === 'ar' ? 'سباق ممتع... يلا نشوف مين بيوصل أول! 🏁' : "Fun race... let's see who gets there first! 🏁");
+    : (lang === 'ar' ? 'تحدٍّ ممتع... لنرَ من يصل أولًا! 🏁' : "Fun challenge... let's see who gets there first! 🏁");
+
+  const goDict = (mode) => onNav && onNav('dict', { initialMode: mode });
 
   return (
     <SafeAreaView style={s.safe}>
-      <PageHeader title={lang === 'ar' ? 'سباق مع بيبو' : 'Race with Bibo'} onBack={onBack} backLabel={T('back')} right={<GemsBadge gems={gems} />} />
+      <PageHeader title={lang === 'ar' ? 'المنافسة مع بيبو' : 'Competition with Bibo'} onBack={onBack} backLabel={T('back')} right={<GemsBadge gems={gems} />} />
 
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
         <BiboCharacter state={biboState} message={biboMsg} size={80} style={{ marginBottom: 18, alignSelf: 'center' }} />
 
+        <Text style={s.sectionTitle}>{lang === 'ar' ? 'ألعاب المنافسة' : 'Competition games'}</Text>
+        <GameCard
+          icon="⚔️"
+          color="#FFB300"
+          title={lang === 'ar' ? 'مبارزة بالكلمات' : 'Word Duel'}
+          subtitle={lang === 'ar' ? 'تحدٍّ سريع بالوقت — أنت مقابل بيبو' : 'A fast timed challenge — you vs Bibo'}
+          onPress={() => goDict('duel')}
+        />
+        <GameCard
+          icon="📝"
+          color="#7fb3f5"
+          title={lang === 'ar' ? 'مبارزة بالجمل' : 'Sentence Duel'}
+          subtitle={lang === 'ar' ? 'رتّب جملة كاملة قبل بيبو!' : 'Arrange a full sentence before Bibo!'}
+          onPress={() => goDict('sentenceDuel')}
+        />
+        <GameCard
+          icon="🤪"
+          color="#a5d6a7"
+          title={lang === 'ar' ? 'بيبو المشاكس' : 'Clumsy Bibo'}
+          subtitle={lang === 'ar' ? 'بيبو يحاول الإجابة... صحّح له إن أخطأ!' : 'Bibo tries to answer... correct him if he errs!'}
+          onPress={() => goDict('clumsy')}
+        />
+
+        <Text style={[s.sectionTitle, { marginTop: 10 }]}>{lang === 'ar' ? 'معدّل بيبو الأسبوعي' : "Bibo's weekly pace"}</Text>
         <Text style={s.introTxt}>
           {lang === 'ar'
             ? 'بيبو يتعلّم الإنجليزية مثلك تمامًا، وله معدّل ثابت كل أسبوع — شاهد أين أنت منه!'
@@ -89,8 +130,8 @@ export default function Leaderboard({ onBack }) {
         <View style={s.noteCard}>
           <Text style={s.noteTxt}>
             {lang === 'ar'
-              ? 'ℹ️ هذا سباق ودّي مع بيبو نفسه لتحفيزك، وليس ترتيبًا بين مستخدمين حقيقيين.'
-              : 'ℹ️ This is a friendly race against Bibo himself to keep you motivated, not a ranking against real users.'}
+              ? 'ℹ️ كل هذا منافسة ودّية مع بيبو نفسه لتحفيزك، وليست ترتيبًا بين مستخدمين حقيقيين.'
+              : 'ℹ️ All of this is a friendly competition against Bibo himself to keep you motivated, not a ranking against real users.'}
           </Text>
         </View>
       </ScrollView>
@@ -101,6 +142,12 @@ export default function Leaderboard({ onBack }) {
 const s = StyleSheet.create({
   safe:        { flex: 1, backgroundColor: '#08080f' },
   content:     { padding: 16, paddingBottom: 40 },
+  sectionTitle:{ color: '#fff', fontWeight: '800', fontSize: 14, marginBottom: 10 },
+  gameCard:    { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 10 },
+  gameIconWrap:{ width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  gameTitle:   { color: '#fff', fontWeight: '700', fontSize: 14, marginBottom: 2 },
+  gameSub:     { color: 'rgba(255,255,255,0.45)', fontSize: 11 },
+  gameArrow:   { color: 'rgba(255,255,255,0.25)', fontSize: 20 },
   introTxt:    { color: 'rgba(255,255,255,0.55)', fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: 20, paddingHorizontal: 8 },
   raceCard:    { backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 16, padding: 16, marginBottom: 14 },
   raceLabel:   { color: '#fff', fontWeight: '800', fontSize: 14, marginBottom: 12 },
