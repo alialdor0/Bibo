@@ -336,8 +336,8 @@ function ChallengeTab({ onNav }) {
 
         <ChallengeCard
           icon="🏅"
-          title={lang === 'ar' ? 'سباق مع بيبو' : 'Race with Bibo'}
-          subtitle={lang === 'ar' ? 'شوف وين وصلت مقارنة بمعدّل بيبو الأسبوعي' : "See how you compare to Bibo's weekly pace"}
+          title={lang === 'ar' ? 'المنافسة مع بيبو' : 'Competition with Bibo'}
+          subtitle={lang === 'ar' ? 'مبارزات وتحديات ممتعة مع بيبو نفسه' : 'Fun duels and challenges against Bibo himself'}
           onPress={() => onNav('leaderboard')}
         />
 
