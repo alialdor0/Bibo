@@ -254,14 +254,8 @@ export const TRACKS = [
 ];
 
 // ── أصوات المسارات ──
-export const TRACK_SOUNDS = {
-  spy:     { ambient:'🎵 Suspense background', sounds:[{icon:'📻',label:'Radio static',trigger:'mission start'},{icon:'👣',label:'Footsteps',trigger:'hero moves'},{icon:'🔫',label:'Tension click',trigger:'danger moment'},{icon:'🚨',label:'Alert siren',trigger:'mission alert'},{icon:'🎯',label:'Target beep',trigger:'correct answer'}] },
-  love:    { ambient:'🎵 Soft romantic piano',  sounds:[{icon:'💌',label:'Message chime',trigger:'letter arrives'},{icon:'💓',label:'Heartbeat',trigger:'emotional moment'},{icon:'🎹',label:'Piano key',trigger:'correct answer'},{icon:'🕊️',label:'Dove wings',trigger:'reunion scene'}] },
-  family:  { ambient:'🎵 Warm acoustic guitar', sounds:[{icon:'😄',label:'Children laughing',trigger:'happy moment'},{icon:'🚪',label:'Door opening',trigger:'arrival scene'},{icon:'🍽️',label:'Kitchen sounds',trigger:'home scene'},{icon:'👏',label:'Applause',trigger:'correct answer'}] },
-  crime:   { ambient:'🎵 Dark courtroom music', sounds:[{icon:'⚖️',label:'Gavel strike',trigger:'verdict moment'},{icon:'🔗',label:'Handcuffs',trigger:'arrest scene'},{icon:'🚔',label:'Police siren',trigger:'chase scene'},{icon:'🔔',label:'Court bell',trigger:'correct answer'}] },
-  medical: { ambient:'🎵 Hospital ambient hum', sounds:[{icon:'🚑',label:'Ambulance siren',trigger:'emergency'},{icon:'💓',label:'Heart monitor',trigger:'patient stable'},{icon:'⚡',label:'Defibrillator',trigger:'critical moment'},{icon:'✅',label:'Heartbeat restored',trigger:'correct answer'}] },
-};
-
+// ملاحظة: كان هنا TRACK_SOUNDS (مؤثرات صوتية لكل مسار) — تمت إزالتها لأن التعاون
+// أصبح مع بيبو نفسه ولا يحتاج مؤثرات جوية إضافية؛ صوت بيبو (utils/sounds.js) كافٍ.
 // ── بيانات القصة ──
 export const STORY_LINES = {
   spy: [
@@ -294,7 +288,7 @@ export const COOP_WORDS = {
 // تم حذفهما لأنهما غير مستخدمتين بأي مكان بالكود إطلاقًا. شاشتا Dict.js وRescue.js
 // تعتمدان فعليًا على getWordBankWords() من AppContext، وهي بيانات حقيقية من تقدّم المستخدم.
 
-// ── معدّل بيبو التحفيزي — رقم مرجعي ثابت لبيبو كشخصية بالتطبيق، مش تظاهر بمستخدم حقيقي آخر ──
+// ── معدّل بيبو التحفيزي — رقم مرجعي ثابت لبيبو كشخصية بالتطبيق، وليس تظاهرًا بمستخدم حقيقي آخر ──
 export const BIBO_PACE = { weeklyWords: 15, totalWords: 150 };
 
 // ── لوحة المتصدرين ──
@@ -341,16 +335,8 @@ export const WEEKLY_CHALLENGES = [
   { id: 'rescue',   metric: 'wordsRescued', target: 3,  reward: 15, icon: '🆘', label: 'Rescue 3 fading words',   labelAr: 'أنقذ 3 كلمات مهدَّدة بالنسيان' },
 ];
 
-// ── مستوى بيبو — يرتفع فعليًا مع عدد الحلقات الحقيقية اللي أكملتها، مو رقم عشوائي أو وهمي ──
-// الفكرة: بيبو "يتعلّم معك"، فكل ما أكملت حلقات أكتر، بيبو "يكبر" مستواه هو كمان.
-export const BIBO_LEVELS = [
-  { min: 0,  max: 1,  en: 'Bibo the Hatchling',   ar: 'بيبو الصغير',      color: '#8B4513' },
-  { min: 2,  max: 4,  en: 'Bibo the Learner',      ar: 'بيبو المتعلّم',     color: '#1B3A6B' },
-  { min: 5,  max: 7,  en: 'Bibo the Companion',    ar: 'بيبو الرفيق',      color: '#2E8B57' },
-  { min: 8,  max: 11, en: 'Bibo the Storyteller',  ar: 'بيبو الحكواتي',    color: '#C0C0C0' },
-  { min: 12, max: 999,en: 'Bibo the Master',       ar: 'بيبو الخبير',      color: '#FFB300' },
-];
-export const getBiboLevel = (episodesDone) => BIBO_LEVELS.find(l => episodesDone >= l.min && episodesDone <= l.max) || BIBO_LEVELS[0];
+// ملاحظة: كان هنا نظام مستوى منفصل لبيبو (BIBO_LEVELS) — تمت إزالته لأن مستوى
+// بيبو أصبح نفس مستوى المستخدم اللغوي بالضبط (user.levelTitle)، بدل نظام مستقل.
 
 export const GIFT_REWARDS = [
   { type:'gems',   amount:10,  icon:'💎', label:'10 Gems',          labelAr:'10 جواهر' },
