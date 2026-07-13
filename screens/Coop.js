@@ -1,31 +1,30 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Animated, SafeAreaView, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, Alert } from 'react-native';
 import { useApp } from '../context/AppContext';
-import { t, TRACKS, TRACK_SOUNDS, COOP_STORY, COOP_WORDS } from '../data';
+import { t, TRACKS, COOP_STORY, COOP_WORDS } from '../data';
 import { PageHeader, GemsBadge } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
 import { playSfx } from '../utils/sfx';
 
 function TutorialScreen({ lang, onDone }) {
   const [page, setPage] = useState(0);
-  const T = (k) => t(k, lang);
   const PAGES = [
     { icon: '🤝', title: lang === 'ar' ? 'التعاون مع بيبو' : 'Co-op with Bibo',
-      body: lang === 'ar' ? 'أنت وبيبو بتكملوا قصة وحدة سوا. كل وحد منكم إله دور.' : 'You and Bibo complete one story together. Each of you plays a role.' },
+      body: lang === 'ar' ? 'أنت وبيبو تكملان قصة واحدة معًا. لكل منكما دور فيها.' : 'You and Bibo complete one story together. Each of you plays a role.' },
     { icon: '👤', title: lang === 'ar' ? 'دورك' : 'Your role',
       body: lang === 'ar' ? 'أنت تكتب جمل البطل الرئيسي. كل جملة تعلّمك كلمات جديدة.' : 'You write the main story lines. Each line teaches you new vocabulary.' },
     { icon: '🐦', title: lang === 'ar' ? 'دور بيبو' : "Bibo's role",
-      body: lang === 'ar' ? 'بيبو يكمّل كل جملة بصوته، ويضيف عمقًا للقصة.' : 'Bibo completes each line with his voice, adding depth to the story.' },
+      body: lang === 'ar' ? 'بيبو يُكمل كل جملة بصوته، ويضيف عمقًا للقصة.' : 'Bibo completes each line with his voice, adding depth to the story.' },
     { icon: '🎵', title: lang === 'ar' ? 'مؤثرات صوتية' : 'Sound Effects',
-      body: lang === 'ar' ? 'كل مسار إله أصوات مميزة بتشتغل أثناء القصة.' : 'Each track has unique sounds that play during the story.' },
+      body: lang === 'ar' ? 'لكل مسار أصوات مميزة تعمل أثناء القصة.' : 'Each track has unique sounds that play during the story.' },
     { icon: '🏆', title: lang === 'ar' ? 'تعلّم مع بيبو' : 'Learn Together',
-      body: lang === 'ar' ? 'بتكسب كلمات وجواهر مع كل قصة تكملها مع بيبو!' : 'Earn words and gems with every story you finish with Bibo!' },
+      body: lang === 'ar' ? 'تكسب كلمات وجواهر مع كل قصة تكملها مع بيبو!' : 'Earn words and gems with every story you finish with Bibo!' },
   ];
   const p = PAGES[page];
   return (
     <SafeAreaView style={s.safe}>
       <PageHeader
-        title={lang === 'ar' ? 'كيف تشتغل' : 'How it works'}
+        title={lang === 'ar' ? 'كيف يعمل' : 'How it works'}
         right={<TouchableOpacity onPress={onDone} style={s.skipBtn}><Text style={s.skipTxt}>{lang === 'ar' ? 'تخطّي' : 'Skip'}</Text></TouchableOpacity>}
       />
       <View style={s.tutWrap}>
@@ -44,7 +43,7 @@ function TutorialScreen({ lang, onDone }) {
             </TouchableOpacity>
           ) : <View style={{ width: 80 }} />}
           <TouchableOpacity style={s.tutNextBtn} onPress={() => page === PAGES.length - 1 ? onDone() : setPage(page + 1)}>
-            <Text style={s.tutNextTxt}>{page === PAGES.length - 1 ? (lang === 'ar' ? 'يلا نبدأ! 🚀' : "Let's go! 🚀") : (lang === 'ar' ? 'التالي →' : 'Next →')}</Text>
+            <Text style={s.tutNextTxt}>{page === PAGES.length - 1 ? (lang === 'ar' ? 'هيا نبدأ! 🚀' : "Let's go! 🚀") : (lang === 'ar' ? 'التالي →' : 'Next →')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -54,7 +53,6 @@ function TutorialScreen({ lang, onDone }) {
 
 function CoopGame({ trackId, lang, onEnd, addGems }) {
   const track     = TRACKS.find(tr => tr.id === trackId) || TRACKS[0];
-  const sounds    = TRACK_SOUNDS[trackId] || TRACK_SOUNDS.spy;
   const lines     = COOP_STORY[trackId]   || COOP_STORY.spy;
   const wordLines = COOP_WORDS[trackId]   || COOP_WORDS.spy;
 
@@ -64,26 +62,17 @@ function CoopGame({ trackId, lang, onEnd, addGems }) {
   const [done,      setDone]      = useState([]);
   const [showBibo,  setShowBibo]  = useState(false);
   const [gameOver,  setGameOver]  = useState(false);
-  const [soundLog,  setSoundLog]  = useState([]);
 
   const currentLine = wordLines[lineIdx] || [];
   const currentWord = currentLine[wordIdx] || '';
   const story = lines[lineIdx];
 
-  const addSound = (trigger) => {
-    const match = sounds.sounds.find(sd => sd.trigger === trigger);
-    if (!match) return;
-    const id = Date.now();
-    setSoundLog(prev => [{ ...match, id }, ...prev.slice(0, 2)]);
-    setTimeout(() => setSoundLog(prev => prev.filter(sd => sd.id !== id)), 2000);
-  };
-
   const checkWord = () => {
-    if (typed.trim().toLowerCase() !== currentWord.toLowerCase()) { setTyped(''); addSound('danger moment'); playSfx('wrong'); return; }
-    setTyped(''); addSound('correct answer'); playSfx('correct');
+    if (typed.trim().toLowerCase() !== currentWord.toLowerCase()) { setTyped(''); playSfx('wrong'); return; }
+    setTyped(''); playSfx('correct');
     const nextWord = wordIdx + 1;
     if (nextWord >= currentLine.length) {
-      setShowBibo(true); addSound('mission start'); playSfx('pageTurn');
+      setShowBibo(true); playSfx('pageTurn');
       setTimeout(() => {
         setShowBibo(false);
         setDone(prev => [...prev, lineIdx]);
@@ -96,9 +85,9 @@ function CoopGame({ trackId, lang, onEnd, addGems }) {
 
   const handleLeave = () => Alert.alert(
     lang === 'ar' ? 'مغادرة القصة؟' : 'Leave Story?',
-    lang === 'ar' ? 'بيبو رح يستنّاك ترجع لاحقًا.' : 'Bibo will wait for you to come back later.',
+    lang === 'ar' ? 'سينتظرك بيبو حتى تعود لاحقًا.' : 'Bibo will wait for you to come back later.',
     [
-      { text: lang === 'ar' ? 'كمّل' : 'Stay', style: 'cancel' },
+      { text: lang === 'ar' ? 'ابقَ' : 'Stay', style: 'cancel' },
       { text: lang === 'ar' ? 'مغادرة' : 'Leave', style: 'destructive', onPress: onEnd },
     ]
   );
@@ -110,7 +99,7 @@ function CoopGame({ trackId, lang, onEnd, addGems }) {
         <Text style={s.doneTitle}>{lang === 'ar' ? 'القصة اكتملت!' : 'Story Complete!'}</Text>
         <Text style={s.doneSub}>+{lines.length * 5} {lang === 'ar' ? 'جوهرة' : 'gems earned'}</Text>
         <View style={[s.trackBadge, { borderColor: track.color }]}>
-          <Text style={[s.trackBadgeTxt, { color: track.color }]}>{track.icon} {track.name}</Text>
+          <Text style={[s.trackBadgeTxt, { color: track.color }]}>{track.icon} {lang === 'ar' ? track.nameAr : track.name}</Text>
         </View>
         {lines.map((line, i) => (
           <View key={String(i)} style={s.doneLineWrap}>
@@ -141,17 +130,6 @@ function CoopGame({ trackId, lang, onEnd, addGems }) {
           <View style={[s.gameProgressFill, { width: Math.round(lineIdx / lines.length * 100) + '%', backgroundColor: track.color }]} />
         </View>
       </View>
-
-      {soundLog.length > 0 ? (
-        <View style={s.soundLog}>
-          {soundLog.map(sl => (
-            <View key={String(sl.id)} style={[s.soundLogItem, { borderColor: track.color + '66' }]}>
-              <Text style={s.soundLogIcon}>{sl.icon}</Text>
-              <Text style={[s.soundLogTxt, { color: track.color }]}>{sl.label}</Text>
-            </View>
-          ))}
-        </View>
-      ) : null}
 
       <ScrollView contentContainerStyle={s.gameContent}>
         {done.map(i => (
@@ -189,7 +167,7 @@ function CoopGame({ trackId, lang, onEnd, addGems }) {
           <View style={[s.partnerCard, { borderColor: track.color + '44', backgroundColor: track.color + '12' }]}>
             <BiboCharacter layout="row" size={44} state="encourage" />
             <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={[s.partnerLabel, { color: track.color }]}>🐦 {lang === 'ar' ? 'بيبو يكمّل...' : 'Bibo completing...'}</Text>
+              <Text style={[s.partnerLabel, { color: track.color }]}>🐦 {lang === 'ar' ? 'بيبو يُكمل...' : 'Bibo completing...'}</Text>
               <Text style={s.partnerText}>{story?.partner}</Text>
             </View>
           </View>
@@ -209,7 +187,6 @@ export default function Coop({ onBack }) {
   if (screen === 'game')     return <CoopGame trackId={trackId} lang={lang} onEnd={() => setScreen('home')} addGems={addGems} />;
 
   const track  = TRACKS.find(tr => tr.id === trackId) || TRACKS[0];
-  const sounds = TRACK_SOUNDS[trackId] || TRACK_SOUNDS.spy;
 
   return (
     <SafeAreaView style={s.safe}>
@@ -224,7 +201,7 @@ export default function Coop({ onBack }) {
               : 'Complete one story together with Bibo: you write the hero lines, Bibo completes each scene with his voice.'}
           </Text>
           <TouchableOpacity style={s.tutBtn} onPress={() => setScreen('tutorial')}>
-            <Text style={s.tutBtnTxt}>{lang === 'ar' ? 'كيف تشتغل' : 'How it works'}</Text>
+            <Text style={s.tutBtnTxt}>{lang === 'ar' ? 'كيف يعمل' : 'How it works'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -235,23 +212,18 @@ export default function Coop({ onBack }) {
               style={[s.trackChip, trackId === tr.id ? { borderColor: tr.color, backgroundColor: tr.color + '22' } : { borderColor: 'rgba(255,255,255,0.1)' }]}
               onPress={() => setTrackId(tr.id)}>
               <Text style={{ fontSize: 20 }}>{tr.icon}</Text>
-              <Text style={[s.trackChipTxt, trackId === tr.id ? { color: tr.color } : null]}>{tr.name}</Text>
+              <Text style={[s.trackChipTxt, trackId === tr.id ? { color: tr.color } : null]}>{lang === 'ar' ? tr.nameAr : tr.name}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
 
         <View style={[s.soundsCard, { borderColor: track.color + '33' }]}>
-          <Text style={[s.soundsTitle, { color: track.color }]}>{track.icon} {track.name} {lang === 'ar' ? '— أصوات' : 'Sounds'}</Text>
-          <Text style={s.soundsAmbient}>{sounds.ambient}</Text>
-          <View style={s.soundsGrid}>
-            {sounds.sounds.map(snd => (
-              <View key={snd.label} style={[s.soundItem, { borderColor: track.color + '33' }]}>
-                <Text style={{ fontSize: 20 }}>{snd.icon}</Text>
-                <Text style={s.soundLabel}>{snd.label}</Text>
-                <Text style={s.soundTrigger}>{snd.trigger}</Text>
-              </View>
-            ))}
-          </View>
+          <Text style={[s.soundsTitle, { color: track.color }]}>{track.icon} {lang === 'ar' ? track.nameAr : track.name}</Text>
+          <Text style={s.soundsAmbient}>
+            {lang === 'ar'
+              ? 'قصة قصيرة تكملونها سوا خطوة بخطوة، وبيبو معك بكل جملة.'
+              : 'A short story you complete step by step, with Bibo alongside you the whole way.'}
+          </Text>
         </View>
 
         <TouchableOpacity style={[s.startBtn, { backgroundColor: track.color + 'cc' }]} onPress={() => setScreen('game')}>
@@ -291,10 +263,6 @@ const s = StyleSheet.create({
   soundsCard:      { borderWidth: 1, borderRadius: 14, padding: 14, marginBottom: 16, backgroundColor: 'rgba(255,255,255,0.03)' },
   soundsTitle:     { fontSize: 14, fontWeight: '700', marginBottom: 4 },
   soundsAmbient:   { fontSize: 12, color: 'rgba(255,255,255,0.35)', marginBottom: 12, fontStyle: 'italic' },
-  soundsGrid:      { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  soundItem:       { borderWidth: 1, borderRadius: 10, padding: 8, alignItems: 'center', width: '30%' },
-  soundLabel:      { fontSize: 10, color: 'rgba(255,255,255,0.6)', textAlign: 'center', marginTop: 3 },
-  soundTrigger:    { fontSize: 9, color: 'rgba(255,255,255,0.25)', textAlign: 'center', marginTop: 2 },
   startBtn:        { borderRadius: 13, padding: 14, alignItems: 'center', marginBottom: 10 },
   startBtnTxt:     { color: '#fff', fontSize: 15, fontWeight: '700' },
   gameHeader:      { paddingHorizontal: 16, paddingVertical: 10, gap: 6 },
@@ -304,10 +272,6 @@ const s = StyleSheet.create({
   trackMiniTxt:    { fontSize: 12, fontWeight: '600' },
   gameProgressBg:  { height: 3, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' },
   gameProgressFill:{ height: '100%', borderRadius: 2 },
-  soundLog:        { paddingHorizontal: 16, paddingBottom: 8, gap: 4 },
-  soundLogItem:    { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start' },
-  soundLogIcon:    { fontSize: 16 },
-  soundLogTxt:     { fontSize: 11, fontWeight: '600' },
   gameContent:     { padding: 16, paddingBottom: 40 },
   doneLine:        { marginBottom: 6, opacity: 0.45 },
   doneHeroSmall:   { fontSize: 12, color: '#a5d6a7', lineHeight: 18 },
