@@ -17,8 +17,9 @@ import BiboProfile from '../screens/BiboProfile';
 export default function AppNavigator() {
   const { user, setUser, track, lang, hydrated } = useApp();
   const [screen, setScreen] = useState(null); // null = لسه مستنيين التحميل من التخزين
+  const [screenParams, setScreenParams] = useState(null);
 
-  const go = (s) => setScreen(s);
+  const go = (s, params = null) => { setScreen(s); setScreenParams(params); };
 
   // أول ما بيانات المستخدم تتحمل من AsyncStorage، حدّد الشاشة الأولى:
   // مستخدم مسجل وله مسار مختار -> يدخل على طول للـ main (بدون تسجيل دخول تاني)
@@ -47,9 +48,9 @@ export default function AppNavigator() {
     setScreen('main');
   };
 
-  const handleNav = (dest) => {
+  const handleNav = (dest, params) => {
     const screens = ['story','dict','rescue','leaderboard','coop','store','bibo-profile'];
-    if (screens.includes(dest)) setScreen(dest);
+    if (screens.includes(dest)) { setScreen(dest); setScreenParams(params || null); }
   };
 
   if (!hydrated || screen === null) {
@@ -66,9 +67,9 @@ export default function AppNavigator() {
   else if (screen === 'trackselect') content = <TrackSelect  onSelect={handleTrackSelect} />;
   else if (screen === 'main')        content = <Main         onNav={handleNav} />;
   else if (screen === 'story')       content = <Story        onLeave={() => go('main')} />;
-  else if (screen === 'dict')        content = <Dict         onBack={() => go('main')} />;
+  else if (screen === 'dict')        content = <Dict         onBack={() => go('main')} onNav={handleNav} initialMode={screenParams?.initialMode} />;
   else if (screen === 'rescue')      content = <Rescue       onBack={() => go('main')} />;
-  else if (screen === 'leaderboard') content = <Leaderboard  onBack={() => go('main')} />;
+  else if (screen === 'leaderboard') content = <Leaderboard  onBack={() => go('main')} onNav={handleNav} />;
   else if (screen === 'coop')        content = <Coop         onBack={() => go('main')} />;
   else if (screen === 'store')       content = <Store        onBack={() => go('main')} />;
   else if (screen === 'bibo-profile')content = <BiboProfile  onBack={() => go('main')} />;
@@ -88,4 +89,3 @@ export default function AppNavigator() {
 const ns = StyleSheet.create({
   loading: { flex: 1, backgroundColor: '#08080f', alignItems: 'center', justifyContent: 'center' },
 });
-
