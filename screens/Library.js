@@ -32,6 +32,17 @@ function BookCard({ book, lang, custom, onPress }) {
   );
 }
 
+/** بطاقة رف خاصة (مو كتاب حلقة عادي) — تفتح شاشة تانية بالتطبيق، زي القاموس */
+function ShelfLinkCard({ icon, title, subtitle, color, onPress }) {
+  return (
+    <TouchableOpacity style={[s.book, s.shelfLinkBook, { borderColor: color + '55', backgroundColor: color + '14' }]} onPress={onPress}>
+      <Text style={s.bookIcon}>{icon}</Text>
+      <Text style={s.bookTitle} numberOfLines={2}>{title}</Text>
+      <Text style={s.bookMeta}>{subtitle}</Text>
+    </TouchableOpacity>
+  );
+}
+
 /** يحوّل الثواني لصيغة "س دقيقة و ث ثانية" بحسب اللغة */
 function formatDuration(sec, lang) {
   if (sec == null || isNaN(sec)) return null;
@@ -250,6 +261,15 @@ export default function Library({ onNav }) {
           <TouchableOpacity style={s.emptyBtn} onPress={() => onNav('story')}>
             <Text style={s.emptyBtnTxt}>{lang === 'ar' ? 'ابدأ القراءة' : 'Start Reading'}</Text>
           </TouchableOpacity>
+          <View style={[s.grid, { marginTop: 24 }]}>
+            <ShelfLinkCard
+              icon="📔"
+              color="#7b5fd4"
+              title={lang === 'ar' ? 'القاموس' : 'Dictionary'}
+              subtitle={lang === 'ar' ? 'كلماتك المتقنة' : 'Your mastered words'}
+              onPress={() => onNav('dict')}
+            />
+          </View>
         </View>
       ) : (
         <ScrollView contentContainerStyle={s.shelf}>
@@ -261,6 +281,13 @@ export default function Library({ onNav }) {
             message={lang === 'ar' ? `لديك ${library.length} كتاب في مكتبتك! نحن فخورون بك 🏆` : `You have ${library.length} book(s) in your library! Proud of you 🏆`}
           />
           <View style={s.grid}>
+            <ShelfLinkCard
+              icon="📔"
+              color="#7b5fd4"
+              title={lang === 'ar' ? 'القاموس' : 'Dictionary'}
+              subtitle={lang === 'ar' ? 'كلماتك المتقنة' : 'Your mastered words'}
+              onPress={() => onNav('dict')}
+            />
             {library.map((book, i) => (
               <BookCard
                 key={String(i)}
@@ -289,6 +316,7 @@ const s = StyleSheet.create({
   shelf:           { padding: 18, paddingBottom: 90 },
   grid:            { flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' },
   book:            { width: '47%', borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 4, alignItems: 'center' },
+  shelfLinkBook:   { borderStyle: 'dashed', borderWidth: 1.5 },
   bookIcon:        { fontSize: 34, marginBottom: 6 },
   bookTitle:       { color: '#fff', fontWeight: '800', fontSize: 13, textAlign: 'center', marginBottom: 4 },
   bookMeta:        { color: 'rgba(255,255,255,0.45)', fontSize: 11 },
@@ -337,4 +365,3 @@ const s = StyleSheet.create({
   wordPhon:        { color: 'rgba(255,255,255,0.4)', fontSize: 11, fontStyle: 'italic' },
   wordAr:          { color: 'rgba(255,255,255,0.7)', fontSize: 13 },
 });
-
