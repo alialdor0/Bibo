@@ -21,6 +21,16 @@ export default function AppNavigator() {
 
   const go = (s, params = null) => { setScreen(s); setScreenParams(params); };
 
+  const [awaitingRestore, setAwaitingRestore] = useState(false);
+
+  // بعد استرجاع حساب بكود الدخول، ننتقل تلقائيًا لأول شاشة مناسبة أول ما بيانات
+  // المستخدم/المسار تتحدّث فعليًا بالـ context (بدل الاعتماد على قيمة قديمة).
+  useEffect(() => {
+    if (!awaitingRestore || !user) return;
+    setScreen(track ? 'main' : 'trackselect');
+    setAwaitingRestore(false);
+  }, [awaitingRestore, user, track]);
+
   // أول ما بيانات المستخدم تتحمل من AsyncStorage، حدّد الشاشة الأولى:
   // مستخدم مسجل وله مسار مختار -> يدخل على طول للـ main (بدون تسجيل دخول تاني)
   useEffect(() => {
@@ -36,8 +46,11 @@ export default function AppNavigator() {
   }, [user]);
 
   const handleLogin = (type) => {
+    // 'guest' و 'code-new' كلاهما حساب جديد يحتاج يعدي على التسجيل الأولي
     setScreen('onboarding');
   };
+
+  const handleCodeRestored = () => setAwaitingRestore(true);
 
   const handleOnboardingDone = (userData) => {
     setUser(userData);
@@ -62,7 +75,7 @@ export default function AppNavigator() {
   }
 
   let content;
-  if (screen === 'login')       content = <Login       onLogin={handleLogin} />;
+  if (screen === 'login')       content = <Login       onLogin={handleLogin} onCodeRestored={handleCodeRestored} />;
   else if (screen === 'onboarding')  content = <Onboarding  onDone={handleOnboardingDone} />;
   else if (screen === 'trackselect') content = <TrackSelect  onSelect={handleTrackSelect} />;
   else if (screen === 'main')        content = <Main         onNav={handleNav} />;
@@ -73,7 +86,7 @@ export default function AppNavigator() {
   else if (screen === 'coop')        content = <Coop         onBack={() => go('main')} />;
   else if (screen === 'store')       content = <Store        onBack={() => go('main')} />;
   else if (screen === 'bibo-profile')content = <BiboProfile  onBack={() => go('main')} />;
-  else content = <Login onLogin={handleLogin} />;
+  else content = <Login onLogin={handleLogin} onCodeRestored={handleCodeRestored} />;
 
   // لو أي شاشة عطلت، رجّع المستخدم لمكان آمن (main لو مسجل دخول، وإلا login)
   // بدل ما التطبيق كله يقفل.
