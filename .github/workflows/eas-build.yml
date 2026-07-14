@@ -1,0 +1,61 @@
+name: EAS Build
+
+# بيتشغّل يدوي بس (مش مع كل push) لأن الـ build الكامل بياخد وقت أطول
+# وبيستهلك رصيد بناء من حساب EAS — على عكس eas-update.yml اللي بيحصل
+# أوتوماتيك مع كل push لأنه سريع وبيحدّث كود الجافاسكريبت بس.
+#
+# طريقة التشغيل من الموبايل (تطبيق GitHub):
+# 1. افتح المستودع -> تبويب "Actions"
+# 2. اختار "EAS Build" من القائمة على الشمال
+# 3. دوس على "Run workflow"
+# 4. اختار المنصة (android/ios/all) والبروفايل (preview/production)
+# 5. دوس "Run workflow" تاني للتأكيد
+#
+# لما البناء يخلص، هتلاقي رابط تحميل الـ APK/الملف على expo.dev
+# (Project -> Builds)، أو ممكن تضيف خطوة إشعار لاحقًا لو حبيت.
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'المنصة (android / ios / all)'
+        required: true
+        default: 'android'
+        type: choice
+        options:
+          - android
+          - ios
+          - all
+      profile:
+        description: 'بروفايل البناء (من eas.json)'
+        required: true
+        default: 'preview'
+        type: choice
+        options:
+          - development
+          - preview
+          - production
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build app
+        run: eas build --platform ${{ github.event.inputs.platform }} --profile ${{ github.event.inputs.profile }} --non-interactive
