@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import BiboIcon from './BiboIcon';
 
 export function BiboMsg({ text, color }) {
   return (
@@ -13,7 +14,7 @@ export function BiboMsg({ text, color }) {
         accessibilityElementsHidden={true}
         importantForAccessibility="no-hide-descendants"
       >
-        <Text style={s.birdEmoji}>🐦</Text>
+        <BiboIcon size={22} />
       </View>
       <View style={s.content}>
         <Text style={[s.name, { color: color || '#2E8B57' }]}>Bibo</Text>
@@ -93,7 +94,6 @@ export function StationeryBar({ stationery }) {
 const s = StyleSheet.create({
   wrap:      { flexDirection: 'row', backgroundColor: 'rgba(46,139,87,0.08)', borderWidth: 1, borderRadius: 12, padding: 12, marginTop: 12, gap: 10 },
   bird:      { width: 40, height: 40, borderRadius: 20, backgroundColor: '#0a150a', alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
-  birdEmoji: { fontSize: 22 },
   content:   { flex: 1 },
   name:      { fontSize: 11, marginBottom: 3 },
   text:      { fontSize: 13, color: 'rgba(255,255,255,0.65)', lineHeight: 20 },

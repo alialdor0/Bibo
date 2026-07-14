@@ -1,5 +1,7 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
+
+const BIBO_SLEEP = require('../assets/bibo/sleep.png');
 
 /**
  * Error Boundary — بيمنع خطأ في جزء واحد من التطبيق إنه يعطّل التطبيق
@@ -45,7 +47,7 @@ export default class ErrorBoundary extends React.Component {
       const isAr = (this.props.lang || 'ar') === 'ar';
       return (
         <View style={s.wrap}>
-          <Text style={s.emoji}>🐦💤</Text>
+          <Image source={BIBO_SLEEP} style={s.bibo} importantForAccessibility="no" />
           <Text style={s.title}>{isAr ? 'حصلت مشكلة بسيطة' : 'Something went wrong'}</Text>
           <Text style={s.sub}>
             {isAr
@@ -64,7 +66,7 @@ export default class ErrorBoundary extends React.Component {
 
 const s = StyleSheet.create({
   wrap:  { flex: 1, backgroundColor: '#08080f', alignItems: 'center', justifyContent: 'center', padding: 28 },
-  emoji: { fontSize: 52, marginBottom: 14 },
+  bibo: { width: 72, height: 72, marginBottom: 14 },
   title: { color: '#fff', fontSize: 18, fontWeight: '800', marginBottom: 8, textAlign: 'center' },
   sub:   { color: 'rgba(255,255,255,0.5)', fontSize: 13, textAlign: 'center', marginBottom: 22, lineHeight: 19 },
   btn:   { backgroundColor: '#2E8B57', borderRadius: 14, paddingVertical: 13, paddingHorizontal: 30 },
