@@ -72,7 +72,7 @@ function buildHTML(book, lang) {
     <h2>${isAr ? 'القصة' : 'The story'}</h2>
     ${storyRows}
 
-    <div class="footer">Bibo Lingo 🐦 — ${isAr ? 'رحلتك في تعلم الإنجليزية' : 'Your English learning journey'}</div>
+    <div class="footer">Bibo Lingo — ${isAr ? 'رحلتك في تعلم الإنجليزية' : 'Your English learning journey'}</div>
   </body>
   </html>`;
 }
@@ -127,7 +127,7 @@ function buildAchievementHTML(book, lang, coverColor, stickerEmojis) {
   </head>
   <body>
     <div class="card">
-      <div class="brand">🐦 BIBO LINGO</div>
+      <div class="brand">BIBO LINGO</div>
       <div class="icon">${escapeHtml(book.icon || '📖')}</div>
       ${stickerEmojis && stickerEmojis.length ? `<div class="stickers">${stickerEmojis.join(' ')}</div>` : ''}
       <h1>${escapeHtml(title)}</h1>
@@ -160,4 +160,3 @@ export async function shareBookAchievement(book, lang, coverColor, stickerEmojis
     return false;
   }
 }
-
