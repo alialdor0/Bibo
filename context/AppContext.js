@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
-import { getLevel, getPrefix, fullName } from '../data';
+import { getLevel, getPrefix, fullName, isWordKnownForLevel } from '../data';
 import { touchLastSeen } from '../utils/companion';
 import { scheduleBiboReminder, cancelBiboReminders } from '../utils/notifications';
 import { loadMany, saveJSON, removeKeys } from '../utils/storage';
+import { generateLoginCode, saveAccountSnapshot, getAccountSnapshot, normalizeCode } from '../utils/authCode';
 import { prepareAudioMode } from '../utils/sounds';
 import { playSfx } from '../utils/sfx';
 
@@ -40,6 +41,7 @@ export function AppProvider({ children }) {
   const [weeklyProgress, setWeeklyProgress] = useState({ weekKey: getWeekKey(), wordsLearned: 0, episodesDone: 0, wordsRescued: 0, claimed: [] });
   const [episodeProgress, setEpisodeProgress] = useState({});
   const [wordBank, setWordBank] = useState({}); // { [trackId]: { [wordId]: entry } }
+  const [excludedWords, setExcludedWords] = useState({}); // { [levelEn]: [{ trackId, wordId, word, ar, addedAt }] } — كلمات استُبعدت من التمارين حسب مستوى المستخدم
   const [hydrated, setHydrated] = useState(false);
   const hydratedRef = useRef(false);
 
@@ -62,6 +64,7 @@ export function AppProvider({ children }) {
         weeklyProgress: { weekKey: getWeekKey(), wordsLearned: 0, episodesDone: 0, wordsRescued: 0, claimed: [] },
         episodeProgress: {},
         wordBank: {},
+        excludedWords: {},
       });
       if (!mounted) return;
       setLang(saved.lang);
@@ -83,6 +86,7 @@ export function AppProvider({ children }) {
       );
       setEpisodeProgress(saved.episodeProgress);
       setWordBank(saved.wordBank);
+      setExcludedWords(saved.excludedWords);
       hydratedRef.current = true;
       setHydrated(true);
     })();
@@ -121,6 +125,18 @@ export function AppProvider({ children }) {
   useEffect(() => { if (hydratedRef.current) saveJSON('weeklyProgress', weeklyProgress); }, [weeklyProgress]);
   useEffect(() => { if (hydratedRef.current) saveJSON('episodeProgress', episodeProgress); }, [episodeProgress]);
   useEffect(() => { if (hydratedRef.current) saveJSON('wordBank', wordBank); }, [wordBank]);
+  useEffect(() => { if (hydratedRef.current) saveJSON('excludedWords', excludedWords); }, [excludedWords]);
+
+  // لو عند المستخدم كود دخول، احفظ نسخة محدّثة من حسابه بشكل دوري (مش وقت تسجيل الخروج بس)
+  // عشان يقدر يسترجعها حتى لو أعاد تثبيت التطبيق بدون تسجيل خروج صريح.
+  useEffect(() => {
+    if (!hydratedRef.current || !user?.loginCode) return;
+    saveAccountSnapshot(user.loginCode, {
+      user, track, gems, stationery, library, bookCovers, ownedStickers,
+      ownedCosmetics, equippedCosmetics, weeklyProgress, episodeProgress,
+      wordBank, excludedWords,
+    });
+  }, [user, track, gems, stationery, library, bookCovers, ownedStickers, ownedCosmetics, equippedCosmetics, weeklyProgress, episodeProgress, wordBank, excludedWords]);
 
   const addGems = useCallback((amount) => {
     setGems(prev => prev + amount);
@@ -218,6 +234,32 @@ export function AppProvider({ children }) {
     });
     if (isNewWord) bumpWeekly('wordsLearned');
   }, [wordBank, bumpWeekly]);
+
+  /** هل هذه الكلمة (بحسب صعوبتها) مفروض تكون معروفة أصلًا للمستخدم حسب مستواه؟ لو أيوه، تُستبعد من التمرين */
+  const isWordExcludedByLevel = useCallback((difficulty) => {
+    return isWordKnownForLevel(difficulty, user?.levelTitle);
+  }, [user]);
+
+  /**
+   * كلمة استُبعدت من التمرين لأن مستوى المستخدم يفترض أنه يعرفها مسبقًا:
+   * تُضاف مباشرة لبنك الكلمات (فتظهر بالقاموس) + تُسجَّل بتجميعة الكلمات
+   * المستبعدة الخاصة بمستوى المستخدم الحالي (بدون تكرار).
+   */
+  const addExcludedWordToBank = useCallback((trackId, wordId, data, episodeNum, expireAfterEpisodes) => {
+    addWordToBank(trackId, wordId, data, episodeNum, expireAfterEpisodes);
+    const levelEn = user?.levelTitle?.en || 'Unknown';
+    setExcludedWords(prev => {
+      const bucket = prev[levelEn] || [];
+      if (bucket.some(w => w.trackId === trackId && w.wordId === wordId)) return prev;
+      const entry = { trackId, wordId, word: data.word, ar: data.ar, addedAt: Date.now() };
+      return { ...prev, [levelEn]: [...bucket, entry] };
+    });
+  }, [addWordToBank, user]);
+
+  /** بيرجع كل تجميعات الكلمات المستبعدة (كل سطر = مستوى) — تُستخدم لعرضها لو احتاج المستخدم يراجعها */
+  const getExcludedWordLines = useCallback(() => {
+    return Object.entries(excludedWords).map(([levelEn, words]) => ({ levelEn, words }));
+  }, [excludedWords]);
 
   /** إنقاذ كلمة: بيمدد تاريخ انتهائها من الحلقة الحالية */
   const rescueWord = useCallback((trackId, wordId, extendBy = 4) => {
@@ -339,8 +381,50 @@ export function AppProvider({ children }) {
     });
   }, []);
 
+  /** يبني نسخة كاملة من بيانات الحساب الحالي — تُستخدم وقت الحفظ بالكود */
+  const buildAccountSnapshot = useCallback(() => ({
+    user, track, gems, stationery, library, bookCovers, ownedStickers,
+    ownedCosmetics, equippedCosmetics, weeklyProgress, episodeProgress,
+    wordBank, excludedWords,
+  }), [user, track, gems, stationery, library, bookCovers, ownedStickers, ownedCosmetics, equippedCosmetics, weeklyProgress, episodeProgress, wordBank, excludedWords]);
+
+  /** يولّد كود دخول جديد للمستخدم الحالي (لو ما عندوش واحد أصلًا) ويربطه بحسابه */
+  const ensureLoginCode = useCallback(() => {
+    if (user?.loginCode) return user.loginCode;
+    const code = generateLoginCode();
+    setUser(prev => (prev ? { ...prev, loginCode: code } : { loginCode: code }));
+    return code;
+  }, [user]);
+
+  /** يسترجع حساب محفوظ سابقًا بكود الدخول (لو موجود) ويحمّله كامل بدل الحساب الحالي */
+  const loginWithCode = useCallback(async (rawCode) => {
+    const code = normalizeCode(rawCode);
+    if (!code) return false;
+    const snap = await getAccountSnapshot(code);
+    if (!snap) return false;
+    setUser(snap.user ? { ...snap.user, loginCode: code } : { loginCode: code });
+    setTrack(snap.track || null);
+    setGems(typeof snap.gems === 'number' ? snap.gems : 50);
+    setStationery(snap.stationery || DEFAULT_STATIONERY);
+    setLibrary(snap.library || []);
+    setBookCovers(snap.bookCovers || {});
+    setOwnedStickers(snap.ownedStickers || []);
+    setOwnedCosmetics(snap.ownedCosmetics || []);
+    setEquippedCosmetics(snap.equippedCosmetics || { hat: null, glasses: null, ring: null });
+    setWeeklyProgress(snap.weeklyProgress || { weekKey: getWeekKey(), wordsLearned: 0, episodesDone: 0, wordsRescued: 0, claimed: [] });
+    setEpisodeProgress(snap.episodeProgress || {});
+    setWordBank(snap.wordBank || {});
+    setExcludedWords(snap.excludedWords || {});
+    return true;
+  }, []);
+
   const logout = useCallback(async () => {
-    await removeKeys(['user', 'track', 'gems', 'stationery', 'library', 'episodeProgress', 'wordBank', 'bookCovers', 'ownedStickers', 'ownedCosmetics', 'equippedCosmetics', 'weeklyProgress']);
+    // لو عند المستخدم كود دخول، احفظ نسخة كاملة من حسابه بالكود قبل المسح
+    // عشان يقدر يرجّعه لاحقًا بنفس الكود.
+    if (user?.loginCode) {
+      await saveAccountSnapshot(user.loginCode, buildAccountSnapshot());
+    }
+    await removeKeys(['user', 'track', 'gems', 'stationery', 'library', 'episodeProgress', 'wordBank', 'excludedWords', 'bookCovers', 'ownedStickers', 'ownedCosmetics', 'equippedCosmetics', 'weeklyProgress']);
     await cancelBiboReminders();
     setUser(null);
     setTrack(null);
@@ -349,12 +433,13 @@ export function AppProvider({ children }) {
     setLibrary([]);
     setEpisodeProgress({});
     setWordBank({});
+    setExcludedWords({});
     setBookCovers({});
     setOwnedStickers([]);
     setOwnedCosmetics([]);
     setEquippedCosmetics({ hat: null, glasses: null, ring: null });
     setWeeklyProgress({ weekKey: getWeekKey(), wordsLearned: 0, episodesDone: 0, wordsRescued: 0, claimed: [] });
-  }, []);
+  }, [user, buildAccountSnapshot]);
 
   const value = {
     lang, setLang,
@@ -370,7 +455,9 @@ export function AppProvider({ children }) {
     weeklyProgress, claimWeeklyReward,
     episodeProgress, getEpisodeState, completeEpisode,
     wordBank, addWordToBank, rescueWord, getWordBankWords,
+    excludedWords, isWordExcludedByLevel, addExcludedWordToBank, getExcludedWordLines,
     hydrated, logout,
+    ensureLoginCode, loginWithCode,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
