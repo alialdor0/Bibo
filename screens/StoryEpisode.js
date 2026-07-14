@@ -22,52 +22,6 @@ function shuffle(arr) {
   return a;
 }
 
-/** اختبار نطق وهمي بسيط: يسجّل "صوتيًا" (بدون تحليل حقيقي) ويعطي تقييم عشوائي */
-function PronTest({ lineText, lineAr, lang, onDone }) {
-  const [state, setState] = useState('idle'); // idle | recording | result
-  const [stars, setStars] = useState(3);
-
-  const startRecording = () => {
-    playSfx('pageTurn');
-    setState('recording');
-    setTimeout(() => {
-      setStars(Math.random() < 0.5 ? 2 : 3);
-      setState('result');
-    }, 1600);
-  };
-
-  return (
-    <View style={s.lineCard}>
-      <Text style={s.qLabel}>{lang === 'ar' ? 'جرّب تنطق الجملة كاملة' : 'Try saying the full sentence'}</Text>
-      <Text style={s.lineText}>{lineText}</Text>
-      <Text style={s.lineAr}>{lineAr}</Text>
-
-      {state === 'result' ? (
-        <>
-          <Text style={s.pronStars}>{'⭐'.repeat(stars)}</Text>
-          <TouchableOpacity style={s.startBtn2} onPress={onDone} accessibilityRole="button">
-            <Text style={s.startBtn2Txt}>{lang === 'ar' ? 'متابعة ←' : 'Continue ←'}</Text>
-          </TouchableOpacity>
-        </>
-      ) : (
-        <TouchableOpacity
-          style={[s.pronRecordBtn, state === 'recording' ? s.pronRecordBtnActive : null]}
-          onPress={state === 'idle' ? startRecording : undefined}
-          disabled={state === 'recording'}
-          accessible={true}
-          accessibilityRole="button"
-          accessibilityLabel={lang === 'ar' ? 'اضغط وانطق الجملة' : 'Tap and say the sentence'}
-        >
-          <Text style={s.pronRecordIcon} importantForAccessibility="no">{state === 'recording' ? '🔴' : '🎙️'}</Text>
-          <Text style={s.pronRecordTxt}>
-            {state === 'recording' ? (lang === 'ar' ? 'جاري التسجيل...' : 'Recording...') : (lang === 'ar' ? 'اضغط وانطق' : 'Tap to speak')}
-          </Text>
-        </TouchableOpacity>
-      )}
-    </View>
-  );
-}
-
 /**
  * يبني اختيارات متعددة (الإجابة الصح + 2 مشتتات) حسب اتجاه السؤال.
  * ملاحظة: كلمة السطر (word) تستخدم الحقل "ar"، لكن قائمة المفردات الكاملة
@@ -84,7 +38,7 @@ function buildChoices(word, vocabulary, direction) {
 }
 
 export default function StoryEpisode({ onLeave }) {
-  const { lang, track, user, addGems, addLibraryEntry, getEpisodeState, completeEpisode, addWordToBank } = useApp();
+  const { lang, track, user, addGems, addLibraryEntry, getEpisodeState, completeEpisode, addWordToBank, isWordExcludedByLevel, addExcludedWordToBank } = useApp();
   const T = (k) => t(k, lang);
   const trackId = track?.id || 'spy';
 
@@ -205,6 +159,30 @@ export default function StoryEpisode({ onLeave }) {
     }
   }, [word, phase, wordIdx]);
 
+  // ── كلمة يُفترض أن المستخدم يعرفها مسبقًا حسب نتيجة اختبار مستواه: تُستبعد من
+  // التمرين تلقائيًا، وتُضاف مباشرة للقاموس (بدون اختبار)، وننتقل للكلمة التالية ──
+  const skippedWordsRef = useRef(new Set());
+  useEffect(() => {
+    if (!word || phase !== 'choice') return;
+    const difficulty = vocabById[word.id]?.difficulty;
+    if (!difficulty || !isWordExcludedByLevel(difficulty)) return;
+    const skipKey = `${lineIdx}-${wordIdx}`;
+    if (skippedWordsRef.current.has(skipKey)) return;
+    skippedWordsRef.current.add(skipKey);
+    addExcludedWordToBank(
+      trackId, word.id,
+      { word: word.word, ar: word.ar, phonetic: word.phonetic, pron: word.pron, emoji: word.emoji, grammar: word.grammar },
+      episodeNum,
+      episode.word_expiry?.non_protected_expire_after_episode
+    );
+    playSfx('correct');
+    setFeedback({
+      type: 'correct',
+      msg: lang === 'ar' ? `تعرف "${word.word}" بالفعل! ✅ أُضيفت لقاموسك` : `You already know "${word.word}"! ✅ Added to your dictionary`,
+    });
+    setTimeout(() => { setFeedback(null); advanceAfterWord(); }, 900);
+  }, [word, phase, wordIdx, lineIdx]);
+
   useEffect(() => {
     // نستخدم word_order (السطر كامل) بدل arrange_words_exercise.words_to_arrange،
     // لأن الأخيرة كانت نسخة مبتورة من الجملة (بتوقف بمنتصف الفكرة) بمصدر البيانات نفسه
@@ -283,7 +261,7 @@ export default function StoryEpisode({ onLeave }) {
     const nextWordIdx = wordIdx + 1;
     if (nextWordIdx >= (line.words || []).length) {
       if (line.arrange_words_exercise) { setPhase('arrange'); }
-      else setPhase('pronounce');
+      else finishLine();
     } else {
       setWordIdx(nextWordIdx);
       setPhase('choice');
@@ -401,7 +379,7 @@ export default function StoryEpisode({ onLeave }) {
     const ok = built.length === target.length && built.every((w, i) => w === target[i]);
     recordAnswer(ok);
     flash(ok, ok ? 'correct_answer' : 'wrong_answer', ok ? 'correct' : 'wrong');
-    if (ok) { awardGems(3); setTimeout(() => setPhase('pronounce'), 800); }
+    if (ok) { awardGems(3); setTimeout(() => finishLine(), 800); }
     else { playSfx('eraser'); setTimeout(() => setArrangePicked([]), 500); }
   };
 
@@ -684,8 +662,7 @@ export default function StoryEpisode({ onLeave }) {
           {phase === 'context' ? renderContext() :
            phase === 'choice' ? renderChoice() :
            phase === 'blank' ? renderBlank() :
-           phase === 'arrange' ? renderArrange() :
-           phase === 'pronounce' ? <PronTest lineText={line.text} lineAr={line.arabic} lang={lang} onDone={finishLine} /> : null}
+           phase === 'arrange' ? renderArrange() : null}
           <Animated.View pointerEvents="none" style={[s.correctFlashOverlay, flashStyle]} />
         </Animated.View>
       </ScrollView>
@@ -763,11 +740,6 @@ const s = StyleSheet.create({
   builtRow:        { flexDirection: 'row', flexWrap: 'wrap', gap: 8, minHeight: 46, borderBottomWidth: 2, borderBottomColor: 'rgba(255,255,255,0.15)', marginBottom: 18, paddingBottom: 10 },
   forceLTR:        I18nManager.isRTL ? { transform: [{ scaleX: -1 }] } : null,
   forceLTRChild:   I18nManager.isRTL ? { transform: [{ scaleX: -1 }] } : null,
-  pronRecordBtn:   { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(74,144,217,0.15)', borderWidth: 2, borderColor: 'rgba(74,144,217,0.5)', borderRadius: 60, width: 120, height: 120, alignSelf: 'center', marginTop: 8 },
-  pronRecordBtnActive: { backgroundColor: 'rgba(192,57,43,0.2)', borderColor: '#c0392b' },
-  pronRecordIcon:  { fontSize: 34, marginBottom: 4 },
-  pronRecordTxt:   { color: 'rgba(255,255,255,0.6)', fontSize: 12, textAlign: 'center' },
-  pronStars:       { fontSize: 30, textAlign: 'center', marginVertical: 12 },
   builtPlaceholder:{ color: 'rgba(255,255,255,0.25)', fontSize: 14 },
   builtChip:       { backgroundColor: 'rgba(46,139,87,0.25)', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },
   builtChipTxt:    { color: '#fff', fontWeight: '700', fontSize: 14 },

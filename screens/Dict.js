@@ -5,9 +5,12 @@ import { useApp } from '../context/AppContext';
 import { t, TRACKS, COVER_STICKERS, COOP_STORY } from '../data';
 import { PageHeader, GemsBadge } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
+import BiboIcon from '../components/BiboIcon';
 import { playSfx } from '../utils/sfx';
 
-/** إيموجيات صغيرة تتطاير من نقطة معيّنة وتختفي — تُستخدم كتفاعل بصري خفيف عند لحظات الفوز/الخسارة */
+const BIBO_PARTICLE = require('../assets/bibo/welcome.png');
+
+/** إيموجيات صغيرة (أو أيقونة بيبو) تتطاير من نقطة معيّنة وتختفي — تُستخدم كتفاعل بصري خفيف عند لحظات الفوز/الخسارة */
 function FlyingEmojis({ burstKey, emojis }) {
   const anims = useRef(emojis.map(() => new Animated.Value(0))).current;
   useEffect(() => {
@@ -23,8 +26,12 @@ function FlyingEmojis({ burstKey, emojis }) {
         const ty = anims[i].interpolate({ inputRange: [0, 1], outputRange: [0, Math.sin(angle) * 60 - 20] });
         const op = anims[i].interpolate({ inputRange: [0, 0.7, 1], outputRange: [1, 1, 0] });
         const sc = anims[i].interpolate({ inputRange: [0, 1], outputRange: [0.6, 1.2] });
+        const transform = [{ translateX: tx }, { translateY: ty }, { scale: sc }];
+        if (em === 'bibo') {
+          return <Animated.Image key={i} source={BIBO_PARTICLE} style={[fe.biboImg, { opacity: op, transform }]} />;
+        }
         return (
-          <Animated.Text key={i} style={[fe.emoji, { opacity: op, transform: [{ translateX: tx }, { translateY: ty }, { scale: sc }] }]}>
+          <Animated.Text key={i} style={[fe.emoji, { opacity: op, transform }]}>
             {em}
           </Animated.Text>
         );
@@ -33,8 +40,9 @@ function FlyingEmojis({ burstKey, emojis }) {
   );
 }
 const fe = StyleSheet.create({
-  wrap:  { position: 'absolute', top: '50%', left: '50%', width: 1, height: 1 },
-  emoji: { position: 'absolute', fontSize: 22 },
+  wrap:   { position: 'absolute', top: '50%', left: '50%', width: 1, height: 1 },
+  emoji:  { position: 'absolute', fontSize: 22 },
+  biboImg:{ position: 'absolute', width: 22, height: 22, borderRadius: 11 },
 });
 
 /** يصنّف نوع الكلمة النحوي التفصيلي إلى 3 فئات بسيطة: اسم / فعل / صفة */
@@ -357,7 +365,7 @@ function Duel({ words, onDone, lang, addGems }) {
     setPhase('bibo-thinking');
     const t = setTimeout(() => {
       const ok = Math.random() < BIBO_SUCCESS_CHANCE;
-      if (ok) { setBiboScore(s => s + 1); playSfx('win'); fireBurst(['🐦', '✨']); }
+      if (ok) { setBiboScore(s => s + 1); playSfx('win'); fireBurst(['bibo', '✨']); }
       else { playSfx('wrong'); fireBurst(['😵‍💫', '💫']); }
       setPhase('bibo-result');
       setTimeout(nextRound, 1400);
@@ -413,7 +421,7 @@ function Duel({ words, onDone, lang, addGems }) {
       <View style={duel.scoreRow}>
         <Text style={duel.scoreTxt}>{lang === 'ar' ? 'أنت' : 'You'}: {myScore}</Text>
         <Text style={duel.roundTxt}>{idx + 1}/{rounds.length}</Text>
-        <Text style={duel.scoreTxt}>🐦 {lang === 'ar' ? 'بيبو' : 'Bibo'}: {biboScore}</Text>
+        <View style={duel.scoreBiboRow}><BiboIcon size={14} /><Text style={duel.scoreTxt}> {lang === 'ar' ? 'بيبو' : 'Bibo'}: {biboScore}</Text></View>
       </View>
 
       {isMyTurn ? (
@@ -578,7 +586,7 @@ function ClumsyBibo({ words, onDone, lang, addGems }) {
               return (
                 <View key={String(w.id)} style={[clumsy.opt, { backgroundColor: bg, borderColor: bd }]}>
                   <Text style={ex.optTxt}>{w.ar}</Text>
-                  {isBiboPick ? <Text style={clumsy.biboTag}>🐦</Text> : null}
+                  {isBiboPick ? <BiboIcon size={16} style={clumsy.biboTag} /> : null}
                 </View>
               );
             })}
@@ -757,7 +765,7 @@ function SentenceDuel({ lang, onDone, addGems }) {
     setPhase('bibo-thinking');
     const t = setTimeout(() => {
       const ok = Math.random() < BIBO_SENTENCE_SUCCESS;
-      if (ok) { setBiboScore(s => s + 1); playSfx('win'); fireBurst(['🐦', '✨']); }
+      if (ok) { setBiboScore(s => s + 1); playSfx('win'); fireBurst(['bibo', '✨']); }
       else { playSfx('wrong'); fireBurst(['😵‍💫']); }
       setPhase('bibo-result');
       setTimeout(nextRound, 1600);
@@ -795,7 +803,7 @@ function SentenceDuel({ lang, onDone, addGems }) {
       <View style={duel.scoreRow}>
         <Text style={duel.scoreTxt}>{lang === 'ar' ? 'أنت' : 'You'}: {myScore}</Text>
         <Text style={duel.roundTxt}>{idx + 1}/{rounds.length}</Text>
-        <Text style={duel.scoreTxt}>🐦 {lang === 'ar' ? 'بيبو' : 'Bibo'}: {biboScore}</Text>
+        <View style={duel.scoreBiboRow}><BiboIcon size={14} /><Text style={duel.scoreTxt}> {lang === 'ar' ? 'بيبو' : 'Bibo'}: {biboScore}</Text></View>
       </View>
 
       {isMyTurn ? (
@@ -852,7 +860,7 @@ const clumsy = StyleSheet.create({
   promptTxt:   { color: '#FFB300', fontSize: 13, fontWeight: '700', marginTop: 10, marginBottom: 10, textAlign: 'center' },
   optsWrap:    { width: '100%', marginTop: 14, gap: 8 },
   opt:         { borderWidth: 1.5, borderRadius: 10, padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  biboTag:     { fontSize: 16 },
+  biboTag:     { marginLeft: 6 },
   fixRow:      { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
   fixBtn:      { borderWidth: 1, borderColor: '#2E8B57', backgroundColor: 'rgba(46,139,87,0.15)', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9 },
   fixBtnTxt:   { color: '#a5d6a7', fontSize: 13, fontWeight: '700' },
@@ -867,6 +875,7 @@ const duel = StyleSheet.create({
   giftTxt:        { color: '#FFB300', fontSize: 12, fontWeight: '700', flexShrink: 1 },
   scoreRow:       { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 12 },
   scoreTxt:       { color: '#fff', fontSize: 13, fontWeight: '700' },
+  scoreBiboRow:   { flexDirection: 'row', alignItems: 'center' },
   roundTxt:       { color: 'rgba(255,255,255,0.4)', fontSize: 12 },
   timerRow:       { marginBottom: 8 },
   timerTxt:       { fontSize: 18, fontWeight: '800', color: '#FFB300' },

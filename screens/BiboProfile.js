@@ -42,7 +42,7 @@ export default function BiboProfile({ onBack }) {
         <View style={s.idCard}>
           <BiboCharacter state={previewState} size={64} silent />
           <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={s.biboName}>🐦 Bibo</Text>
+            <Text style={s.biboName}>Bibo</Text>
             <View style={[s.levelPill, { borderColor: levelColor, alignSelf: 'flex-start' }]}>
               <Text style={[s.levelPillTxt, { color: levelColor }]}>{levelName}</Text>
             </View>

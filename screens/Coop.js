@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import { t, TRACKS, COOP_STORY, COOP_WORDS } from '../data';
 import { PageHeader, GemsBadge } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
+import BiboIcon from '../components/BiboIcon';
 import { playSfx } from '../utils/sfx';
 
 function TutorialScreen({ lang, onDone }) {
@@ -13,7 +14,7 @@ function TutorialScreen({ lang, onDone }) {
       body: lang === 'ar' ? 'أنت وبيبو تكملان قصة واحدة معًا. لكل منكما دور فيها.' : 'You and Bibo complete one story together. Each of you plays a role.' },
     { icon: '👤', title: lang === 'ar' ? 'دورك' : 'Your role',
       body: lang === 'ar' ? 'أنت تكتب جمل البطل الرئيسي. كل جملة تعلّمك كلمات جديدة.' : 'You write the main story lines. Each line teaches you new vocabulary.' },
-    { icon: '🐦', title: lang === 'ar' ? 'دور بيبو' : "Bibo's role",
+    { icon: null, iconIsBibo: true, title: lang === 'ar' ? 'دور بيبو' : "Bibo's role",
       body: lang === 'ar' ? 'بيبو يُكمل كل جملة بصوته، ويضيف عمقًا للقصة.' : 'Bibo completes each line with his voice, adding depth to the story.' },
     { icon: '🎵', title: lang === 'ar' ? 'مؤثرات صوتية' : 'Sound Effects',
       body: lang === 'ar' ? 'لكل مسار أصوات مميزة تعمل أثناء القصة.' : 'Each track has unique sounds that play during the story.' },
@@ -32,7 +33,7 @@ function TutorialScreen({ lang, onDone }) {
           {PAGES.map((_, i) => <View key={String(i)} style={[s.tutDot, i === page ? s.tutDotActive : null]} />)}
         </View>
         <View style={s.tutCard}>
-          <Text style={s.tutIcon}>{p.icon}</Text>
+          {p.iconIsBibo ? <BiboIcon size={56} /> : <Text style={s.tutIcon}>{p.icon}</Text>}
           <Text style={s.tutTitle}>{p.title}</Text>
           <Text style={s.tutBody}>{p.body}</Text>
         </View>
@@ -167,7 +168,7 @@ function CoopGame({ trackId, lang, onEnd, addGems }) {
           <View style={[s.partnerCard, { borderColor: track.color + '44', backgroundColor: track.color + '12' }]}>
             <BiboCharacter layout="row" size={44} state="encourage" />
             <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={[s.partnerLabel, { color: track.color }]}>🐦 {lang === 'ar' ? 'بيبو يُكمل...' : 'Bibo completing...'}</Text>
+              <Text style={[s.partnerLabel, { color: track.color }]}>{lang === 'ar' ? 'بيبو يُكمل...' : 'Bibo completing...'}</Text>
               <Text style={s.partnerText}>{story?.partner}</Text>
             </View>
           </View>
@@ -226,8 +227,9 @@ export default function Coop({ onBack }) {
           </Text>
         </View>
 
-        <TouchableOpacity style={[s.startBtn, { backgroundColor: track.color + 'cc' }]} onPress={() => setScreen('game')}>
-          <Text style={s.startBtnTxt}>{lang === 'ar' ? '🐦 ابدأ مع بيبو' : '🐦 Start with Bibo'}</Text>
+        <TouchableOpacity style={[s.startBtn, { backgroundColor: track.color + 'cc', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }]} onPress={() => setScreen('game')}>
+          <BiboIcon size={20} />
+          <Text style={s.startBtnTxt}>{lang === 'ar' ? 'ابدأ مع بيبو' : 'Start with Bibo'}</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

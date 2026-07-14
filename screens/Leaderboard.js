@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import { t, BIBO_PACE } from '../data';
 import { PageHeader, GemsBadge } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
+import BiboIcon from '../components/BiboIcon';
 
 /** صف مقارنة واحد: أنت مقابل بيبو على نفس المقياس */
 function RaceRow({ label, myVal, biboVal, unit, lang }) {
@@ -25,7 +26,7 @@ function RaceRow({ label, myVal, biboVal, unit, lang }) {
       </View>
 
       <View style={s.raceLine}>
-        <Text style={s.raceWho}>🐦 {lang === 'ar' ? 'بيبو' : 'Bibo'}</Text>
+        <View style={s.raceWhoRow}><BiboIcon size={14} /><Text style={s.raceWhoTxt}> {lang === 'ar' ? 'بيبو' : 'Bibo'}</Text></View>
         <View style={s.raceBarBg}>
           <View style={[s.raceBarFill, { width: biboPct + '%', backgroundColor: '#FFB300' }]} />
         </View>
@@ -153,6 +154,8 @@ const s = StyleSheet.create({
   raceLabel:   { color: '#fff', fontWeight: '800', fontSize: 14, marginBottom: 12 },
   raceLine:    { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   raceWho:     { width: 56, fontSize: 12, color: 'rgba(255,255,255,0.6)', fontWeight: '700' },
+  raceWhoRow:  { width: 56, flexDirection: 'row', alignItems: 'center' },
+  raceWhoTxt:  { fontSize: 12, color: 'rgba(255,255,255,0.6)', fontWeight: '700' },
   raceBarBg:   { flex: 1, height: 10, borderRadius: 5, backgroundColor: 'rgba(255,255,255,0.08)', overflow: 'hidden' },
   raceBarFill: { height: '100%', borderRadius: 5 },
   raceVal:     { width: 30, textAlign: 'right', fontSize: 12, color: '#fff', fontWeight: '700' },

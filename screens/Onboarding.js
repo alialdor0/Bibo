@@ -1,9 +1,11 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Animated, KeyboardAvoidingView, Platform, SafeAreaView, Alert } from 'react-native';
 import { useApp } from '../context/AppContext';
-import { t, GENDERS, COUNTRIES, CITIES, JOBS, MONTHS, ASSESSMENT, LEVEL_TITLES, getLevel, getPrefix, getZodiac, itemLabel } from '../data';
+import { t, GENDERS, COUNTRIES, CITIES, JOBS, MONTHS, LEVEL_TITLES, getPrefix, getZodiac, itemLabel } from '../data';
 import WheelPicker from '../components/WheelPicker';
 import BiboCharacter from '../components/BiboCharacter';
+import LevelTest from '../components/LevelTest';
+import BiboIcon from '../components/BiboIcon';
 import { playSfx } from '../utils/sfx';
 
 const TOTAL = 8;
@@ -32,12 +34,12 @@ function daysInMonth(monthEn, year) {
 }
 
 export default function Onboarding({ onDone }) {
-  const { lang, setUser } = useApp();
+  const { lang, user: existingUser, setUser } = useApp();
   const T = (k) => t(k, lang);
 
   const [step, setStep]     = useState(0);
   const [err, setErr]       = useState('');
-  const [assess, setAssess] = useState({ qIdx: 0, score: 0, done: false, chosen: null });
+  const [levelDone, setLevelDone] = useState(false);
 
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const floatAnim = useRef(new Animated.Value(0)).current;
@@ -132,24 +134,6 @@ export default function Onboarding({ onDone }) {
     }
   }, [step, shineAnim]);
 
-  const answerAssessment = useCallback((optIdx) => {
-    if (assess.chosen !== null) return;
-    const q       = ASSESSMENT[assess.qIdx];
-    const correct = optIdx === q.correct;
-    const newScore = assess.score + (correct ? 1 : 0);
-    setAssess(a => ({ ...a, chosen: optIdx }));
-    setTimeout(() => {
-      const nextQ = assess.qIdx + 1;
-      if (nextQ >= ASSESSMENT.length) {
-        const lvl = getLevel(newScore);
-        setU(prev => ({ ...prev, levelScore: newScore, levelTitle: lvl }));
-        setAssess({ qIdx: 0, score: newScore, done: true, chosen: null });
-      } else {
-        setAssess({ qIdx: nextQ, score: newScore, done: false, chosen: null });
-      }
-    }, 700);
-  }, [assess]);
-
   const birdY = floatAnim.interpolate({ inputRange: [0,1], outputRange: [0,-10] });
   const birdX = shakeAnim.interpolate({ inputRange: [-1,1], outputRange: [-8,8] });
   const shineX = shineAnim.interpolate({ inputRange: [0,1], outputRange: [-160, 420] });
@@ -164,8 +148,8 @@ export default function Onboarding({ onDone }) {
 
   const bibState =
     step === 0 ? 'welcome' :
-    step === 7 && !assess.done ? 'thinking' :
-    step === 7 && assess.done ? 'celebrate' :
+    step === 7 && !levelDone ? 'thinking' :
+    step === 7 && levelDone ? 'celebrate' :
     step === 8 ? 'celebrate' :
     'attention';
 
@@ -193,6 +177,7 @@ export default function Onboarding({ onDone }) {
       age,
       zodiac,
       levelTitle: lvl,
+      loginCode: existingUser?.loginCode,
     };
     setUser(userData);
     onDone(userData);
@@ -362,43 +347,16 @@ export default function Onboarding({ onDone }) {
                 <Text style={s.stepLbl}>{step + ' / ' + TOTAL}</Text>
                 <Text style={s.q}>{T('qLevel')}</Text>
                 <Text style={s.desc}>{T('levelNote')}</Text>
-                {!assess.done ? (
-                  <View style={s.assessWrap}>
-                    <Text style={s.assessCounter}>Question {assess.qIdx + 1}/{ASSESSMENT.length}</Text>
-                    <View style={s.assessBar}>
-                      <View style={[s.assessFill, { width: Math.round(assess.qIdx / ASSESSMENT.length * 100) + '%' }]} />
-                    </View>
-                    <Text style={s.assessQ}>{ASSESSMENT[assess.qIdx].q}</Text>
-                    <View style={s.assessOpts}>
-                      {ASSESSMENT[assess.qIdx].opts.map((opt, i) => {
-                        const isSel = assess.chosen === i;
-                        const isOk  = i === ASSESSMENT[assess.qIdx].correct;
-                        const bg = !isSel ? 'rgba(255,255,255,0.05)' : isOk ? 'rgba(46,139,87,0.3)' : 'rgba(192,57,43,0.3)';
-                        const bc = !isSel ? 'rgba(255,255,255,0.12)' : isOk ? '#2E8B57' : '#c0392b';
-                        return (
-                          <TouchableOpacity key={String(i)} style={[s.assessOpt, { backgroundColor: bg, borderColor: bc }]}
-                            onPress={() => answerAssessment(i)} accessibilityRole="button">
-                            <Text style={s.assessOptTxt}>{opt}</Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </View>
-                ) : (
-                  <View style={s.levelResult}>
-                    <Text style={{ fontSize: 48 }}>🏆</Text>
-                    <Text style={s.levelScore}>{assess.score}/{ASSESSMENT.length}</Text>
-                    <View style={[s.levelBadge, { borderColor: lvl.color }]}>
-                      <Text style={[s.levelBadgeTxt, { color: lvl.color }]}>{lvl.en}</Text>
-                    </View>
-                    <Text style={s.levelAr}>{lvl.ar}</Text>
-                    <TouchableOpacity style={[s.btn, { backgroundColor: '#8B0000', marginTop: 16 }]}
-                      onPress={next} accessibilityRole="button">
-                      <Text style={s.btnTxt}>{T('start')} 🎬</Text>
-                    </TouchableOpacity>
-                    {BackBtn}
-                  </View>
-                )}
+                <LevelTest
+                  lang={lang}
+                  ctaLabel={T('start') + ' 🎬'}
+                  onQuizFinished={() => setLevelDone(true)}
+                  onComplete={(score, lvlObj) => {
+                    setU(prev => ({ ...prev, levelScore: score, levelTitle: lvlObj }));
+                    next();
+                  }}
+                />
+                {levelDone ? BackBtn : null}
               </View>
             ) : null}
 
@@ -411,7 +369,7 @@ export default function Onboarding({ onDone }) {
                     style={[s.idShine, { transform: [{ rotate: '20deg' }, { translateX: shineX }] }]}
                   />
                   <View style={s.idHeader}>
-                    <View style={s.idBird}><Text style={{ fontSize: 28 }}>🐦</Text></View>
+                    <View style={s.idBird}><BiboIcon size={32} /></View>
                     <View>
                       <Text style={s.idAppName}>BIBO</Text>
                       <Text style={s.idCardLabel}>Digital ID Card</Text>
@@ -499,19 +457,6 @@ const s = StyleSheet.create({
   jobEnSel:     { color: '#a5d6a7' },
   jobAr:        { fontSize: 11, color: 'rgba(255,255,255,0.3)' },
   jobCheck:     { color: '#2E8B57', fontSize: 16, fontWeight: '900' },
-  assessWrap:   { width: '100%' },
-  assessCounter:{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textAlign: 'right', marginBottom: 6 },
-  assessBar:    { height: 3, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden', marginBottom: 16 },
-  assessFill:   { height: '100%', backgroundColor: '#FFB300' },
-  assessQ:      { fontSize: 15, fontWeight: '700', color: '#fff', marginBottom: 16, lineHeight: 24 },
-  assessOpts:   { gap: 8, width: '100%' },
-  assessOpt:    { borderWidth: 1, borderRadius: 10, padding: 12 },
-  assessOptTxt: { color: '#fff', fontSize: 14 },
-  levelResult:  { alignItems: 'center', width: '100%' },
-  levelScore:   { fontSize: 32, fontWeight: '900', color: '#fff', marginTop: 8, marginBottom: 12 },
-  levelBadge:   { borderWidth: 2, borderRadius: 20, paddingHorizontal: 20, paddingVertical: 6, marginBottom: 6 },
-  levelBadgeTxt:{ fontSize: 18, fontWeight: '800' },
-  levelAr:      { fontSize: 14, color: 'rgba(255,255,255,0.5)' },
   readyLbl:     { fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 12, textAlign: 'center' },
   idCard:       { width: '100%', backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', borderRadius: 16, padding: 18, overflow: 'hidden', position: 'relative' },
   idShine:      { position: 'absolute', top: -80, bottom: -80, left: -40, width: 70, backgroundColor: 'rgba(255,255,255,0.16)' },

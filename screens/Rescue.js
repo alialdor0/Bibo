@@ -5,6 +5,7 @@ import { useApp } from '../context/AppContext';
 import { t } from '../data';
 import { PageHeader, BiboMsg, GemsBadge } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
+import BiboIcon from '../components/BiboIcon';
 import { playSfx } from '../utils/sfx';
 
 const DIFFICULTIES = [
@@ -174,7 +175,9 @@ function RescueGame({ words, onDone, addGems, onRescue, difficulty, lang }) {
 
   if (done) return (
     <View style={rg.doneWrap}>
-      <Text style={{ fontSize: 56 }}>{score === q.length ? '🦅' : score >= q.length / 2 ? '🐦' : '😢'}</Text>
+      {score === q.length ? <Text style={{ fontSize: 56 }}>🦅</Text> :
+       score >= q.length / 2 ? <BiboIcon size={56} /> :
+       <Text style={{ fontSize: 56 }}>😢</Text>}
       <Text style={rg.doneTitle}>
         {score === q.length
           ? (lang === 'ar' ? 'تم إنقاذ كل الكلمات! 🎉' : 'All words rescued!')

@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Switch, SafeAreaView, Alert, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Switch, SafeAreaView, Alert, Animated, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../context/AppContext';
-import { t, STORE_ITEMS, GIFT_REWARDS, WEEKLY_CHALLENGES, TRACKS } from '../data';
+import { t, STORE_ITEMS, GIFT_REWARDS, WEEKLY_CHALLENGES, TRACKS, GENDERS, COUNTRIES, CITIES, JOBS, getPrefix } from '../data';
 import { BiboMsg, PageHeader, GemsBadge, StationeryBar } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
 import BottomNav from '../components/BottomNav';
 import Library from './Library';
+import LevelTest from '../components/LevelTest';
+import WheelPicker from '../components/WheelPicker';
+import BiboIcon from '../components/BiboIcon';
 import { hasEpisodes, getEpisode, getTotalEpisodes } from '../data/episodes';
 import { buildTemplateVars, fillTemplate } from '../utils/templateEngine';
 import { playSfx } from '../utils/sfx';
@@ -453,7 +456,7 @@ function ProfileTab({ onBack, onNav }) {
           accessibilityRole="button"
           accessibilityLabel={lang === 'ar' ? 'ملف بيبو الشخصي' : "Bibo's profile"}
         >
-          <Text style={{ fontSize: 22 }} importantForAccessibility="no">🐦</Text>
+          <BiboIcon size={22} />
           <Text style={s.dictLinkTxt}>{lang === 'ar' ? 'ملف بيبو الشخصي' : "Bibo's profile"}</Text>
           <Text style={s.settingArrow} importantForAccessibility="no">›</Text>
         </TouchableOpacity>
@@ -505,7 +508,7 @@ function ProfileTab({ onBack, onNav }) {
 }
 
 function SettingsTab({ onBack }) {
-  const { lang, setLang, logout, voiceOn, setVoiceOn, track, setTrack } = useApp();
+  const { lang, setLang, logout, voiceOn, setVoiceOn, track, setTrack, user, setUser } = useApp();
   const T = (k) => t(k, lang);
 
   const [sound,     setSound]     = useState(true);
@@ -517,6 +520,8 @@ function SettingsTab({ onBack }) {
   const [dailyRev,  setDailyRev]  = useState(10);
   const [fontSize,  setFontSize]  = useState('M');
   const [showTrackPicker, setShowTrackPicker] = useState(false);
+  const [showLevelTest,   setShowLevelTest]   = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
 
   const handleChangeTrack = (newTrack) => {
     setShowTrackPicker(false);
@@ -531,7 +536,39 @@ function SettingsTab({ onBack }) {
     );
   };
 
+  // ── تعديل الملف الشخصي: نموذج محلي يُهيَّأ من بيانات المستخدم الحالية ──
+  const [editForm, setEditForm] = useState(null);
+  const openEditProfile = () => {
+    setEditForm({
+      firstName: user?.firstName || '',
+      lastName:  user?.lastName  || '',
+      gender:    user?.gender    || 'Male',
+      country:   user?.country   || 'Iraq',
+      city:      user?.city      || 'Baghdad',
+      customCountry: user?.customCountry || '',
+      customCity:    user?.customCity    || '',
+      job:       user?.job       || 'Doctor',
+      customJob: user?.customJob || '',
+    });
+    setShowEditProfile(true);
+  };
+  const saveEditProfile = () => {
+    if (!editForm.firstName.trim() || !editForm.lastName.trim()) {
+      Alert.alert(lang === 'ar' ? 'الاسم مطلوب' : 'Name required', lang === 'ar' ? 'من فضلك اكتب اسمك الأول والأخير.' : 'Please enter your first and last name.');
+      return;
+    }
+    const prefix = getPrefix(editForm.customJob.trim() ? 'Other' : editForm.job);
+    const fullName = (prefix ? prefix + ' ' : '') + editForm.firstName.trim() + ' ' + editForm.lastName.trim();
+    setUser(prev => ({ ...prev, ...editForm, fullName }));
+    setShowEditProfile(false);
+    playSfx('correct');
+  };
+  const editCities = editForm ? (CITIES[editForm.country] || [['Other','أخرى']]) : [];
+  const genders = GENDERS[lang] || GENDERS.ar;
+  const jobItems = JOBS.map(j => [j.en, j.ar]);
+
   return (
+    <>
     <SafeAreaView style={s.safe}>
       <PageHeader title={T('settings')} onBack={onBack} backLabel={T('back')} />
       <ScrollView contentContainerStyle={s.pageContent}>
@@ -557,10 +594,7 @@ function SettingsTab({ onBack }) {
 
           <TouchableOpacity
             style={s.settingRowBtn}
-            onPress={() => Alert.alert(
-              lang === 'ar' ? 'تعديل الملف الشخصي' : 'Edit Profile',
-              lang === 'ar' ? 'هذه الميزة قيد التطوير حاليًا وستتوفر قريبًا.' : 'This feature is under development and will be available soon.'
-            )}
+            onPress={openEditProfile}
             accessible={true}
             accessibilityRole="button"
             accessibilityLabel={T('editProfile')}
@@ -600,10 +634,7 @@ function SettingsTab({ onBack }) {
 
           <TouchableOpacity
             style={s.settingRowBtn}
-            onPress={() => Alert.alert(
-              lang === 'ar' ? 'إعادة الاختبار' : 'Retake Test',
-              lang === 'ar' ? 'هذه الميزة قيد التطوير حاليًا وستتوفر قريبًا.' : 'This feature is under development and will be available soon.'
-            )}
+            onPress={() => setShowLevelTest(true)}
             accessible={true}
             accessibilityRole="button"
             accessibilityLabel={T('retakeTest')}
@@ -709,6 +740,92 @@ function SettingsTab({ onBack }) {
 
       </ScrollView>
     </SafeAreaView>
+
+    <Modal visible={showLevelTest} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowLevelTest(false)}>
+      <SafeAreaView style={s.modalSafe}>
+        <View style={s.modalHeader}>
+          <Text style={s.modalTitle}>{T('retakeTest')}</Text>
+          <TouchableOpacity onPress={() => setShowLevelTest(false)} accessible={true} accessibilityRole="button" accessibilityLabel={T('back')}>
+            <Text style={s.modalClose}>✕</Text>
+          </TouchableOpacity>
+        </View>
+        <ScrollView contentContainerStyle={s.modalContent}>
+          <Text style={s.modalDesc}>{T('levelNote')}</Text>
+          <LevelTest
+            lang={lang}
+            ctaLabel={lang === 'ar' ? 'حفظ المستوى الجديد' : 'Save new level'}
+            onComplete={(score, lvlObj) => {
+              setUser(prev => (prev ? { ...prev, levelScore: score, levelTitle: lvlObj } : prev));
+              setShowLevelTest(false);
+              playSfx('win');
+            }}
+          />
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
+
+    <Modal visible={showEditProfile && !!editForm} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowEditProfile(false)}>
+      <SafeAreaView style={s.modalSafe}>
+        <View style={s.modalHeader}>
+          <Text style={s.modalTitle}>{T('editProfile')}</Text>
+          <TouchableOpacity onPress={() => setShowEditProfile(false)} accessible={true} accessibilityRole="button" accessibilityLabel={T('back')}>
+            <Text style={s.modalClose}>✕</Text>
+          </TouchableOpacity>
+        </View>
+        {editForm ? (
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <ScrollView contentContainerStyle={s.modalContent}>
+              <Text style={s.fieldLbl}>{T('firstName')}</Text>
+              <TextInput style={s.inp} value={editForm.firstName} onChangeText={v => setEditForm(f => ({ ...f, firstName: v }))}
+                placeholder={T('firstName')} placeholderTextColor="rgba(255,255,255,0.25)" />
+
+              <Text style={s.fieldLbl}>{T('lastName')}</Text>
+              <TextInput style={s.inp} value={editForm.lastName} onChangeText={v => setEditForm(f => ({ ...f, lastName: v }))}
+                placeholder={T('lastName')} placeholderTextColor="rgba(255,255,255,0.25)" />
+
+              <Text style={s.fieldLbl}>{T('qGender')}</Text>
+              <View style={s.genderRow}>
+                {genders.map(([en, ar]) => (
+                  <TouchableOpacity key={en} style={[s.genderBtn, editForm.gender === en ? s.genderBtnActive : null]}
+                    onPress={() => setEditForm(f => ({ ...f, gender: en }))} accessibilityRole="button">
+                    <Text style={[s.genderBtnTxt, editForm.gender === en ? s.genderBtnTxtActive : null]}>{lang === 'ar' ? ar : en}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={s.fieldLbl}>{T('qCountry')}</Text>
+              <WheelPicker
+                items={COUNTRIES}
+                value={editForm.country}
+                onChange={(en) => setEditForm(f => ({ ...f, country: en, city: (CITIES[en] || [['Other','أخرى']])[0][0] }))}
+                hint={lang === 'ar' ? 'الدولة' : 'Country'}
+              />
+
+              <Text style={s.fieldLbl}>{T('qCity')}</Text>
+              <WheelPicker
+                items={editCities}
+                value={editForm.city}
+                onChange={(en) => setEditForm(f => ({ ...f, city: en }))}
+                hint={lang === 'ar' ? 'المدينة' : 'City'}
+              />
+
+              <Text style={s.fieldLbl}>{T('qJob')}</Text>
+              <WheelPicker
+                items={jobItems}
+                value={editForm.job}
+                onChange={(en) => setEditForm(f => ({ ...f, job: en }))}
+                hint={lang === 'ar' ? 'المهنة' : 'Job'}
+              />
+
+              <TouchableOpacity style={s.saveBtn} onPress={saveEditProfile} accessible={true} accessibilityRole="button">
+                <Text style={s.saveBtnTxt}>{lang === 'ar' ? 'حفظ التعديلات' : 'Save changes'}</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        ) : null}
+      </SafeAreaView>
+    </Modal>
+    </>
   );
 }
 
@@ -824,4 +941,20 @@ const s = StyleSheet.create({
   stepperBtn:        { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
   stepperTxt:        { color: '#fff', fontSize: 18, fontWeight: '700' },
   stepperVal:        { fontSize: 16, fontWeight: '700', color: '#fff', minWidth: 30, textAlign: 'center' },
+
+  modalSafe:         { flex: 1, backgroundColor: '#08080f' },
+  modalHeader:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)' },
+  modalTitle:        { fontSize: 16, fontWeight: '800', color: '#fff' },
+  modalClose:        { fontSize: 18, color: 'rgba(255,255,255,0.5)', padding: 4 },
+  modalContent:       { padding: 18, paddingBottom: 40 },
+  modalDesc:         { fontSize: 12, color: 'rgba(255,255,255,0.45)', textAlign: 'center', marginBottom: 18 },
+  fieldLbl:          { fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 6, marginTop: 14 },
+  inp:               { backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderRadius: 12, padding: 12, color: '#fff', fontSize: 14 },
+  genderRow:         { flexDirection: 'row', gap: 8 },
+  genderBtn:         { flex: 1, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', borderRadius: 12, padding: 12, alignItems: 'center' },
+  genderBtnActive:   { borderColor: '#2E8B57', backgroundColor: 'rgba(46,139,87,0.15)' },
+  genderBtnTxt:      { color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: '600' },
+  genderBtnTxtActive:{ color: '#fff' },
+  saveBtn:           { backgroundColor: '#2E8B57', borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 26 },
+  saveBtnTxt:        { color: '#fff', fontSize: 15, fontWeight: '800' },
 });
