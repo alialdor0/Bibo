@@ -8,8 +8,15 @@ export const i18n = {
     appTagline:    'بيبو سيجعلك تغرّد باللغة الإنجليزية',
     welcome:       'أهلاً وسهلاً',
     loginDesc:     'سجّل دخولك لحفظ تقدمك وقصتك',
-    withApple:     'الدخول بحساب Apple',
-    withGoogle:    'الدخول بحساب Google',
+    createCode:    'إنشاء كود دخول جديد',
+    haveCode:      'عندي كود دخول',
+    yourCode:      'كود الدخول الخاص بك',
+    codeSaveNote:  'احتفظ بهذا الكود في مكان آمن — تحتاجه لاسترجاع حسابك لاحقًا',
+    copyCode:      'نسخ الكود',
+    codeCopied:    'تم النسخ ✓',
+    continueBtn:   'متابعة',
+    enterCodeNote: 'اكتب أو الصق كود الدخول الخاص بك',
+    codeNotFound:  'هذا الكود غير موجود، تحقق منه وحاول مرة أخرى',
     asGuest:       'الدخول كضيف',
     guestNote:     'الضيف لا يحفظ تقدمه بين الجلسات',
     heroDesc:      'أنت البطل. قصتك تُبنى بكلماتك.',
@@ -72,8 +79,15 @@ export const i18n = {
     appTagline:    'Bibo will make you sing in English',
     welcome:       'Welcome',
     loginDesc:     'Sign in to save your progress and story',
-    withApple:     'Continue with Apple',
-    withGoogle:    'Continue with Google',
+    createCode:    'Create a new login code',
+    haveCode:      'I have a login code',
+    yourCode:      'Your login code',
+    codeSaveNote:  'Keep this code somewhere safe — you\u2019ll need it to restore your account later',
+    copyCode:      'Copy code',
+    codeCopied:    'Copied ✓',
+    continueBtn:   'Continue',
+    enterCodeNote: 'Type or paste your login code',
+    codeNotFound:  'That code was not found. Check it and try again',
     asGuest:       'Continue as Guest',
     guestNote:     'Guest progress is not saved between sessions',
     heroDesc:      'You are the hero. Your story is built with your words.',
@@ -197,28 +211,42 @@ export const AGES = Array.from({ length: 83 }, (_, i) => String(i + 13));
 
 // ── مستويات اللغة ──
 export const LEVEL_TITLES = [
-  { min:0, max:2,  en:'Novice Writer',       ar:'كاتب مبتدئ',    color:'#8B4513' },
-  { min:3, max:4,  en:'Rising Speaker',       ar:'متحدث صاعد',    color:'#1B3A6B' },
-  { min:5, max:6,  en:'Skilled Communicator', ar:'متواصل ماهر',   color:'#2E8B57' },
-  { min:7, max:8,  en:'Advanced Narrator',    ar:'راوٍ متقدم',    color:'#C0C0C0' },
-  { min:9, max:10, en:'Expert Storyteller',   ar:'حكواتي خبير',   color:'#FFB300' },
+  // knownDifficulties: مستويات الصعوبة (حسب حقل difficulty بالمفردات) التي يُفترض
+  // أن المستخدم يعرفها مسبقًا بناءً على نتيجة اختبار المستوى — تُستبعد من التمارين
+  // فقط (تُضاف تلقائيًا للقاموس دون اختبار) — راجع getKnownDifficulties أدناه.
+  { min:0, max:2,  en:'Novice Writer',       ar:'كاتب مبتدئ',    color:'#8B4513', knownDifficulties:[] },
+  { min:3, max:4,  en:'Rising Speaker',       ar:'متحدث صاعد',    color:'#1B3A6B', knownDifficulties:[] },
+  { min:5, max:6,  en:'Skilled Communicator', ar:'متواصل ماهر',   color:'#2E8B57', knownDifficulties:['A1'] },
+  { min:7, max:8,  en:'Advanced Narrator',    ar:'راوٍ متقدم',    color:'#C0C0C0', knownDifficulties:['A1','A2'] },
+  { min:9, max:10, en:'Expert Storyteller',   ar:'حكواتي خبير',   color:'#FFB300', knownDifficulties:['A1','A2','B1'] },
 ];
+
+/** بيرجع مصفوفة مستويات الصعوبة (A1/A2/B1...) اللي المستخدم مفروض يعرفها مسبقًا حسب مستواه */
+export function getKnownDifficulties(levelTitle) {
+  return (levelTitle && levelTitle.knownDifficulties) || [];
+}
+
+/** هل هذه الكلمة (بحسب صعوبتها) مفروض تكون معروفة للمستخدم أصلًا؟ لو أيوه، تُستبعد من التمارين وتُضاف مباشرة للقاموس */
+export function isWordKnownForLevel(difficulty, levelTitle) {
+  if (!difficulty) return false;
+  return getKnownDifficulties(levelTitle).includes(difficulty);
+}
 
 // ── أسئلة اختبار المستوى: 10 أسئلة (4 مبتدئ + 3 متوسط + 3 متقدم) ──
 export const ASSESSMENT = [
   // مبتدئ (4)
-  { level:'beginner',     q:'What does "received" mean?',              opts:['استلمت','ذهبت','قرأت','كتبت'],                                                                                               correct:0 },
-  { level:'beginner',     q:'Past tense of "speak"?',                  opts:['speaked','spoken','spoke','speaking'],                                                                                        correct:2 },
-  { level:'beginner',     q:'What does "address" mean?',               opts:['عنوان','رسالة','مهمة','صورة'],                                                                                                correct:0 },
-  { level:'beginner',     q:'One book, two ___.',                      opts:['book','books','bookes','booking'],                                                                                            correct:1 },
+  { level:'beginner',     q:'ماذا تعني كلمة "received"؟',                              opts:['استلمت','ذهبت','قرأت','كتبت'],                                                                                               correct:0 },
+  { level:'beginner',     q:'ما هو الماضي الصحيح لفعل "speak"؟',                        opts:['speaked','spoken','spoke','speaking'],                                                                                        correct:2 },
+  { level:'beginner',     q:'ماذا تعني كلمة "address"؟',                               opts:['عنوان','رسالة','مهمة','صورة'],                                                                                                correct:0 },
+  { level:'beginner',     q:'اختر الكلمة الصحيحة لإكمال الجملة: "One book, two ___."', opts:['book','books','bookes','booking'],                                                                                            correct:1 },
   // متوسط (3)
-  { level:'intermediate', q:'Choose the correct sentence:',            opts:['He walk to the store','He walked to the store','He walking to the store','He walks to store'],                               correct:1 },
-  { level:'intermediate', q:'"The message was written ___ red ink."',  opts:['on','in','at','with'],                                                                                                        correct:1 },
-  { level:'intermediate', q:'Select the correctly formed question:',   opts:['Where you are going?','Where are you going?','Where do you going?','Where you going?'],                                      correct:1 },
+  { level:'intermediate', q:'اختر الجملة الصحيحة نحويًا:',                              opts:['He walk to the store','He walked to the store','He walking to the store','He walks to store'],                               correct:1 },
+  { level:'intermediate', q:'اختر الكلمة الصحيحة لإكمال الجملة: "The message was written ___ red ink."', opts:['on','in','at','with'],                                                                                        correct:1 },
+  { level:'intermediate', q:'اختر صياغة السؤال الصحيحة:',                               opts:['Where you are going?','Where are you going?','Where do you going?','Where you going?'],                                      correct:1 },
   // متقدم (3)
-  { level:'advanced',     q:'Which uses "despite" correctly?',         opts:['Despite it was raining, we went out.','Despite of the rain, we went out.','Despite the rain, we went out.','Despite that rain, we went out.'], correct:2 },
-  { level:'advanced',     q:'Which sentence uses the present perfect correctly?', opts:['I have seen him yesterday.','I saw him yesterday.','I have seen him already.','I seen him already.'],             correct:2 },
-  { level:'advanced',     q:'"If I ___ known, I would have called you."', opts:['know','knew','had known','have known'],                                                                                    correct:2 },
+  { level:'advanced',     q:'أي جملة تستخدم "despite" بشكل صحيح؟',                      opts:['Despite it was raining, we went out.','Despite of the rain, we went out.','Despite the rain, we went out.','Despite that rain, we went out.'], correct:2 },
+  { level:'advanced',     q:'أي جملة تستخدم زمن المضارع التام (present perfect) بشكل صحيح؟', opts:['I have seen him yesterday.','I saw him yesterday.','I have seen him already.','I seen him already.'],             correct:2 },
+  { level:'advanced',     q:'اختر الكلمة الصحيحة لإكمال الجملة: "If I ___ known, I would have called you."', opts:['know','knew','had known','have known'],                                                                                    correct:2 },
 ];
 
 // ── الأشهر (للاختيار عند اختيار تاريخ الميلاد) ──
