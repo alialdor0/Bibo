@@ -5,7 +5,8 @@ import { scheduleBiboReminder, cancelBiboReminders } from '../utils/notification
 import { loadMany, saveJSON, removeKeys } from '../utils/storage';
 import { generateLoginCode, saveAccountSnapshot, getAccountSnapshot, normalizeCode } from '../utils/authCode';
 import { prepareAudioMode } from '../utils/sounds';
-import { playSfx } from '../utils/sfx';
+import { playSfx, setSfxEnabled } from '../utils/sfx';
+import { setAmbientEnabled } from '../utils/ambientMusic';
 
 /** بيرجع مفتاح الأسبوع الحالي بصيغة ISO (مثلاً "2026-W28") — يُستخدم لتصفير التحديات الأسبوعية تلقائيًا */
 function getWeekKey(date = new Date()) {
@@ -38,6 +39,12 @@ export function AppProvider({ children }) {
   const [companion, setCompanion] = useState({ gapHours: 0, isComeback: false, streak: 1 });
   const [stationery, setStationery] = useState(DEFAULT_STATIONERY);
   const [voiceOn, setVoiceOn] = useState(true);
+  const [sfxOn, setSfxOnState] = useState(true);
+  const setSfxOn = useCallback((v) => {
+    setSfxOnState(v);
+    setSfxEnabled(v);
+    setAmbientEnabled(v);
+  }, []);
   const [library, setLibrary] = useState([]);
   const [bookCovers, setBookCovers] = useState({}); // { "trackId::episodeId": { color, stickers:[ids] } }
   const [ownedStickers, setOwnedStickers] = useState([]); // ["star","heart",...]
@@ -66,6 +73,7 @@ export function AppProvider({ children }) {
         gems: 50,
         stationery: DEFAULT_STATIONERY,
         voiceOn: true,
+        sfxOn: true,
         library: [],
         bookCovers: {},
         ownedStickers: [],
@@ -87,6 +95,9 @@ export function AppProvider({ children }) {
       setGems(saved.gems);
       setStationery(saved.stationery);
       setVoiceOn(saved.voiceOn);
+      setSfxOnState(saved.sfxOn !== false);
+      setSfxEnabled(saved.sfxOn !== false);
+      setAmbientEnabled(saved.sfxOn !== false);
       setLibrary(saved.library);
       setBookCovers(saved.bookCovers);
       setOwnedStickers(saved.ownedStickers);
@@ -135,6 +146,7 @@ export function AppProvider({ children }) {
   useEffect(() => { if (hydratedRef.current) saveJSON('gems', gems); }, [gems]);
   useEffect(() => { if (hydratedRef.current) saveJSON('stationery', stationery); }, [stationery]);
   useEffect(() => { if (hydratedRef.current) saveJSON('voiceOn', voiceOn); }, [voiceOn]);
+  useEffect(() => { if (hydratedRef.current) saveJSON('sfxOn', sfxOn); }, [sfxOn]);
   useEffect(() => { if (hydratedRef.current) saveJSON('library', library); }, [library]);
   useEffect(() => { if (hydratedRef.current) saveJSON('bookCovers', bookCovers); }, [bookCovers]);
   useEffect(() => { if (hydratedRef.current) saveJSON('ownedStickers', ownedStickers); }, [ownedStickers]);
@@ -545,7 +557,7 @@ export function AppProvider({ children }) {
     gems, addGems,
     companion,
     stationery, useInk, useEraser, usePage, buyItem, claimGift, claimWeeklyGift, canClaimDailyGift, canClaimWeeklyGift,
-    voiceOn, setVoiceOn,
+    voiceOn, setVoiceOn, sfxOn, setSfxOn,
     library, addLibraryEntry,
     bookCovers, ownedStickers, buySticker, grantSticker, setBookCoverColor, toggleBookSticker,
     ownedCosmetics, equippedCosmetics, buyCosmetic, equipCosmetic,
