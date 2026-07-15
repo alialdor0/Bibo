@@ -371,10 +371,35 @@ export const GIFT_REWARDS = [
   { type:'gems',   amount:25,  icon:'💎', label:'25 Gems',          labelAr:'25 جواهر' },
   { type:'pen',    item:'pen_basic', icon:'🖊️', label:'Free Pen',  labelAr:'قلم مجاني' },
   { type:'eraser', item:'eraser_small', icon:'🧹', label:'Free Eraser', labelAr:'ممحاة مجانية' },
-  { type:'paper',  item:'paper_small', icon:'📄', label:'20 Free Pages', labelAr:'20 صفحة مجانية' },
+  { type:'paper',  item:'paper_small', amount:20, icon:'📄', label:'20 Free Pages', labelAr:'20 صفحة مجانية' },
 ];
 
-// ── تخصيص غلاف الكتاب بالمكتبة ──
+// هدية أسبوعية (مرة كل أسبوع) — مكافآت أكبر من الهدية اليومية
+export const WEEKLY_GIFT_REWARDS = [
+  { type:'gems',   amount:60,  icon:'💎', label:'60 Gems',           labelAr:'60 جوهرة' },
+  { type:'gems',   amount:100, icon:'💎', label:'100 Gems',          labelAr:'100 جوهرة' },
+  { type:'pen',    item:'pen_basic',    icon:'🖊️', label:'Free Pen',        labelAr:'قلم مجاني' },
+  { type:'eraser', item:'eraser_small', icon:'🧹', label:'Free Eraser',     labelAr:'ممحاة مجانية' },
+  { type:'paper',  item:'paper_small',  amount:50, icon:'📄', label:'50 Free Pages',   labelAr:'50 صفحة مجانية' },
+];
+
+// ── شارات الإنجازات — كل شارة مربوطة بمقياس تقدّم حقيقي (type) وهدف رقمي (goal) ──
+// الأنواع: words_learned | episodes_completed | streak | words_rescued | gems_earned | perfect_episode | level_reached
+export const ACHIEVEMENTS = [
+  { id:'first_word',   icon:'📖', nameAr:'أول كلمة',       name:'First Word',      descAr:'تعلّمت أول كلمة في القاموس',        desc:'Learned your first word',      type:'words_learned',      goal:1 },
+  { id:'words_25',     icon:'📚', nameAr:'جامع الكلمات',   name:'Word Collector',  descAr:'تعلّمت 25 كلمة',                     desc:'Learned 25 words',             type:'words_learned',      goal:25 },
+  { id:'words_100',    icon:'🎓', nameAr:'خبير المفردات',  name:'Vocabulary Pro',  descAr:'تعلّمت 100 كلمة',                    desc:'Learned 100 words',            type:'words_learned',      goal:100 },
+  { id:'first_episode',icon:'🎬', nameAr:'أول حلقة',       name:'First Episode',   descAr:'أكملت أول حلقة',                    desc:'Finished your first episode',  type:'episodes_completed', goal:1 },
+  { id:'episodes_10',  icon:'🏆', nameAr:'راوي القصص',     name:'Storyteller',     descAr:'أكملت 10 حلقات',                     desc:'Finished 10 episodes',         type:'episodes_completed', goal:10 },
+  { id:'streak_3',     icon:'🔥', nameAr:'ملتزم',           name:'Committed',       descAr:'3 أيام متتالية بالتعلّم',            desc:'3-day learning streak',        type:'streak',             goal:3 },
+  { id:'streak_7',     icon:'⚡', nameAr:'أسبوع كامل',      name:'Full Week',       descAr:'أسبوع كامل متواصل بالتعلّم',         desc:'7-day learning streak',        type:'streak',             goal:7 },
+  { id:'rescue_10',    icon:'🚑', nameAr:'منقذ الكلمات',   name:'Word Rescuer',    descAr:'أنقذت 10 كلمات كانت هتتنسى',        desc:'Rescued 10 fading words',      type:'words_rescued',      goal:10 },
+  { id:'rescue_50',    icon:'🦸', nameAr:'بطل الإنقاذ',    name:'Rescue Hero',     descAr:'أنقذت 50 كلمة كانت هتتنسى',         desc:'Rescued 50 fading words',      type:'words_rescued',      goal:50 },
+  { id:'gems_100',     icon:'💎', nameAr:'جامع الجواهر',   name:'Gem Collector',   descAr:'جمعت 100 جوهرة',                     desc:'Earned 100 gems total',        type:'gems_earned',        goal:100 },
+  { id:'gems_500',     icon:'💰', nameAr:'ثروة بيبو',       name:"Bibo's Fortune",  descAr:'جمعت 500 جوهرة',                     desc:'Earned 500 gems total',        type:'gems_earned',        goal:500 },
+  { id:'perfect_ep',   icon:'⭐', nameAr:'إتقان تام',       name:'Perfect Score',   descAr:'أكملت حلقة بدقة 100%',              desc:'Finished an episode with 100% accuracy', type:'perfect_episode', goal:1 },
+  { id:'level_up',     icon:'🌟', nameAr:'ترقية المستوى',   name:'Level Up',        descAr:'وصلت لمستوى "متواصل ماهر" أو أعلى', desc:'Reached "Skilled Communicator" or higher', type:'level_reached', goal:2 },
+];
 export const COVER_COLORS = ['#2E8B57', '#3F51B5', '#E91E63', '#FF9800', '#9C27B0', '#00BCD4', '#F44336', '#8BC34A'];
 
 export const COVER_STICKERS = [
