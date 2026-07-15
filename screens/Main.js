@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Switch, SafeAreaView, Alert, Animated, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../context/AppContext';
-import { t, STORE_ITEMS, GIFT_REWARDS, WEEKLY_CHALLENGES, TRACKS, GENDERS, COUNTRIES, CITIES, JOBS, getPrefix } from '../data';
+import { t, STORE_ITEMS, GIFT_REWARDS, WEEKLY_CHALLENGES, TRACKS, GENDERS, COUNTRIES, CITIES, JOBS, getPrefix, ACHIEVEMENTS } from '../data';
 import { BiboMsg, PageHeader, GemsBadge, StationeryBar } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
 import BottomNav from '../components/BottomNav';
@@ -30,10 +30,12 @@ const DAILY_TIPS = {
 };
 
 function HomeTab({ onNav }) {
-  const { user, track, lang, gems, stationery, library, companion, getEpisodeState, getWordBankWords } = useApp();
+  const { user, track, lang, gems, stationery, library, companion, getEpisodeState, getWordBankWords, canClaimDailyGift, unlockedAchievements, pendingBadge, dismissPendingBadge } = useApp();
   const T = (k) => t(k, lang);
   const u = user || { fullName: 'Ali', levelTitle: { en: 'Novice Writer', color: '#8B4513' } };
   const tr = track || { icon: '🕵️', name: 'Spy & Mystery', color: '#C0C0C0' };
+
+  useEffect(() => { if (pendingBadge) playSfx('win'); }, [pendingBadge]);
 
   const wordsLearned = new Set((library || []).flatMap(b => (b.words || []).map(w => w.word))).size;
   const episodesDone = (library || []).length;
@@ -84,6 +86,7 @@ function HomeTab({ onNav }) {
   const cycleTip = () => { playSfx('pageTurn'); setTipIdx(i => (i + 1) % tips.length); };
 
   return (
+    <>
     <SafeAreaView style={s.root}>
       <View style={s.header}>
         <View style={s.headerLeft}>
@@ -156,19 +159,35 @@ function HomeTab({ onNav }) {
           </TouchableOpacity>
         ) : null}
 
-        <TouchableOpacity
-          style={s.notifCardGift}
-          onPress={() => onNav('store')}
-          accessible={true}
-          accessibilityRole="button"
-          accessibilityLabel={lang === 'ar' ? 'هدية بانتظارك بالمتجر، اضغط للفتح' : 'A gift is waiting in the store, tap to open'}
-        >
-          <Text style={{ fontSize: 20 }} importantForAccessibility="no">🎁</Text>
-          <Text style={s.notifTxt}>{lang === 'ar' ? 'هدية بانتظارك بالمتجر' : 'A gift is waiting for you in the store'}</Text>
-          <Text style={s.notifArrow} importantForAccessibility="no">›</Text>
-        </TouchableOpacity>
+        {canClaimDailyGift() ? (
+          <TouchableOpacity
+            style={s.notifCardGift}
+            onPress={() => onNav('store')}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'ar' ? 'هدية بانتظارك بالمتجر، اضغط للفتح' : 'A gift is waiting in the store, tap to open'}
+          >
+            <Text style={{ fontSize: 20 }} importantForAccessibility="no">🎁</Text>
+            <Text style={s.notifTxt}>{lang === 'ar' ? 'هدية بانتظارك بالمتجر' : 'A gift is waiting for you in the store'}</Text>
+            <Text style={s.notifArrow} importantForAccessibility="no">›</Text>
+          </TouchableOpacity>
+        ) : null}
 
         <StationeryBar stationery={stationery} />
+
+        <TouchableOpacity
+          style={s.achievementsCard}
+          onPress={() => onNav('achievements')}
+          accessible={true}
+          accessibilityRole="button"
+          accessibilityLabel={lang === 'ar' ? `الإنجازات، ${unlockedAchievements.length} من ${ACHIEVEMENTS.length} شارة مفتوحة` : `Achievements, ${unlockedAchievements.length} of ${ACHIEVEMENTS.length} badges unlocked`}
+        >
+          <Text style={{ fontSize: 20 }} importantForAccessibility="no">🏅</Text>
+          <Text style={s.achievementsTxt}>
+            {lang === 'ar' ? `الإنجازات — ${unlockedAchievements.length}/${ACHIEVEMENTS.length} شارة` : `Achievements — ${unlockedAchievements.length}/${ACHIEVEMENTS.length} badges`}
+          </Text>
+          <Text style={s.notifArrow} importantForAccessibility="no">›</Text>
+        </TouchableOpacity>
 
         <View style={s.chapterCard}>
           <View style={s.chapterTop}>
@@ -235,6 +254,21 @@ function HomeTab({ onNav }) {
 
       <BottomNav active="home" onNav={onNav} T={T} />
     </SafeAreaView>
+
+    <Modal visible={!!pendingBadge} transparent animationType="fade" onRequestClose={dismissPendingBadge}>
+      <View style={s.badgeModalBg}>
+        <View style={s.badgeModalCard}>
+          <Text style={s.badgeModalTitle}>{lang === 'ar' ? 'إنجاز جديد! 🎉' : 'New achievement! 🎉'}</Text>
+          <Text style={s.badgeModalIcon}>{pendingBadge?.icon}</Text>
+          <Text style={s.badgeModalName}>{pendingBadge ? (lang === 'ar' ? pendingBadge.nameAr : pendingBadge.name) : ''}</Text>
+          <Text style={s.badgeModalDesc}>{pendingBadge ? (lang === 'ar' ? pendingBadge.descAr : pendingBadge.desc) : ''}</Text>
+          <TouchableOpacity style={s.badgeModalBtn} onPress={dismissPendingBadge} accessible={true} accessibilityRole="button">
+            <Text style={s.badgeModalBtnTxt}>{lang === 'ar' ? 'رائع!' : 'Awesome!'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+    </>
   );
 }
 
@@ -874,6 +908,16 @@ const s = StyleSheet.create({
   progressTxt:       { fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 14 },
   notifCard:         { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(74,144,217,0.1)', borderWidth: 1, borderColor: 'rgba(74,144,217,0.3)', borderRadius: 14, padding: 12, marginBottom: 10 },
   notifCardGift:     { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(255,179,0,0.1)', borderWidth: 1, borderColor: 'rgba(255,179,0,0.3)', borderRadius: 14, padding: 12, marginBottom: 14 },
+  achievementsCard:  { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(155,89,182,0.1)', borderWidth: 1, borderColor: 'rgba(155,89,182,0.3)', borderRadius: 14, padding: 12, marginBottom: 14 },
+  achievementsTxt:   { flex: 1, color: '#fff', fontSize: 13, fontWeight: '600' },
+  badgeModalBg:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  badgeModalCard:    { width: '100%', maxWidth: 320, backgroundColor: '#12121c', borderWidth: 1.5, borderColor: '#FFB300', borderRadius: 22, padding: 26, alignItems: 'center' },
+  badgeModalTitle:   { color: '#FFB300', fontSize: 14, fontWeight: '800', marginBottom: 14 },
+  badgeModalIcon:    { fontSize: 56, marginBottom: 10 },
+  badgeModalName:    { color: '#fff', fontSize: 18, fontWeight: '900', marginBottom: 6 },
+  badgeModalDesc:    { color: 'rgba(255,255,255,0.5)', fontSize: 12, textAlign: 'center', marginBottom: 20 },
+  badgeModalBtn:     { backgroundColor: '#FFB300', borderRadius: 14, paddingVertical: 12, paddingHorizontal: 32 },
+  badgeModalBtnTxt:  { color: '#08080f', fontSize: 14, fontWeight: '800' },
   notifTxt:          { flex: 1, color: '#fff', fontSize: 13, fontWeight: '600' },
   notifArrow:        { color: 'rgba(255,255,255,0.4)', fontSize: 18 },
   floatingBiboWrap:  { position: 'absolute', bottom: 78, right: 16 },
