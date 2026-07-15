@@ -13,6 +13,7 @@ import Leaderboard from '../screens/Leaderboard';
 import Coop       from '../screens/Coop';
 import Store      from '../screens/Store';
 import BiboProfile from '../screens/BiboProfile';
+import Achievements from '../screens/Achievements';
 
 export default function AppNavigator() {
   const { user, setUser, track, lang, hydrated } = useApp();
@@ -62,7 +63,7 @@ export default function AppNavigator() {
   };
 
   const handleNav = (dest, params) => {
-    const screens = ['story','dict','rescue','leaderboard','coop','store','bibo-profile'];
+    const screens = ['story','dict','rescue','leaderboard','coop','store','bibo-profile','achievements'];
     if (screens.includes(dest)) { setScreen(dest); setScreenParams(params || null); }
   };
 
@@ -86,6 +87,7 @@ export default function AppNavigator() {
   else if (screen === 'coop')        content = <Coop         onBack={() => go('main')} />;
   else if (screen === 'store')       content = <Store        onBack={() => go('main')} />;
   else if (screen === 'bibo-profile')content = <BiboProfile  onBack={() => go('main')} />;
+  else if (screen === 'achievements') content = <Achievements onBack={() => go('main')} />;
   else content = <Login onLogin={handleLogin} onCodeRestored={handleCodeRestored} />;
 
   // لو أي شاشة عطلت، رجّع المستخدم لمكان آمن (main لو مسجل دخول، وإلا login)
