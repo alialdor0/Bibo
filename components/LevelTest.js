@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { ASSESSMENT, getLevel } from '../data';
+import { playSfx } from '../utils/sfx';
 
 /**
  * اختبار تحديد المستوى — قابل لإعادة الاستخدام في:
@@ -26,6 +27,7 @@ export default function LevelTest({ lang, ctaLabel, onQuizFinished, onComplete }
       const nextQ = assess.qIdx + 1;
       if (nextQ >= ASSESSMENT.length) {
         setAssess({ qIdx: 0, score: newScore, done: true, chosen: null });
+        playSfx('levelUp');
         if (onQuizFinished) onQuizFinished(newScore, getLevel(newScore));
       } else {
         setAssess({ qIdx: nextQ, score: newScore, done: false, chosen: null });
