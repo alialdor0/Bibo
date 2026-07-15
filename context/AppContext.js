@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
-import { getLevel, getPrefix, fullName, isWordKnownForLevel } from '../data';
+import { getLevel, getPrefix, fullName, isWordKnownForLevel, ACHIEVEMENTS, LEVEL_TITLES } from '../data';
 import { touchLastSeen } from '../utils/companion';
 import { scheduleBiboReminder, cancelBiboReminders } from '../utils/notifications';
 import { loadMany, saveJSON, removeKeys } from '../utils/storage';
@@ -15,6 +15,11 @@ function getWeekKey(date = new Date()) {
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
   return `${d.getUTCFullYear()}-W${weekNo}`;
+}
+
+/** بيرجع مفتاح اليوم الحالي بصيغة YYYY-MM-DD — يُستخدم للتأكد إن الهدية اليومية تُفتح مرة واحدة باليوم بس */
+function getDayKey(date = new Date()) {
+  return date.toISOString().slice(0, 10);
 }
 
 const AppContext = createContext(null);
@@ -42,6 +47,11 @@ export function AppProvider({ children }) {
   const [episodeProgress, setEpisodeProgress] = useState({});
   const [wordBank, setWordBank] = useState({}); // { [trackId]: { [wordId]: entry } }
   const [excludedWords, setExcludedWords] = useState({}); // { [levelEn]: [{ trackId, wordId, word, ar, addedAt }] } — كلمات استُبعدت من التمارين حسب مستوى المستخدم
+  const [lastGiftClaimedAt, setLastGiftClaimedAt] = useState(null); // 'YYYY-MM-DD' — آخر مرة اتفتحت فيها الهدية اليومية
+  const [lastWeeklyGiftClaimedAt, setLastWeeklyGiftClaimedAt] = useState(null); // مفتاح الأسبوع — آخر مرة اتفتحت فيها الهدية الأسبوعية
+  const [totalGemsEarned, setTotalGemsEarned] = useState(0); // إجمالي الجواهر اللي اتكسبت (بدون خصم اللي اتصرفت) — لشارات الإنجاز
+  const [unlockedAchievements, setUnlockedAchievements] = useState([]); // مصفوفة IDs بتاعة الشارات المفتوحة
+  const [pendingBadge, setPendingBadge] = useState(null); // آخر شارة اتفتحت ولسه ما اتعرضتلوش احتفال
   const [hydrated, setHydrated] = useState(false);
   const hydratedRef = useRef(false);
 
@@ -65,6 +75,10 @@ export function AppProvider({ children }) {
         episodeProgress: {},
         wordBank: {},
         excludedWords: {},
+        lastGiftClaimedAt: null,
+        lastWeeklyGiftClaimedAt: null,
+        totalGemsEarned: 0,
+        unlockedAchievements: [],
       });
       if (!mounted) return;
       setLang(saved.lang);
@@ -87,6 +101,10 @@ export function AppProvider({ children }) {
       setEpisodeProgress(saved.episodeProgress);
       setWordBank(saved.wordBank);
       setExcludedWords(saved.excludedWords);
+      setLastGiftClaimedAt(saved.lastGiftClaimedAt);
+      setLastWeeklyGiftClaimedAt(saved.lastWeeklyGiftClaimedAt);
+      setTotalGemsEarned(saved.totalGemsEarned || 0);
+      setUnlockedAchievements(saved.unlockedAchievements || []);
       hydratedRef.current = true;
       setHydrated(true);
     })();
@@ -126,6 +144,10 @@ export function AppProvider({ children }) {
   useEffect(() => { if (hydratedRef.current) saveJSON('episodeProgress', episodeProgress); }, [episodeProgress]);
   useEffect(() => { if (hydratedRef.current) saveJSON('wordBank', wordBank); }, [wordBank]);
   useEffect(() => { if (hydratedRef.current) saveJSON('excludedWords', excludedWords); }, [excludedWords]);
+  useEffect(() => { if (hydratedRef.current) saveJSON('lastGiftClaimedAt', lastGiftClaimedAt); }, [lastGiftClaimedAt]);
+  useEffect(() => { if (hydratedRef.current) saveJSON('lastWeeklyGiftClaimedAt', lastWeeklyGiftClaimedAt); }, [lastWeeklyGiftClaimedAt]);
+  useEffect(() => { if (hydratedRef.current) saveJSON('totalGemsEarned', totalGemsEarned); }, [totalGemsEarned]);
+  useEffect(() => { if (hydratedRef.current) saveJSON('unlockedAchievements', unlockedAchievements); }, [unlockedAchievements]);
 
   // لو عند المستخدم كود دخول، احفظ نسخة محدّثة من حسابه بشكل دوري (مش وقت تسجيل الخروج بس)
   // عشان يقدر يسترجعها حتى لو أعاد تثبيت التطبيق بدون تسجيل خروج صريح.
@@ -140,6 +162,7 @@ export function AppProvider({ children }) {
 
   const addGems = useCallback((amount) => {
     setGems(prev => prev + amount);
+    if (amount > 0) setTotalGemsEarned(prev => prev + amount);
   }, []);
 
   const useInk = useCallback(() => {
@@ -178,7 +201,13 @@ export function AppProvider({ children }) {
     return true;
   }, [gems]);
 
-  const claimGift = useCallback((reward) => {
+  /** هل ينفع نفتح الهدية اليومية دلوقتي؟ (مرة واحدة كل يوم بس) */
+  const canClaimDailyGift = useCallback(() => lastGiftClaimedAt !== getDayKey(), [lastGiftClaimedAt]);
+
+  /** هل ينفع نفتح الهدية الأسبوعية دلوقتي؟ (مرة واحدة كل أسبوع بس) */
+  const canClaimWeeklyGift = useCallback(() => lastWeeklyGiftClaimedAt !== getWeekKey(), [lastWeeklyGiftClaimedAt]);
+
+  const applyGiftReward = (reward) => {
     if (reward.type === 'gems') {
       addGems(reward.amount);
     } else if (reward.type === 'pen') {
@@ -186,9 +215,23 @@ export function AppProvider({ children }) {
     } else if (reward.type === 'eraser') {
       setStationery(prev => ({ ...prev, eraser: { uses: prev.eraser.uses + 20 } }));
     } else if (reward.type === 'paper') {
-      setStationery(prev => ({ ...prev, pages: { left: prev.pages.left + 20 } }));
+      setStationery(prev => ({ ...prev, pages: { left: prev.pages.left + (reward.amount || 20) } }));
     }
-  }, [addGems]);
+  };
+
+  const claimGift = useCallback((reward) => {
+    if (!canClaimDailyGift()) return false;
+    applyGiftReward(reward);
+    setLastGiftClaimedAt(getDayKey());
+    return true;
+  }, [addGems, canClaimDailyGift]);
+
+  const claimWeeklyGift = useCallback((reward) => {
+    if (!canClaimWeeklyGift()) return false;
+    applyGiftReward(reward);
+    setLastWeeklyGiftClaimedAt(getWeekKey());
+    return true;
+  }, [addGems, canClaimWeeklyGift]);
 
   /**
    * يسجّل حلقة اتخلصت كـ "كتاب" في المكتبة. لو الكتاب موجود قبل كده
@@ -226,9 +269,11 @@ export function AppProvider({ children }) {
         pron: data.pron,
         emoji: data.emoji,
         grammar: data.grammar,
+        difficulty: data.difficulty ?? existing?.difficulty ?? null,
         learnedInEpisode: existing?.learnedInEpisode ?? episodeNum,
         expireAfterEpisode: episodeNum + (expireAfterEpisodes || 4),
         rescuedCount: existing?.rescuedCount || 0,
+        misses: existing?.misses || 0, // عدد مرات الخطأ بهذه الكلمة — يُستخدم لتحديد أولوية مراجعتها
       };
       return { ...prev, [trackId]: { ...trackBank, [wordId]: entry } };
     });
@@ -261,6 +306,41 @@ export function AppProvider({ children }) {
     return Object.entries(excludedWords).map(([levelEn, words]) => ({ levelEn, words }));
   }, [excludedWords]);
 
+  /** بيحسب القيمة الحالية لكل مقياس تقدّم شارات الإنجاز (words_learned, streak, ...) */
+  const getAchievementProgress = useCallback(() => {
+    const wordsLearned = Object.values(wordBank).reduce((n, trackWords) => n + Object.keys(trackWords).length, 0);
+    const wordsRescued = Object.values(wordBank).reduce(
+      (n, trackWords) => n + Object.values(trackWords).reduce((m, w) => m + (w.rescuedCount || 0), 0), 0
+    );
+    const perfectEpisode = library.some(b => b.accuracy === 100) ? 1 : 0;
+    const levelIdx = LEVEL_TITLES.findIndex(l => l.en === user?.levelTitle?.en);
+    return {
+      words_learned: wordsLearned,
+      episodes_completed: library.length,
+      streak: companion?.streak || 0,
+      words_rescued: wordsRescued,
+      gems_earned: totalGemsEarned,
+      perfect_episode: perfectEpisode,
+      level_reached: levelIdx >= 0 ? levelIdx : 0,
+    };
+  }, [wordBank, library, companion, totalGemsEarned, user]);
+
+  // كل ما إحصائيات المستخدم تتغيّر، نراجع شارات الإنجاز ونفتح أي شارة استوفت شرطها —
+  // وناخد أول شارة جديدة اتفتحت عشان نحتفل بيها (pendingBadge) بدون ما نضيّع الباقي
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    const progress = getAchievementProgress();
+    const newlyUnlocked = ACHIEVEMENTS.filter(
+      a => !unlockedAchievements.includes(a.id) && (progress[a.type] ?? 0) >= a.goal
+    );
+    if (newlyUnlocked.length === 0) return;
+    setUnlockedAchievements(prev => [...prev, ...newlyUnlocked.map(a => a.id)]);
+    setPendingBadge(newlyUnlocked[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wordBank, library, companion, totalGemsEarned, user]);
+
+  const dismissPendingBadge = useCallback(() => setPendingBadge(null), []);
+
   /** إنقاذ كلمة: بيمدد تاريخ انتهائها من الحلقة الحالية */
   const rescueWord = useCallback((trackId, wordId, extendBy = 4) => {
     const exists = !!wordBank[trackId]?.[wordId];
@@ -280,6 +360,21 @@ export function AppProvider({ children }) {
     if (exists) bumpWeekly('wordsRescued');
   }, [episodeProgress, wordBank, bumpWeekly]);
 
+  /**
+   * يسجّل نتيجة إجابة على كلمة (صح/خطأ) — بيزوّد عدّاد الأخطاء عند الغلط وبينقصه
+   * عند الصح، عشان نقدر نعطي أولوية مراجعة أكبر للكلمات اللي المستخدم بيغلط فيها
+   * كتير (يُستخدم في تمرين الإنقاذ وألعاب المنافسة).
+   */
+  const recordWordResult = useCallback((trackId, wordId, correct) => {
+    setWordBank(prev => {
+      const trackBank = prev[trackId] || {};
+      const existing = trackBank[wordId];
+      if (!existing) return prev;
+      const misses = Math.max(0, (existing.misses || 0) + (correct ? -1 : 1));
+      return { ...prev, [trackId]: { ...trackBank, [wordId]: { ...existing, misses } } };
+    });
+  }, []);
+
   /** بيرجع كل الكلمات المتعلمة فعليًا (من كل المسارات) مع حساب حالة كل كلمة */
   const getWordBankWords = useCallback(() => {
     const out = [];
@@ -297,7 +392,9 @@ export function AppProvider({ children }) {
           pron: w.pron,
           emoji: w.emoji,
           grammar: w.grammar,
+          difficulty: w.difficulty || null,
           episodesLeft,
+          misses: w.misses || 0,
           status: episodesLeft <= 0 ? 'forgotten' : episodesLeft <= 1 ? 'review' : 'learned',
         });
       });
@@ -447,15 +544,16 @@ export function AppProvider({ children }) {
     track, setTrack,
     gems, addGems,
     companion,
-    stationery, useInk, useEraser, usePage, buyItem, claimGift,
+    stationery, useInk, useEraser, usePage, buyItem, claimGift, claimWeeklyGift, canClaimDailyGift, canClaimWeeklyGift,
     voiceOn, setVoiceOn,
     library, addLibraryEntry,
     bookCovers, ownedStickers, buySticker, grantSticker, setBookCoverColor, toggleBookSticker,
     ownedCosmetics, equippedCosmetics, buyCosmetic, equipCosmetic,
     weeklyProgress, claimWeeklyReward,
     episodeProgress, getEpisodeState, completeEpisode,
-    wordBank, addWordToBank, rescueWord, getWordBankWords,
+    wordBank, addWordToBank, rescueWord, getWordBankWords, recordWordResult,
     excludedWords, isWordExcludedByLevel, addExcludedWordToBank, getExcludedWordLines,
+    unlockedAchievements, pendingBadge, dismissPendingBadge, getAchievementProgress,
     hydrated, logout,
     ensureLoginCode, loginWithCode,
   };
