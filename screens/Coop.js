@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, Alert } from 'react-native';
 import { useApp } from '../context/AppContext';
-import { t, TRACKS, COOP_STORY, COOP_WORDS } from '../data';
+import { t, TRACKS } from '../data';
+import { getEpisode, getTotalEpisodes } from '../data/episodes';
+import { buildTemplateVars, fillDeep } from '../utils/templateEngine';
+import { speakWord } from '../utils/episodeAudio';
 import { PageHeader, GemsBadge } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
 import BiboIcon from '../components/BiboIcon';
@@ -11,15 +14,15 @@ function TutorialScreen({ lang, onDone }) {
   const [page, setPage] = useState(0);
   const PAGES = [
     { icon: '🤝', title: lang === 'ar' ? 'التعاون مع بيبو' : 'Co-op with Bibo',
-      body: lang === 'ar' ? 'أنت وبيبو تكملان قصة واحدة معًا. لكل منكما دور فيها.' : 'You and Bibo complete one story together. Each of you plays a role.' },
+      body: lang === 'ar' ? 'أنت وبيبو تعيشان نفس حلقات قصتك الحقيقية معًا، بداية من الحلقة الأولى.' : 'You and Bibo go through your real story episodes together, starting from Episode 1.' },
     { icon: '👤', title: lang === 'ar' ? 'دورك' : 'Your role',
-      body: lang === 'ar' ? 'أنت تكتب جمل البطل الرئيسي. كل جملة تعلّمك كلمات جديدة.' : 'You write the main story lines. Each line teaches you new vocabulary.' },
+      body: lang === 'ar' ? 'تكتب الكلمة المهمة في كل جملة من القصة — نفس الكلمات اللي بتتعلمها بالحلقة.' : 'You type the key word in each real story line — the same vocabulary from the episode.' },
     { icon: null, iconIsBibo: true, title: lang === 'ar' ? 'دور بيبو' : "Bibo's role",
-      body: lang === 'ar' ? 'بيبو يُكمل كل جملة بصوته، ويضيف عمقًا للقصة.' : 'Bibo completes each line with his voice, adding depth to the story.' },
-    { icon: '🎵', title: lang === 'ar' ? 'مؤثرات صوتية' : 'Sound Effects',
-      body: lang === 'ar' ? 'لكل مسار أصوات مميزة تعمل أثناء القصة.' : 'Each track has unique sounds that play during the story.' },
+      body: lang === 'ar' ? 'بيبو يقرأ كل جملة بصوته بعد ما تخلّصها، ويوريك ترجمتها بالعربي.' : 'Bibo reads each line aloud once you finish it, and shows you its Arabic meaning.' },
+    { icon: '🎬', title: lang === 'ar' ? 'حلقة بعد حلقة' : 'Episode after episode',
+      body: lang === 'ar' ? 'أول ما تخلّصوا حلقة، تقدروا تكملوا للحلقة اللي بعدها فورًا.' : 'As soon as you finish an episode, you can continue straight to the next one.' },
     { icon: '🏆', title: lang === 'ar' ? 'تعلّم مع بيبو' : 'Learn Together',
-      body: lang === 'ar' ? 'تكسب كلمات وجواهر مع كل قصة تكملها مع بيبو!' : 'Earn words and gems with every story you finish with Bibo!' },
+      body: lang === 'ar' ? 'تكسب جواهر مع كل جملة وكل حلقة تكملها مع بيبو!' : 'Earn gems with every line and every episode you finish with Bibo!' },
   ];
   const p = PAGES[page];
   return (
@@ -52,40 +55,80 @@ function TutorialScreen({ lang, onDone }) {
   );
 }
 
-function CoopGame({ trackId, lang, onEnd, addGems }) {
-  const track     = TRACKS.find(tr => tr.id === trackId) || TRACKS[0];
-  const lines     = COOP_STORY[trackId]   || COOP_STORY.spy;
-  const wordLines = COOP_WORDS[trackId]   || COOP_WORDS.spy;
+/**
+ * وضع التعاون مع بيبو — بيستخدم نفس بيانات الحلقات الحقيقية اللي تستخدمها شاشة
+ * القصة (StoryEpisode)، فمفيش قصة وهمية منفصلة ولا شخصيات وهمية (أحمد/خالد..).
+ * كل جملة بتتقرأ بصوت بيبو الفعلي (TTS) وبتوريك ترجمتها العربية.
+ */
+function CoopGame({ trackId, lang, user, onEnd, addGems }) {
+  const track = TRACKS.find(tr => tr.id === trackId) || TRACKS[0];
+  const vars = buildTemplateVars(user);
+  const totalEpisodes = getTotalEpisodes(trackId);
+
+  const [episodeNum, setEpisodeNum] = useState(1);
+  const rawEpisode = getEpisode(trackId, episodeNum);
+  const episode = rawEpisode ? fillDeep(rawEpisode, vars) : null;
+  const lines = episode?.lines || [];
 
   const [lineIdx,   setLineIdx]   = useState(0);
   const [wordIdx,   setWordIdx]   = useState(0);
   const [typed,     setTyped]     = useState('');
   const [done,      setDone]      = useState([]);
   const [showBibo,  setShowBibo]  = useState(false);
-  const [gameOver,  setGameOver]  = useState(false);
+  const [episodeOver, setEpisodeOver] = useState(false);
+  const [seasonOver,  setSeasonOver]  = useState(false);
+  const autoSkipRef = useRef(new Set());
 
-  const currentLine = wordLines[lineIdx] || [];
-  const currentWord = currentLine[wordIdx] || '';
-  const story = lines[lineIdx];
+  const line = lines[lineIdx] || null;
+  const lineWords = (line?.words || []).map(w => w.word);
+  const currentWord = lineWords[wordIdx] || '';
+
+  const advanceLine = () => {
+    setShowBibo(true);
+    playSfx('pageTurn');
+    speakWord(line.text);
+    setTimeout(() => {
+      setShowBibo(false);
+      setDone(prev => [...prev, lineIdx]);
+      const nextLine = lineIdx + 1;
+      if (nextLine >= lines.length) {
+        playSfx('win');
+        if (episodeNum >= totalEpisodes) setSeasonOver(true);
+        else setEpisodeOver(true);
+      } else { setLineIdx(nextLine); setWordIdx(0); }
+    }, 2400);
+  };
+
+  // بعض الجمل ممكن متكونش فيها كلمة مفردات جديدة (سطر ربط سردي) — بيبو يقرأها
+  // على طول من غير ما يستنى كتابة
+  useEffect(() => {
+    if (!line) return;
+    const key = `${episodeNum}-${lineIdx}`;
+    if (lineWords.length === 0 && !autoSkipRef.current.has(key)) {
+      autoSkipRef.current.add(key);
+      advanceLine();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lineIdx, episodeNum, episode]);
 
   const checkWord = () => {
+    if (!currentWord) return;
     if (typed.trim().toLowerCase() !== currentWord.toLowerCase()) { setTyped(''); playSfx('wrong'); return; }
     setTyped(''); playSfx('correct');
     const nextWord = wordIdx + 1;
-    if (nextWord >= currentLine.length) {
-      setShowBibo(true); playSfx('pageTurn');
-      setTimeout(() => {
-        setShowBibo(false);
-        setDone(prev => [...prev, lineIdx]);
-        const nextLine = lineIdx + 1;
-        if (nextLine >= lines.length) { setGameOver(true); playSfx('win'); }
-        else { setLineIdx(nextLine); setWordIdx(0); }
-      }, 2200);
-    } else setWordIdx(nextWord);
+    if (nextWord >= lineWords.length) advanceLine();
+    else setWordIdx(nextWord);
+  };
+
+  const goNextEpisode = () => {
+    setEpisodeNum(n => n + 1);
+    setLineIdx(0); setWordIdx(0); setDone([]);
+    setEpisodeOver(false);
+    playSfx('pageTurn');
   };
 
   const handleLeave = () => Alert.alert(
-    lang === 'ar' ? 'مغادرة القصة؟' : 'Leave Story?',
+    lang === 'ar' ? 'مغادرة الحلقة؟' : 'Leave episode?',
     lang === 'ar' ? 'سينتظرك بيبو حتى تعود لاحقًا.' : 'Bibo will wait for you to come back later.',
     [
       { text: lang === 'ar' ? 'ابقَ' : 'Stay', style: 'cancel' },
@@ -93,31 +136,77 @@ function CoopGame({ trackId, lang, onEnd, addGems }) {
     ]
   );
 
-  if (gameOver) return (
-    <SafeAreaView style={s.safe}>
-      <ScrollView contentContainerStyle={s.doneWrap}>
-        <BiboCharacter state="celebrate" size={80} message={lang === 'ar' ? 'قصة رهيبة! 🎉' : 'Amazing story! 🎉'} />
-        <Text style={s.doneTitle}>{lang === 'ar' ? 'القصة اكتملت!' : 'Story Complete!'}</Text>
-        <Text style={s.doneSub}>+{lines.length * 5} {lang === 'ar' ? 'جوهرة' : 'gems earned'}</Text>
-        <View style={[s.trackBadge, { borderColor: track.color }]}>
-          <Text style={[s.trackBadgeTxt, { color: track.color }]}>{track.icon} {lang === 'ar' ? track.nameAr : track.name}</Text>
+  // ── مفيش حلقات لهذا المسار لسه ──
+  if (!episode) {
+    return (
+      <SafeAreaView style={s.safe}>
+        <View style={s.doneWrap}>
+          <BiboCharacter state="sleep" size={80} message={lang === 'ar' ? 'حلقات هذا المسار قيد الإعداد... تابعنا قريبًا 📖' : "This track's episodes aren't ready yet... check back soon 📖"} />
+          <TouchableOpacity style={s.doneBtn} onPress={onEnd}>
+            <Text style={s.doneBtnTxt}>{lang === 'ar' ? 'الرجوع للرئيسية' : 'Back to Home'}</Text>
+          </TouchableOpacity>
         </View>
-        {lines.map((line, i) => (
-          <View key={String(i)} style={s.doneLineWrap}>
-            <Text style={s.doneHero}>{'👤 ' + line.hero}</Text>
-            <View style={s.donePartnerRow}>
-              <BiboCharacter state="idea" size={20} silent showCosmetics={false} />
-              <Text style={s.donePartner}>{line.partner}</Text>
-            </View>
-          </View>
-        ))}
-        <TouchableOpacity style={s.doneBtn} onPress={() => { addGems(lines.length * 5); onEnd(); }}>
-          <Text style={s.doneBtnTxt}>{lang === 'ar' ? 'الرجوع للرئيسية' : 'Back to Home'}</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
-  );
+      </SafeAreaView>
+    );
+  }
 
+  // ── خلصتوا كل حلقات الموسم ──
+  if (seasonOver) {
+    return (
+      <SafeAreaView style={s.safe}>
+        <ScrollView contentContainerStyle={s.doneWrap}>
+          <BiboCharacter state="celebrate" size={80} message={lang === 'ar' ? 'أكملنا الموسم كله سوا! 🏆' : 'We finished the whole season together! 🏆'} />
+          <Text style={s.doneTitle}>{lang === 'ar' ? 'الموسم اكتمل!' : 'Season Complete!'}</Text>
+          <View style={[s.trackBadge, { borderColor: track.color }]}>
+            <Text style={[s.trackBadgeTxt, { color: track.color }]}>{track.icon} {lang === 'ar' ? track.nameAr : track.name}</Text>
+          </View>
+          <TouchableOpacity style={s.doneBtn} onPress={onEnd}>
+            <Text style={s.doneBtnTxt}>{lang === 'ar' ? 'الرجوع للرئيسية' : 'Back to Home'}</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  // ── الحلقة الحالية خلصت — عرض ملخّص وخيار المتابعة للحلقة الجاية ──
+  if (episodeOver) {
+    return (
+      <SafeAreaView style={s.safe}>
+        <ScrollView contentContainerStyle={s.doneWrap}>
+          <BiboCharacter state="celebrate" size={80} message={lang === 'ar' ? 'حلقة رهيبة! 🎉' : 'Great episode! 🎉'} />
+          <Text style={s.doneTitle}>
+            {lang === 'ar' ? `الحلقة ${episodeNum} اكتملت!` : `Episode ${episodeNum} complete!`}
+          </Text>
+          <Text style={s.doneSub}>+{lines.length * 5} {lang === 'ar' ? 'جوهرة' : 'gems earned'}</Text>
+          <View style={[s.trackBadge, { borderColor: track.color }]}>
+            <Text style={[s.trackBadgeTxt, { color: track.color }]}>{track.icon} {lang === 'ar' ? track.nameAr : track.name}</Text>
+          </View>
+          {lines.map((l, i) => (
+            <View key={String(i)} style={s.doneLineWrap}>
+              <Text style={s.doneHero}>{l.text}</Text>
+              <View style={s.donePartnerRow}>
+                <BiboCharacter state="idea" size={20} silent showCosmetics={false} />
+                <Text style={s.donePartner}>{l.arabic}</Text>
+              </View>
+            </View>
+          ))}
+          <TouchableOpacity
+            style={s.doneBtn}
+            onPress={() => { addGems(lines.length * 5); goNextEpisode(); }}
+          >
+            <Text style={s.doneBtnTxt}>
+              {lang === 'ar' ? `المتابعة للحلقة ${episodeNum + 1} ←` : `Continue to Episode ${episodeNum + 1} ←`}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.laterBtn} onPress={() => { addGems(lines.length * 5); onEnd(); }}>
+            <Text style={s.laterBtnTxt}>{lang === 'ar' ? 'أكمل لاحقًا' : 'Continue later'}</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  // ── شاشة اللعب ──
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.gameHeader}>
@@ -125,7 +214,9 @@ function CoopGame({ trackId, lang, onEnd, addGems }) {
           <Text style={s.leaveTxt}>{lang === 'ar' ? 'مغادرة' : 'Leave'}</Text>
         </TouchableOpacity>
         <View style={[s.trackMini, { borderColor: track.color + '66' }]}>
-          <Text style={[s.trackMiniTxt, { color: track.color }]}>{track.icon} {lineIdx + 1}/{lines.length}</Text>
+          <Text style={[s.trackMiniTxt, { color: track.color }]}>
+            {track.icon} {lang === 'ar' ? 'الحلقة' : 'Episode'} {episodeNum} · {lineIdx + 1}/{lines.length}
+          </Text>
         </View>
         <View style={s.gameProgressBg}>
           <View style={[s.gameProgressFill, { width: Math.round(lineIdx / lines.length * 100) + '%', backgroundColor: track.color }]} />
@@ -135,41 +226,46 @@ function CoopGame({ trackId, lang, onEnd, addGems }) {
       <ScrollView contentContainerStyle={s.gameContent}>
         {done.map(i => (
           <View key={String(i)} style={s.doneLine}>
-            <Text style={s.doneHeroSmall}>{'✅ ' + lines[i].hero}</Text>
+            <Text style={s.doneHeroSmall}>{'✅ ' + lines[i].text}</Text>
             <View style={s.donePartnerSmallRow}>
               <BiboCharacter state="idea" size={16} silent showCosmetics={false} />
-              <Text style={s.donePartnerSmall}>{lines[i].partner}</Text>
+              <Text style={s.donePartnerSmall}>{lines[i].arabic}</Text>
             </View>
           </View>
         ))}
-        <View style={[s.currentCard, { borderColor: track.color + '44' }]}>
-          <Text style={[s.currentLabel, { color: track.color }]}>{lang === 'ar' ? 'دورك:' : 'Your turn:'}</Text>
-          <Text style={s.currentStory}>{story?.hero}</Text>
-          <View style={s.wordsRow}>
-            {currentLine.map((w, i) => {
-              const st = i < wordIdx ? 'done' : i === wordIdx ? 'current' : 'pending';
-              return (
-                <View key={String(i)} style={[s.wordChip, st === 'done' ? { borderColor: '#2E8B57', backgroundColor: 'rgba(46,139,87,0.15)' } : st === 'current' ? { borderColor: track.color, backgroundColor: track.color + '22' } : { borderColor: 'rgba(255,255,255,0.1)' }]}>
-                  <Text style={[s.wordTxt, st === 'done' ? { color: '#a5d6a7' } : st === 'current' ? { color: track.color, fontWeight: '700' } : { color: 'rgba(255,255,255,0.3)' }]}>{w}</Text>
-                </View>
-              );
-            })}
+
+        {line && lineWords.length > 0 ? (
+          <View style={[s.currentCard, { borderColor: track.color + '44' }]}>
+            <Text style={[s.currentLabel, { color: track.color }]}>{lang === 'ar' ? 'دورك: اكتب الكلمة المضيئة' : 'Your turn: type the highlighted word'}</Text>
+            <Text style={s.currentStory}>{line.text}</Text>
+            <View style={s.wordsRow}>
+              {lineWords.map((w, i) => {
+                const st = i < wordIdx ? 'done' : i === wordIdx ? 'current' : 'pending';
+                return (
+                  <View key={String(i)} style={[s.wordChip, st === 'done' ? { borderColor: '#2E8B57', backgroundColor: 'rgba(46,139,87,0.15)' } : st === 'current' ? { borderColor: track.color, backgroundColor: track.color + '22' } : { borderColor: 'rgba(255,255,255,0.1)' }]}>
+                    <Text style={[s.wordTxt, st === 'done' ? { color: '#a5d6a7' } : st === 'current' ? { color: track.color, fontWeight: '700' } : { color: 'rgba(255,255,255,0.3)' }]}>{w}</Text>
+                  </View>
+                );
+              })}
+            </View>
+            <View style={s.inputRow}>
+              <TextInput style={s.gameInput} value={typed} onChangeText={setTyped} onSubmitEditing={checkWord}
+                placeholder={currentWord} placeholderTextColor="rgba(255,255,255,0.2)"
+                autoCapitalize="none" returnKeyType="done" />
+              <TouchableOpacity style={[s.checkBtn, { backgroundColor: track.color + 'cc' }]} onPress={checkWord}>
+                <Text style={s.checkBtnTxt}>✓</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          <View style={s.inputRow}>
-            <TextInput style={s.gameInput} value={typed} onChangeText={setTyped} onSubmitEditing={checkWord}
-              placeholder={currentWord} placeholderTextColor="rgba(255,255,255,0.2)"
-              autoCapitalize="none" returnKeyType="done" />
-            <TouchableOpacity style={[s.checkBtn, { backgroundColor: track.color + 'cc' }]} onPress={checkWord}>
-              <Text style={s.checkBtnTxt}>✓</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        ) : null}
+
         {showBibo ? (
           <View style={[s.partnerCard, { borderColor: track.color + '44', backgroundColor: track.color + '12' }]}>
             <BiboCharacter layout="row" size={44} state="encourage" />
             <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={[s.partnerLabel, { color: track.color }]}>{lang === 'ar' ? 'بيبو يُكمل...' : 'Bibo completing...'}</Text>
-              <Text style={s.partnerText}>{story?.partner}</Text>
+              <Text style={[s.partnerLabel, { color: track.color }]}>{lang === 'ar' ? 'بيبو يقرأ السطر معاك 🔊' : 'Bibo reads the line with you 🔊'}</Text>
+              <Text style={s.partnerText}>{line?.text}</Text>
+              <Text style={s.partnerTextAr}>{line?.arabic}</Text>
             </View>
           </View>
         ) : null}
@@ -179,15 +275,16 @@ function CoopGame({ trackId, lang, onEnd, addGems }) {
 }
 
 export default function Coop({ onBack }) {
-  const { lang, gems, addGems, track: userTrack } = useApp();
+  const { lang, gems, addGems, track: userTrack, user } = useApp();
   const T = (k) => t(k, lang);
   const [screen,  setScreen]  = useState('tutorial');
   const [trackId, setTrackId] = useState(userTrack?.id || 'spy');
 
   if (screen === 'tutorial') return <TutorialScreen lang={lang} onDone={() => setScreen('home')} />;
-  if (screen === 'game')     return <CoopGame trackId={trackId} lang={lang} onEnd={() => setScreen('home')} addGems={addGems} />;
+  if (screen === 'game')     return <CoopGame trackId={trackId} lang={lang} user={user} onEnd={() => setScreen('home')} addGems={addGems} />;
 
   const track  = TRACKS.find(tr => tr.id === trackId) || TRACKS[0];
+  const totalEpisodes = getTotalEpisodes(trackId);
 
   return (
     <SafeAreaView style={s.safe}>
@@ -195,11 +292,11 @@ export default function Coop({ onBack }) {
       <ScrollView contentContainerStyle={s.pageContent}>
         <View style={[s.explainCard, { borderColor: track.color + '44' }]}>
           <BiboCharacter state="welcome" size={64} style={{ marginBottom: 12 }} />
-          <Text style={s.explainTitle}>{lang === 'ar' ? 'اكتب قصة مع بيبو!' : 'Write a story with Bibo!'}</Text>
+          <Text style={s.explainTitle}>{lang === 'ar' ? 'عيش قصتك مع بيبو!' : 'Live your story with Bibo!'}</Text>
           <Text style={s.explainBody}>
             {lang === 'ar'
-              ? 'أكمل قصة واحدة مع بيبو: أنت تكتب جمل البطل، وبيبو يكمّل كل مشهد بصوته.'
-              : 'Complete one story together with Bibo: you write the hero lines, Bibo completes each scene with his voice.'}
+              ? 'نفس حلقات قصتك الحقيقية، تبدأ من الحلقة الأولى — أنت تكتب الكلمات المهمة، وبيبو يقرأ كل جملة بصوته مع ترجمتها.'
+              : 'The same real story episodes, starting from Episode 1 — you type the key words, and Bibo reads each line aloud with its translation.'}
           </Text>
           <TouchableOpacity style={s.tutBtn} onPress={() => setScreen('tutorial')}>
             <Text style={s.tutBtnTxt}>{lang === 'ar' ? 'كيف يعمل' : 'How it works'}</Text>
@@ -221,9 +318,11 @@ export default function Coop({ onBack }) {
         <View style={[s.soundsCard, { borderColor: track.color + '33' }]}>
           <Text style={[s.soundsTitle, { color: track.color }]}>{track.icon} {lang === 'ar' ? track.nameAr : track.name}</Text>
           <Text style={s.soundsAmbient}>
-            {lang === 'ar'
-              ? 'قصة قصيرة تكملونها سوا خطوة بخطوة، وبيبو معك بكل جملة.'
-              : 'A short story you complete step by step, with Bibo alongside you the whole way.'}
+            {totalEpisodes > 0
+              ? (lang === 'ar'
+                  ? `تبدأ من الحلقة 1 من ${totalEpisodes}، وتكمل للحلقة التالية أول ما تخلّص.`
+                  : `Starts at Episode 1 of ${totalEpisodes}, and continues to the next as soon as you finish.`)
+              : (lang === 'ar' ? 'حلقات هذا المسار قيد الإعداد.' : "This track's episodes are being prepared.")}
           </Text>
         </View>
 
@@ -292,6 +391,7 @@ const s = StyleSheet.create({
   partnerCard:     { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 12, padding: 12 },
   partnerLabel:    { fontSize: 11, fontWeight: '700', marginBottom: 4 },
   partnerText:     { fontSize: 13, color: 'rgba(255,255,255,0.7)', fontStyle: 'italic', lineHeight: 20 },
+  partnerTextAr:   { fontSize: 12, color: 'rgba(255,255,255,0.45)', marginTop: 2, lineHeight: 18 },
   doneWrap:        { alignItems: 'center', padding: 24, paddingBottom: 40 },
   doneTitle:       { fontSize: 24, fontWeight: '800', color: '#fff', marginTop: 16, marginBottom: 6 },
   doneSub:         { fontSize: 14, color: 'rgba(255,255,255,0.45)', marginBottom: 12 },
@@ -303,4 +403,6 @@ const s = StyleSheet.create({
   donePartner:     { fontSize: 13, color: '#7fb3f5', lineHeight: 20, flexShrink: 1 },
   doneBtn:         { backgroundColor: '#1B3A6B', borderRadius: 13, paddingHorizontal: 28, paddingVertical: 13, marginTop: 20 },
   doneBtnTxt:      { color: '#fff', fontSize: 15, fontWeight: '700' },
+  laterBtn:        { borderRadius: 13, paddingHorizontal: 28, paddingVertical: 12, marginTop: 10 },
+  laterBtnTxt:     { color: 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: '600' },
 });

@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, Alert, Modal, Animated, Easing } from 'react-native';
 import { useApp } from '../context/AppContext';
-import { t, STORE_ITEMS, GIFT_REWARDS, COSMETIC_ITEMS, COSMETIC_SLOTS } from '../data';
+import { t, STORE_ITEMS, GIFT_REWARDS, WEEKLY_GIFT_REWARDS, COSMETIC_ITEMS, COSMETIC_SLOTS } from '../data';
 import { PageHeader, GemsBadge, StationeryBar } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
 import { playSfx } from '../utils/sfx';
@@ -19,7 +19,7 @@ const PARTICLE_EMOJIS = ['💎', '✨', '🎉', '⭐', '💎', '✨'];
  * صندوق الهدية المتحرك — بديل الـ Alert الصامت القديم.
  * 3 مراحل: idle (بينبض بهدوء) → shake (اهتزاز عند الفتح) → burst (ينفجر ويطلع الجائزة).
  */
-function GiftBox({ visible, lang, onOpened, onClose }) {
+export function GiftBox({ visible, lang, rewards, title, onOpened, onClose }) {
   const idleAnim  = useRef(new Animated.Value(0)).current;
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const boxScale  = useRef(new Animated.Value(1)).current;
@@ -61,7 +61,7 @@ function GiftBox({ visible, lang, onOpened, onClose }) {
       Animated.timing(shakeAnim, { toValue: 0,  duration: 60, useNativeDriver: true }),
     ]).start(() => {
       setPhase('burst');
-      const picked = GIFT_REWARDS[Math.floor(Math.random() * GIFT_REWARDS.length)];
+      const picked = rewards[Math.floor(Math.random() * rewards.length)];
       setReward(picked);
       playSfx('win');
 
@@ -85,7 +85,7 @@ function GiftBox({ visible, lang, onOpened, onClose }) {
     <Modal visible={visible} transparent animationType="fade">
       <View style={s.modalBg}>
         <View style={s.modalCard}>
-          <Text style={s.modalTitle}>{lang === 'ar' ? 'هدية بانتظارك' : 'A gift awaits'}</Text>
+          <Text style={s.modalTitle}>{title || (lang === 'ar' ? 'هدية بانتظارك' : 'A gift awaits')}</Text>
           <Text style={s.modalDesc}>
             {phase === 'burst'
               ? (lang === 'ar' ? 'مبروك! 🎊' : 'Congrats! 🎊')
@@ -144,13 +144,16 @@ function GiftBox({ visible, lang, onOpened, onClose }) {
 
 export default function Store({ onBack }) {
   const {
-    lang, gems, stationery, buyItem, claimGift,
+    lang, gems, stationery, buyItem, claimGift, claimWeeklyGift, canClaimDailyGift, canClaimWeeklyGift,
     ownedCosmetics, equippedCosmetics, buyCosmetic, equipCosmetic,
   } = useApp();
   const T = (k) => t(k, lang);
 
   const [tab,        setTab]        = useState('pen');
   const [giftModal,  setGiftModal]  = useState(false);
+  const [weeklyGiftModal, setWeeklyGiftModal] = useState(false);
+  const dailyReady  = canClaimDailyGift();
+  const weeklyReady = canClaimWeeklyGift();
 
   const stationeryItems = STORE_ITEMS.filter(i => i.type === tab);
 
@@ -211,6 +214,10 @@ export default function Store({ onBack }) {
     claimGift(reward);
   };
 
+  const handleWeeklyGiftReward = (reward) => {
+    claimWeeklyGift(reward);
+  };
+
   const isOwned = (item) => {
     if (item.type === 'pen') return stationery.pen.id === item.id;
     return false;
@@ -247,16 +254,42 @@ export default function Store({ onBack }) {
           </View>
         </View>
 
-        {/* هدية مجانية */}
-        <TouchableOpacity style={s.giftCard} onPress={() => setGiftModal(true)}>
+        {/* هدية يومية مجانية — مرة واحدة كل يوم */}
+        <TouchableOpacity
+          style={[s.giftCard, !dailyReady ? s.giftCardDisabled : null]}
+          onPress={() => { if (dailyReady) setGiftModal(true); }}
+          disabled={!dailyReady}
+          accessible={true}
+          accessibilityRole="button"
+          accessibilityLabel={dailyReady ? T('openGift') : (lang === 'ar' ? 'الهدية اليومية اتفتحت، ارجع بكرة' : 'Daily gift already opened, come back tomorrow')}
+        >
           <View style={s.giftLeft}>
             <Text style={s.giftIcon}>🎁</Text>
             <View>
-              <Text style={s.giftTitle}>{T('openGift')}</Text>
-              <Text style={s.giftDesc}>{T('giftDesc')}</Text>
+              <Text style={s.giftTitle}>{dailyReady ? T('openGift') : (lang === 'ar' ? 'هديتك اليومية اتفتحت ✓' : "Today's gift opened ✓")}</Text>
+              <Text style={s.giftDesc}>{dailyReady ? T('giftDesc') : (lang === 'ar' ? 'ارجع بكرة لهدية جديدة' : 'Come back tomorrow for a new one')}</Text>
             </View>
           </View>
-          <Text style={s.giftArrow}>→</Text>
+          <Text style={s.giftArrow}>{dailyReady ? '→' : '✓'}</Text>
+        </TouchableOpacity>
+
+        {/* هدية أسبوعية أكبر — مرة واحدة كل أسبوع */}
+        <TouchableOpacity
+          style={[s.giftCard, s.weeklyGiftCard, !weeklyReady ? s.giftCardDisabled : null]}
+          onPress={() => { if (weeklyReady) setWeeklyGiftModal(true); }}
+          disabled={!weeklyReady}
+          accessible={true}
+          accessibilityRole="button"
+          accessibilityLabel={weeklyReady ? (lang === 'ar' ? 'افتح هديتك الأسبوعية الكبيرة' : 'Open your big weekly gift') : (lang === 'ar' ? 'الهدية الأسبوعية اتفتحت، ارجع الأسبوع الجاي' : 'Weekly gift already opened, come back next week')}
+        >
+          <View style={s.giftLeft}>
+            <Text style={s.giftIcon}>🎊</Text>
+            <View>
+              <Text style={s.giftTitle}>{weeklyReady ? (lang === 'ar' ? 'هدية الأسبوع الكبيرة' : 'Big weekly gift') : (lang === 'ar' ? 'هدية الأسبوع اتفتحت ✓' : 'Weekly gift opened ✓')}</Text>
+              <Text style={s.giftDesc}>{weeklyReady ? (lang === 'ar' ? 'مكافأة أكبر تفتحها مرة كل أسبوع' : 'A bigger reward, once a week') : (lang === 'ar' ? 'ارجع الأسبوع الجاي' : 'Come back next week')}</Text>
+            </View>
+          </View>
+          <Text style={s.giftArrow}>{weeklyReady ? '→' : '✓'}</Text>
         </TouchableOpacity>
 
         {/* تبويبات المتجر */}
@@ -380,8 +413,18 @@ export default function Store({ onBack }) {
       <GiftBox
         visible={giftModal}
         lang={lang}
+        rewards={GIFT_REWARDS}
         onOpened={handleGiftReward}
         onClose={() => setGiftModal(false)}
+      />
+
+      <GiftBox
+        visible={weeklyGiftModal}
+        lang={lang}
+        rewards={WEEKLY_GIFT_REWARDS}
+        title={lang === 'ar' ? 'هدية الأسبوع بانتظارك 🎊' : 'Your weekly gift awaits 🎊'}
+        onOpened={handleWeeklyGiftReward}
+        onClose={() => setWeeklyGiftModal(false)}
       />
     </SafeAreaView>
   );
@@ -397,6 +440,8 @@ const s = StyleSheet.create({
   detailIcon:      { fontSize: 20 },
   detailTxt:       { fontSize: 11, color: 'rgba(255,255,255,0.5)' },
   giftCard:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(255,179,0,0.1)', borderWidth: 1, borderColor: 'rgba(255,179,0,0.3)', borderRadius: 14, padding: 16, marginBottom: 16 },
+  weeklyGiftCard:  { backgroundColor: 'rgba(155,89,182,0.12)', borderColor: 'rgba(155,89,182,0.35)' },
+  giftCardDisabled:{ opacity: 0.45 },
   giftLeft:        { flexDirection: 'row', alignItems: 'center', gap: 12 },
   giftIcon:        { fontSize: 32 },
   giftTitle:       { fontSize: 15, fontWeight: '700', color: '#fff' },

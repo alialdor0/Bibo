@@ -2,7 +2,9 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, TextInput, Animated, Easing } from 'react-native';
 import * as Speech from 'expo-speech';
 import { useApp } from '../context/AppContext';
-import { t, TRACKS, COVER_STICKERS, COOP_STORY } from '../data';
+import { t, TRACKS, COVER_STICKERS } from '../data';
+import { SEASONS } from '../data/episodes';
+import { buildTemplateVars, fillTemplate } from '../utils/templateEngine';
 import { PageHeader, GemsBadge } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
 import BiboIcon from '../components/BiboIcon';
@@ -306,7 +308,12 @@ function Ex3({ words, onDone, lang }) {
 
 const DUEL_ROUNDS = 6;
 const DUEL_TIME = 5; // ثواني لكل جولة
-const BIBO_SUCCESS_CHANCE = 0.7; // احتمال إجابة بيبو الصحيحة بدوره — يجعله منافسًا واقعيًا لا آلة مثالية
+// بدل احتمال ثابت، نجاح بيبو بقى يعتمد على صعوبة الكلمة الفعلية (A1/A2/B1) —
+// كلمة سهلة يعرفها بيبو غالبًا، وكلمة صعبة ممكن يتلخبط فيها زي أي متعلم حقيقي
+const BIBO_SUCCESS_BY_DIFFICULTY = { A1: 0.85, A2: 0.65, B1: 0.5 };
+function biboSuccessChance(word) {
+  return BIBO_SUCCESS_BY_DIFFICULTY[word?.difficulty] ?? 0.65;
+}
 
 /** مبارزة الكلمات — تحدي سريع مع بيبو، الأدوار تتبادل بين "دورك" و"دور بيبو" */
 function Duel({ words, onDone, lang, addGems }) {
@@ -364,7 +371,7 @@ function Duel({ words, onDone, lang, addGems }) {
     if (phase !== 'mine' || isMyTurn) return;
     setPhase('bibo-thinking');
     const t = setTimeout(() => {
-      const ok = Math.random() < BIBO_SUCCESS_CHANCE;
+      const ok = Math.random() < biboSuccessChance(cur);
       if (ok) { setBiboScore(s => s + 1); playSfx('win'); fireBurst(['bibo', '✨']); }
       else { playSfx('wrong'); fireBurst(['😵‍💫', '💫']); }
       setPhase('bibo-result');
@@ -466,7 +473,12 @@ function Duel({ words, onDone, lang, addGems }) {
 }
 
 const CLUMSY_ROUNDS = 5;
-const CLUMSY_MISTAKE_CHANCE = 0.45; // احتمال إن بيبو يخطئ عمدًا — يخلق فرصة تعليمية للمستخدم يصحّحله
+// نفس فكرة الاحتمال المتغيّر: كلمة صعبة تخلق فرصة أكبر إن بيبو "يغلط عمدًا"
+// (فرصة تعليمية للمستخدم يصحّحله)، وكلمة سهلة يندر يغلط فيها
+const CLUMSY_MISTAKE_BY_DIFFICULTY = { A1: 0.25, A2: 0.45, B1: 0.65 };
+function biboMistakeChance(word) {
+  return CLUMSY_MISTAKE_BY_DIFFICULTY[word?.difficulty] ?? 0.45;
+}
 
 /** بيبو المشاكس — بيبو يحاول يجاوب أول، وأحيانًا يخطئ عمدًا، وعلى المستخدم ملاحظة الخطأ وتصحيحه */
 function ClumsyBibo({ words, onDone, lang, addGems }) {
@@ -494,7 +506,7 @@ function ClumsyBibo({ words, onDone, lang, addGems }) {
   useEffect(() => {
     if (phase !== 'thinking' || !cur) return;
     const t = setTimeout(() => {
-      const wrong = Math.random() < CLUMSY_MISTAKE_CHANCE;
+      const wrong = Math.random() < biboMistakeChance(cur);
       const choice = wrong ? optsRef.current.find(w => w.id !== cur.id) : cur;
       setBiboPick(choice.id);
       setBiboWrong(wrong);
@@ -701,14 +713,39 @@ function TeachBibo({ words, onDone, lang, addGems }) {
 
 const SENTENCE_ROUNDS = 4;
 const SENTENCE_TIME = 20; // ثواني لترتيب الجملة كل جولة
-const BIBO_SENTENCE_SUCCESS = 0.65;
+// مفيش بيانات صعوبة لكل كلمة هنا (الجُمل من قصص التعاون)، فبنستخدم طول
+// الجملة كمقياس واقعي للصعوبة — جملة قصيرة يرتّبها بيبو غالبًا صح، وجملة
+// طويلة فرصة أكبر يتلخبط فيها
+function biboSentenceChance(sentence) {
+  const wc = sentence.split(' ').filter(Boolean).length;
+  if (wc <= 4) return 0.8;
+  if (wc <= 7) return 0.6;
+  return 0.4;
+}
 
 function stripPunct(w) { return w.replace(/[.,!?"']/g, ''); }
 
-/** مبارزة الجمل — نفس فكرة مبارزة الكلمات بس بجمل قصيرة كاملة من قصص التعاون الحقيقية، ترتيب بدل اختيار */
+/** يجمع جملًا قصيرة (٣-٩ كلمات) من محتوى الحلقات الحقيقي عبر كل المسارات، بعد استبدال متغيرات المستخدم مثل {{user_name}} */
+function getRealSentencePool(vars) {
+  const all = [];
+  Object.values(SEASONS).forEach(season => {
+    (season.episodes || []).forEach(ep => {
+      (ep.lines || []).forEach(line => {
+        if (!line.text) return;
+        const filled = fillTemplate(stripPunct(line.text), vars);
+        const wc = filled.split(' ').filter(Boolean).length;
+        if (wc >= 3 && wc <= 9) all.push(filled);
+      });
+    });
+  });
+  return all;
+}
+
+/** مبارزة الجمل — نفس فكرة مبارزة الكلمات بس بجمل قصيرة كاملة من محتوى الحلقات الحقيقي، ترتيب بدل اختيار */
 function SentenceDuel({ lang, onDone, addGems }) {
+  const { user } = useApp();
   const allLines = useRef(
-    shuffle(Object.values(COOP_STORY).flat().map(l => stripPunct(l.hero)))
+    shuffle(getRealSentencePool(buildTemplateVars(user)))
   ).current;
   const rounds = useRef(allLines.slice(0, Math.min(SENTENCE_ROUNDS, allLines.length))).current;
 
@@ -764,7 +801,7 @@ function SentenceDuel({ lang, onDone, addGems }) {
     if (phase !== 'mine' || isMyTurn) return;
     setPhase('bibo-thinking');
     const t = setTimeout(() => {
-      const ok = Math.random() < BIBO_SENTENCE_SUCCESS;
+      const ok = Math.random() < biboSentenceChance(cur);
       if (ok) { setBiboScore(s => s + 1); playSfx('win'); fireBurst(['bibo', '✨']); }
       else { playSfx('wrong'); fireBurst(['😵‍💫']); }
       setPhase('bibo-result');

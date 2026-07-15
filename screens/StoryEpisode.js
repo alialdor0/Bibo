@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, TextInput, Animated, Alert, I18nManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../context/AppContext';
-import { t } from '../data';
+import { t, GIFT_REWARDS } from '../data';
 import { getEpisode, getTotalEpisodes } from '../data/episodes';
 import { buildTemplateVars, fillDeep } from '../utils/templateEngine';
 import { biboSay } from '../data/biboPhrases';
@@ -12,6 +12,7 @@ import BiboCharacter from '../components/BiboCharacter';
 import WordInfoModal from '../components/WordInfoModal';
 import Avatar from '../components/Avatar';
 import CinematicReading from '../components/CinematicReading';
+import { GiftBox } from './Store';
 
 function shuffle(arr) {
   const a = [...arr];
@@ -38,7 +39,7 @@ function buildChoices(word, vocabulary, direction) {
 }
 
 export default function StoryEpisode({ onLeave }) {
-  const { lang, track, user, addGems, addLibraryEntry, getEpisodeState, completeEpisode, addWordToBank, isWordExcludedByLevel, addExcludedWordToBank } = useApp();
+  const { lang, track, user, addGems, addLibraryEntry, getEpisodeState, completeEpisode, addWordToBank, isWordExcludedByLevel, addExcludedWordToBank, canClaimDailyGift, claimGift } = useApp();
   const T = (k) => t(k, lang);
   const trackId = track?.id || 'spy';
 
@@ -58,12 +59,14 @@ export default function StoryEpisode({ onLeave }) {
   const [typed, setTyped] = useState('');
   const [feedback, setFeedback] = useState(null); // { type, msg }
   const [arrangePicked, setArrangePicked] = useState([]);
+  const [arrangeHintIdx, setArrangeHintIdx] = useState(null); // فهرس الكلمة "المضيئة" كتلميح أول (بدون وضعها تلقائيًا)
   const [gemsThisEpisode, setGemsThisEpisode] = useState(0);
   const [hintVisible, setHintVisible] = useState(false);
   const [eliminatedChoice, setEliminatedChoice] = useState(null);
   const [infoWordId, setInfoWordId] = useState(null);
   const [lineHintUsed, setLineHintUsed] = useState(false);
   const [showCinema, setShowCinema] = useState(false);
+  const [showLessonGift, setShowLessonGift] = useState(false);
   const [choices, setChoices] = useState([]);
   const directionRef = useRef('toArabic');
   const lineDirectionsRef = useRef([]);
@@ -171,7 +174,7 @@ export default function StoryEpisode({ onLeave }) {
     skippedWordsRef.current.add(skipKey);
     addExcludedWordToBank(
       trackId, word.id,
-      { word: word.word, ar: word.ar, phonetic: word.phonetic, pron: word.pron, emoji: word.emoji, grammar: word.grammar },
+      { word: word.word, ar: word.ar, phonetic: word.phonetic, pron: word.pron, emoji: word.emoji, grammar: word.grammar, difficulty },
       episodeNum,
       episode.word_expiry?.non_protected_expire_after_episode
     );
@@ -196,6 +199,7 @@ export default function StoryEpisode({ onLeave }) {
   useEffect(() => {
     setHintVisible(false);
     setEliminatedChoice(null);
+    setArrangeHintIdx(null);
   }, [lineIdx, wordIdx, phase]);
 
   // كل ما نتحرك لسطر جديد، سجل استخدام التلميح يترجع من الأول (لمكافأة "بدون تلميح")
@@ -207,7 +211,7 @@ export default function StoryEpisode({ onLeave }) {
     playSfx(ok ? 'correct' : 'wrong');
     setFeedback({ type: ok ? 'correct' : 'wrong', msg: bMsg(msgKey, fallbackCat) });
     if (ok) runFlash(); else runShake();
-    setTimeout(() => setFeedback(null), 900);
+    setTimeout(() => setFeedback(null), ok ? 900 : 1800); // وقت أطول بعد الغلط عشان التغذية الراجعة المفصّلة تتقرا
   };
 
   const awardGems = (n) => { addGems(n); setGemsThisEpisode(g => g + n); };
@@ -222,7 +226,9 @@ export default function StoryEpisode({ onLeave }) {
   const closeWordInfo = () => setInfoWordId(null);
 
   // تلميح بيبو الذكي: 50/50 بالاختيار (مرة وحدة)، النطق بإكمال الفراغ (مرة وحدة)،
-  // أما بالترتيب فبيبو يقدر يساعد أكتر من مرة — كل ضغطة يحط كلمة صحيحة وحدة، ويخلّي آخر كلمة إلك تحطها بنفسك
+  // أما بالترتيب فبقى تلميح على مرحلتين — أول ضغطة بتضيء الكلمة الصحيحة التالية
+  // (وتسيبك تدوسها بنفسك)، ولو ضغطت التلميح تاني وهي لسه مضيئة بيبو يحطّها بدالك.
+  // وبرضو بيسيب آخر كلمة إلك تحطها بنفسك دايمًا.
   const requestHint = () => {
     if (phase === 'context') return;
 
@@ -234,8 +240,15 @@ export default function StoryEpisode({ onLeave }) {
       if (idx === -1) return;
       playSfx('pageTurn');
       setLineHintUsed(true);
-      setArrangePicked(prev => [...prev, { word: arrangeOpts[idx], idx }]);
       setHintVisible(true);
+      if (arrangeHintIdx === idx) {
+        // ثاني طلب لنفس الكلمة: بيبو يحطّها بدالك
+        setArrangePicked(prev => [...prev, { word: arrangeOpts[idx], idx }]);
+        setArrangeHintIdx(null);
+      } else {
+        // أول طلب: بس إضاءة الكلمة الصحيحة، والاختيار لسه إلك
+        setArrangeHintIdx(idx);
+      }
       return;
     }
 
@@ -253,7 +266,11 @@ export default function StoryEpisode({ onLeave }) {
   const hintText = () => {
     if (phase === 'choice') return lang === 'ar' ? 'أزلت لك إجابة خاطئة 👀' : 'I removed a wrong answer for you 👀';
     if (phase === 'blank')  return (lang === 'ar' ? 'نطقها: ' : 'It sounds like: ') + word.pron;
-    if (phase === 'arrange') return lang === 'ar' ? 'حطّيت لك كلمة! تحتاج مساعدة زيادة؟ 🐦' : 'I placed a word for you! Need more help? 🐦';
+    if (phase === 'arrange') {
+      return arrangeHintIdx !== null
+        ? (lang === 'ar' ? 'الكلمة المضيئة هي التالية — دوسها! 👆' : 'The glowing word is next — tap it! 👆')
+        : (lang === 'ar' ? 'حطّيت لك كلمة! تحتاج مساعدة زيادة؟ 🐦' : 'I placed a word for you! Need more help? 🐦');
+    }
     return '';
   };
 
@@ -341,7 +358,7 @@ export default function StoryEpisode({ onLeave }) {
     setTimeout(() => {
       if (ok) { setPhase('blank'); setChosen(null); }
       else setChosen(null);
-    }, 800);
+    }, ok ? 800 : 1800);
   };
 
   const checkBlank = () => {
@@ -352,18 +369,19 @@ export default function StoryEpisode({ onLeave }) {
       awardGems(1);
       addWordToBank(
         trackId, word.id,
-        { word: word.word, ar: word.ar, phonetic: word.phonetic, pron: word.pron, emoji: word.emoji, grammar: word.grammar },
+        { word: word.word, ar: word.ar, phonetic: word.phonetic, pron: word.pron, emoji: word.emoji, grammar: word.grammar, difficulty: vocabById[word.id]?.difficulty },
         episodeNum,
         episode.word_expiry?.non_protected_expire_after_episode
       );
       setTimeout(advanceAfterWord, 800);
-    } else setTyped('');
+    } else setTimeout(() => setTyped(''), 1800);
   };
 
   const pickArrangeWord = (w, idx) => {
     if (arrangePicked.some(p => p.idx === idx)) return;
     playSfx('writing');
     setArrangePicked(prev => [...prev, { word: w, idx }]);
+    setArrangeHintIdx(null);
   };
 
   /** الممحاة — تحذف آخر كلمة أُضيفت للسطر فقط (وليس أي كلمة بمنتصف الجملة، حتى يبقى الترتيب منطقيًا) */
@@ -371,6 +389,7 @@ export default function StoryEpisode({ onLeave }) {
     if (arrangePicked.length === 0) return;
     playSfx('eraser');
     setArrangePicked(prev => prev.slice(0, -1));
+    setArrangeHintIdx(null);
   };
 
   const checkArrange = () => {
@@ -431,6 +450,30 @@ export default function StoryEpisode({ onLeave }) {
             <View style={s.doneStat}><Text style={s.doneStatVal}>+{gemsThisEpisode}</Text><Text style={s.doneStatLbl}>💎</Text></View>
           </View>
 
+          {canClaimDailyGift() ? (
+            <TouchableOpacity
+              style={s.lessonGiftCard}
+              onPress={() => setShowLessonGift(true)}
+              accessible={true}
+              accessibilityRole="button"
+              accessibilityLabel={lang === 'ar' ? 'هديتك اليومية بانتظارك، اضغط للفتح' : 'Your daily gift is waiting, tap to open'}
+            >
+              <Text style={{ fontSize: 24 }}>🎁</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={s.lessonGiftTitle}>{lang === 'ar' ? 'أحسنت! خد هديتك اليومية' : 'Well done! Grab your daily gift'}</Text>
+                <Text style={s.lessonGiftDesc}>{lang === 'ar' ? 'دوس هنا لتفتحها' : 'Tap here to open it'}</Text>
+              </View>
+            </TouchableOpacity>
+          ) : null}
+
+          <GiftBox
+            visible={showLessonGift}
+            lang={lang}
+            rewards={GIFT_REWARDS}
+            onOpened={(reward) => claimGift(reward)}
+            onClose={() => setShowLessonGift(false)}
+          />
+
           <View style={s.wordsSummaryCard}>
             <Text style={s.wordsSummaryTitle}>{lang === 'ar' ? 'الكلمات التي تعلّمتها 🌟' : 'Words you learned 🌟'}</Text>
             <View style={s.wordsSummaryGrid}>
@@ -468,6 +511,17 @@ export default function StoryEpisode({ onLeave }) {
   // ── مرحلة عرض السطر (context) ──
   const renderContext = () => (
     <View>
+      {lineIdx > 0 ? (
+        <View style={s.recapWrap}>
+          <Text style={s.recapLabel}>{lang === 'ar' ? 'القصة حتى الآن' : 'The story so far'}</Text>
+          {lines.slice(0, lineIdx).map((l, i) => (
+            <View key={String(i)} style={s.recapLine}>
+              <Text style={s.recapText}>{l.text}</Text>
+              <Text style={s.recapAr}>{l.arabic}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
       {linePartner ? (
         <View style={s.partnerCard}>
           <Avatar name={linePartner.name} size={40} />
@@ -606,9 +660,17 @@ export default function StoryEpisode({ onLeave }) {
           {arrangeOpts.map((w, i) => {
             const used = arrangePicked.some(p => p.idx === i);
             if (used) return null;
+            const isHinted = arrangeHintIdx === i;
             return (
-              <TouchableOpacity key={String(i)} style={[s.arrangeChip, s.forceLTRChild]} onPress={() => pickArrangeWord(w, i)}>
-                <Text style={s.arrangeChipTxt}>{w}</Text>
+              <TouchableOpacity
+                key={String(i)}
+                style={[s.arrangeChip, s.forceLTRChild, isHinted ? s.arrangeChipHint : null]}
+                onPress={() => pickArrangeWord(w, i)}
+                accessible={true}
+                accessibilityRole="button"
+                accessibilityLabel={isHinted ? (lang === 'ar' ? `${w}، هذه الكلمة التالية الصحيحة` : `${w}, this is the correct next word`) : w}
+              >
+                <Text style={[s.arrangeChipTxt, isHinted ? s.arrangeChipHintTxt : null]}>{w}</Text>
               </TouchableOpacity>
             );
           })}
@@ -665,6 +727,20 @@ export default function StoryEpisode({ onLeave }) {
            phase === 'arrange' ? renderArrange() : null}
           <Animated.View pointerEvents="none" style={[s.correctFlashOverlay, flashStyle]} />
         </Animated.View>
+
+        {feedback?.type === 'wrong' && (phase === 'choice' || phase === 'blank') ? (
+          <View style={s.wordFeedbackPanel}>
+            <Text style={s.wordFeedbackTitle}>{lang === 'ar' ? 'الكلمة الصحيحة' : 'Correct word'}</Text>
+            <View style={s.wordFeedbackRow}>
+              <Text style={s.wordFeedbackEmoji}>{word.emoji}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={s.wordFeedbackEn}>{word.word} <Text style={s.wordFeedbackPron}>({word.pron})</Text></Text>
+                <Text style={s.wordFeedbackAr}>{word.ar}</Text>
+                {word.grammar ? <Text style={s.wordFeedbackGrammar}>{word.grammar}</Text> : null}
+              </View>
+            </View>
+          </View>
+        ) : null}
       </ScrollView>
 
       <WordInfoModal
@@ -698,6 +774,19 @@ const s = StyleSheet.create({
   eraserBtnTxt:    { color: 'rgba(255,255,255,0.7)', fontWeight: '700', fontSize: 13, textAlign: 'center' },
 
   lineCard:        { backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 16, padding: 18, marginBottom: 12 },
+  recapWrap:       { backgroundColor: 'rgba(255,255,255,0.02)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', borderRadius: 14, padding: 12, marginBottom: 14 },
+  recapLabel:      { fontSize: 10, color: 'rgba(255,255,255,0.3)', marginBottom: 8, fontWeight: '700' },
+  recapLine:       { marginBottom: 8 },
+  recapText:       { fontSize: 12, color: 'rgba(255,255,255,0.5)', lineHeight: 18 },
+  recapAr:         { fontSize: 11, color: 'rgba(255,255,255,0.3)', lineHeight: 16, marginTop: 1 },
+  wordFeedbackPanel: { backgroundColor: 'rgba(46,139,87,0.08)', borderWidth: 1, borderColor: 'rgba(46,139,87,0.3)', borderRadius: 12, padding: 12, marginTop: 12 },
+  wordFeedbackTitle: { fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 6 },
+  wordFeedbackRow:   { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  wordFeedbackEmoji: { fontSize: 26 },
+  wordFeedbackEn:    { fontSize: 16, fontWeight: '800', color: '#2E8B57' },
+  wordFeedbackPron:  { fontSize: 12, fontWeight: '400', color: 'rgba(255,255,255,0.4)' },
+  wordFeedbackAr:    { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
+  wordFeedbackGrammar: { fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2, fontStyle: 'italic' },
   partnerCard:     { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 14, padding: 10, marginBottom: 10 },
   partnerName:     { color: '#fff', fontWeight: '800', fontSize: 13 },
   partnerLoc:      { color: 'rgba(255,255,255,0.45)', fontSize: 11, marginTop: 1 },
@@ -745,8 +834,13 @@ const s = StyleSheet.create({
   builtChipTxt:    { color: '#fff', fontWeight: '700', fontSize: 14 },
   arrangeChip:     { backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },
   arrangeChipTxt:  { color: '#fff', fontSize: 14 },
+  arrangeChipHint:    { borderColor: '#FFB300', borderWidth: 2, backgroundColor: 'rgba(255,179,0,0.15)' },
+  arrangeChipHintTxt: { color: '#FFB300', fontWeight: '700' },
 
   doneStatsRow:    { flexDirection: 'row', gap: 16, marginTop: 18, marginBottom: 20 },
+  lessonGiftCard:  { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(255,179,0,0.12)', borderWidth: 1, borderColor: 'rgba(255,179,0,0.35)', borderRadius: 14, padding: 14, marginBottom: 18, width: '100%' },
+  lessonGiftTitle: { color: '#FFB300', fontSize: 14, fontWeight: '800' },
+  lessonGiftDesc:  { color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 2 },
   doneStat:        { alignItems: 'center' },
   doneStatVal:     { color: '#fff', fontSize: 22, fontWeight: '800' },
   doneStatLbl:     { color: 'rgba(255,255,255,0.5)', fontSize: 12 },

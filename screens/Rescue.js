@@ -7,12 +7,26 @@ import { PageHeader, BiboMsg, GemsBadge } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
 import BiboIcon from '../components/BiboIcon';
 import { playSfx } from '../utils/sfx';
+import { speakWord } from '../utils/episodeAudio';
 
+// كل مستوى صعوبة بقى يأثر على ٣ حاجات مش بس الوقت: مزيج أنواع التمارين
+// (كل ما الصعوبة زادت، قلّ تمرين الاختيار السهل وزاد الكتابة/الاستماع)
 const DIFFICULTIES = [
-  { key: 'easy',   labelAr: 'سهل',   labelEn: 'Easy',   seconds: 20, icon: '🐢' },
-  { key: 'medium', labelAr: 'متوسط', labelEn: 'Medium', seconds: 12, icon: '🐇' },
-  { key: 'hard',   labelAr: 'صعب',   labelEn: 'Hard',   seconds: 6,  icon: '🐆' },
+  { key: 'easy',   labelAr: 'سهل',   labelEn: 'Easy',   seconds: 20, icon: '🐢', mix: { choice: 0.55, reverseChoice: 0.15, listening: 0.15, type: 0.15 } },
+  { key: 'medium', labelAr: 'متوسط', labelEn: 'Medium', seconds: 12, icon: '🐇', mix: { choice: 0.30, reverseChoice: 0.25, listening: 0.20, type: 0.25 } },
+  { key: 'hard',   labelAr: 'صعب',   labelEn: 'Hard',   seconds: 6,  icon: '🐆', mix: { choice: 0.15, reverseChoice: 0.20, listening: 0.25, type: 0.40 } },
 ];
+
+/** يختار نوع تمرين عشوائي بشكل مرجَّح حسب مزيج الصعوبة */
+function pickWeighted(mix) {
+  const r = Math.random();
+  let acc = 0;
+  for (const [k, w] of Object.entries(mix)) {
+    acc += w;
+    if (r <= acc) return k;
+  }
+  return Object.keys(mix)[0];
+}
 
 function shuffle(arr) {
   const a = [...arr];
@@ -21,6 +35,18 @@ function shuffle(arr) {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
+}
+
+/**
+ * ترتيب الكلمات بشكل عشوائي، لكن مرجَّح: الكلمات اللي المستخدم بيغلط فيها كتير
+ * (misses) بتميل تظهر بدري في تمرين الإنقاذ عشان تاخد مراجعة أكتر — بدل
+ * الاعتماد على عامل الوقت بس كمصدر وحيد للصعوبة.
+ */
+function weightedShuffleByMisses(words) {
+  return words
+    .map(w => ({ w, key: Math.pow(Math.random(), 1 / (1 + Math.min(w.misses || 0, 5))) }))
+    .sort((a, b) => b.key - a.key)
+    .map(x => x.w);
 }
 
 function getOpts(word, all) {
@@ -54,10 +80,10 @@ const wc = StyleSheet.create({
   badgeTxt: { fontSize: 11, fontWeight: '600' },
 });
 
-function RescueGame({ words, onDone, addGems, onRescue, difficulty, lang }) {
+function RescueGame({ words, onDone, addGems, onRescue, onResult, difficulty, lang }) {
   const T = (k) => t(k, lang);
   const diff = DIFFICULTIES.find(d => d.key === difficulty) || DIFFICULTIES[1];
-  const q       = useRef(shuffle(words)).current;
+  const q       = useRef(weightedShuffleByMisses(shuffle(words))).current;
   const [idx,    setIdx]    = useState(0);
   const [chosen, setChosen] = useState(null);
   const [typed,  setTyped]  = useState('');
@@ -71,7 +97,11 @@ function RescueGame({ words, onDone, addGems, onRescue, difficulty, lang }) {
   const [combo, setCombo] = useState(0);
 
   const cur  = q[idx];
-  const exType = idx % 2 === 0 ? 'choice' : 'type';
+  const exTypeRef = useRef(null);
+  if (!exTypeRef.current || exTypeRef.current._for !== cur.id) {
+    exTypeRef.current = { type: pickWeighted(diff.mix), _for: cur.id };
+  }
+  const exType = exTypeRef.current.type; // choice | reverseChoice | listening | type
   const opts = useRef(null);
   if (!opts.current || opts.current._for !== cur.id) {
     opts.current = getOpts(cur, words);
@@ -105,6 +135,12 @@ function RescueGame({ words, onDone, addGems, onRescue, difficulty, lang }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx]);
 
+  // كل ما نتحرك لسؤال جديد بتمرين استماع، ننطق الكلمة تلقائيًا أول مرة
+  useEffect(() => {
+    if (exType === 'listening') speakWord(cur.en);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idx]);
+
   const shake = () => {
     Animated.sequence([
       Animated.timing(shakeAnim, { toValue: 8,  duration: 60, useNativeDriver: true }),
@@ -126,14 +162,15 @@ function RescueGame({ words, onDone, addGems, onRescue, difficulty, lang }) {
         playSfx(score + (correct ? 1 : 0) >= q.length / 2 ? 'win' : 'lose');
         setDone(true);
       } else setIdx(i => i + 1);
-    }, 800);
+    }, correct ? 800 : 1700); // وقت أطول بعد الغلط عشان يقدر يقرأ التغذية الراجعة المفصّلة
   };
 
   const handleTimeout = () => {
     playSfx('wrong');
     shake();
     setCombo(0);
-    if (exType === 'choice') setChosen('__timeout__'); else setTypedResult('bad');
+    onResult && onResult(cur.trackId, cur.wordId, false);
+    if (exType === 'choice' || exType === 'reverseChoice' || exType === 'listening') setChosen('__timeout__'); else setTypedResult('bad');
     advance(false);
   };
 
@@ -141,6 +178,7 @@ function RescueGame({ words, onDone, addGems, onRescue, difficulty, lang }) {
     if (chosen) return;
     setChosen(opt.id);
     const correct = opt.id === cur.id;
+    onResult && onResult(cur.trackId, cur.wordId, correct);
     if (correct) {
       playSfx('rescueSuccess');
       setScore(s => s + 1);
@@ -159,6 +197,7 @@ function RescueGame({ words, onDone, addGems, onRescue, difficulty, lang }) {
     if (typedResult) return;
     const correct = typed.trim().toLowerCase() === cur.en.toLowerCase();
     setTypedResult(correct ? 'ok' : 'bad');
+    onResult && onResult(cur.trackId, cur.wordId, correct);
     if (correct) {
       playSfx('rescueSuccess');
       setScore(s => s + 1);
@@ -213,6 +252,19 @@ function RescueGame({ words, onDone, addGems, onRescue, difficulty, lang }) {
             <Text style={rg.wordEn}>{cur.en}</Text>
             <Text style={rg.wordPron}>{cur.pron}</Text>
           </>
+        ) : exType === 'listening' ? (
+          <>
+            <TouchableOpacity
+              onPress={() => speakWord(cur.en)}
+              accessible={true}
+              accessibilityRole="button"
+              accessibilityLabel={lang === 'ar' ? 'استمع للكلمة مرة أخرى' : 'Listen to the word again'}
+            >
+              <Text style={rg.listenBtn}>🔊</Text>
+            </TouchableOpacity>
+            <Text style={rg.wordEn}>{chosen ? cur.en : '••••••'}</Text>
+            {chosen ? <Text style={rg.wordPron}>{cur.pron}</Text> : null}
+          </>
         ) : (
           <>
             <Text style={rg.wordEn}>{cur.ar}</Text>
@@ -221,9 +273,13 @@ function RescueGame({ words, onDone, addGems, onRescue, difficulty, lang }) {
         )}
       </Animated.View>
 
-      {exType === 'choice' ? (
+      {exType === 'choice' || exType === 'listening' ? (
         <>
-          <Text style={rg.qTxt}>{lang === 'ar' ? 'ما معنى هذه الكلمة؟' : 'What does this mean?'}</Text>
+          <Text style={rg.qTxt}>
+            {exType === 'listening'
+              ? (lang === 'ar' ? 'استمع واختر المعنى الصحيح' : 'Listen and pick the right meaning')
+              : (lang === 'ar' ? 'ما معنى هذه الكلمة؟' : 'What does this mean?')}
+          </Text>
           <View style={rg.opts}>
             {opts.current.map(opt => {
               const isSel = chosen === opt.id; const isOk = opt.id === cur.id;
@@ -233,6 +289,23 @@ function RescueGame({ words, onDone, addGems, onRescue, difficulty, lang }) {
                   onPress={() => answer(opt)} disabled={!!chosen}>
                   <Text style={rg.optEmoji}>{opt.emoji}</Text>
                   <Text style={rg.optTxt}>{opt.ar}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </>
+      ) : exType === 'reverseChoice' ? (
+        <>
+          <Text style={rg.qTxt}>{lang === 'ar' ? 'اختر الكلمة الإنجليزية الصحيحة' : 'Pick the matching English word'}</Text>
+          <View style={rg.opts}>
+            {opts.current.map(opt => {
+              const isSel = chosen === opt.id; const isOk = opt.id === cur.id;
+              const showState = chosen && (isSel || (chosen === '__timeout__' && isOk));
+              return (
+                <TouchableOpacity key={String(opt.id)} style={[rg.opt, { backgroundColor: !showState ? 'rgba(255,255,255,0.05)' : isOk ? 'rgba(46,139,87,0.3)' : 'rgba(192,57,43,0.3)', borderColor: !showState ? 'rgba(255,255,255,0.12)' : isOk ? '#2E8B57' : '#c0392b' }]}
+                  onPress={() => answer(opt)} disabled={!!chosen}>
+                  <Text style={rg.optEmoji}>{opt.emoji}</Text>
+                  <Text style={rg.optTxt}>{opt.en}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -252,12 +325,25 @@ function RescueGame({ words, onDone, addGems, onRescue, difficulty, lang }) {
             placeholderTextColor="rgba(255,255,255,0.25)"
             onSubmitEditing={submitTyped}
           />
-          {typedResult === 'bad' ? <Text style={rg.correctAnswerTxt}>{cur.en}</Text> : null}
           <TouchableOpacity style={[rg.submitBtn, typedResult ? { opacity: 0.5 } : null]} onPress={submitTyped} disabled={!!typedResult}>
             <Text style={rg.submitBtnTxt}>{lang === 'ar' ? 'تحقّق' : 'Check'}</Text>
           </TouchableOpacity>
         </>
       )}
+
+      {/* تغذية راجعة مفصّلة بعد أي إجابة خاطئة (مش مجرد لون أحمر) — تفيد بكل أنواع التمارين */}
+      {(chosen === '__timeout__' || typedResult === 'bad' || (chosen && chosen !== cur.id)) ? (
+        <View style={rg.feedbackPanel}>
+          <Text style={rg.feedbackTitle}>{lang === 'ar' ? 'الكلمة الصحيحة' : 'Correct word'}</Text>
+          <View style={rg.feedbackRow}>
+            <Text style={rg.feedbackEmoji}>{cur.emoji}</Text>
+            <View>
+              <Text style={rg.feedbackEn}>{cur.en} <Text style={rg.feedbackPron}>({cur.pron})</Text></Text>
+              <Text style={rg.feedbackAr}>{cur.ar}</Text>
+            </View>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -275,7 +361,14 @@ const rg = StyleSheet.create({
   typeInput:   { borderWidth: 2, borderColor: 'rgba(255,255,255,0.15)', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, color: '#fff', fontSize: 20, textAlign: 'center', fontWeight: '700', marginBottom: 12 },
   submitBtn:   { backgroundColor: '#c0392b', borderRadius: 13, paddingVertical: 13, alignItems: 'center' },
   submitBtnTxt:{ color: '#fff', fontSize: 15, fontWeight: '700' },
-  correctAnswerTxt: { color: '#2E8B57', fontSize: 15, fontWeight: '700', textAlign: 'center', marginBottom: 12 },
+  listenBtn:   { fontSize: 40, textAlign: 'center', marginBottom: 8 },
+  feedbackPanel: { backgroundColor: 'rgba(46,139,87,0.08)', borderWidth: 1, borderColor: 'rgba(46,139,87,0.3)', borderRadius: 12, padding: 12, marginTop: 14 },
+  feedbackTitle: { fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 6 },
+  feedbackRow:   { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  feedbackEmoji: { fontSize: 26 },
+  feedbackEn:    { fontSize: 16, fontWeight: '800', color: '#2E8B57' },
+  feedbackPron:  { fontSize: 12, fontWeight: '400', color: 'rgba(255,255,255,0.4)' },
+  feedbackAr:    { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
   wordCard:    { backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderRadius: 18, padding: 24, alignItems: 'center', marginBottom: 20 },
   wordEmoji:   { fontSize: 52, marginBottom: 10 },
   wordEn:      { fontSize: 30, fontWeight: '900', color: '#fff', marginBottom: 4 },
@@ -295,7 +388,7 @@ const rg = StyleSheet.create({
 });
 
 export default function Rescue({ onBack }) {
-  const { lang, gems, addGems, getWordBankWords, rescueWord } = useApp();
+  const { lang, gems, addGems, getWordBankWords, rescueWord, recordWordResult } = useApp();
   const T = (k) => t(k, lang);
   const [screen, setScreen] = useState('home');
   const [filter, setFilter] = useState('all');
@@ -318,7 +411,7 @@ export default function Rescue({ onBack }) {
     <SafeAreaView style={s.safe}>
       <PageHeader title={lang === 'ar' ? 'تمرين الإنقاذ' : 'Rescue Exercise'} onBack={() => setScreen('home')} backLabel={T('back')} />
       <ScrollView contentContainerStyle={s.pageContent}>
-        <RescueGame words={gameWords} onDone={() => setScreen('home')} addGems={addGems} onRescue={rescueWord} difficulty={difficulty} lang={lang} />
+        <RescueGame words={gameWords} onDone={() => setScreen('home')} addGems={addGems} onRescue={rescueWord} onResult={recordWordResult} difficulty={difficulty} lang={lang} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -366,6 +459,9 @@ export default function Rescue({ onBack }) {
         </View>
 
         <Text style={s.diffLabel}>{lang === 'ar' ? 'مستوى الصعوبة' : 'Difficulty'}</Text>
+        <Text style={s.diffSubLabel}>
+          {lang === 'ar' ? 'كل مستوى بيغيّر الوقت ونوع التمارين مع بعض' : 'Each level changes both the time and the exercise mix'}
+        </Text>
         <View style={s.diffRow}>
           {DIFFICULTIES.map(d => (
             <TouchableOpacity
@@ -424,6 +520,7 @@ const s = StyleSheet.create({
   statCount:     { fontSize: 22, fontWeight: '800' },
   statLabel:     { fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 2 },
   diffLabel:     { fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 8 },
+  diffSubLabel:  { fontSize: 10, color: 'rgba(255,255,255,0.25)', marginBottom: 8, marginTop: -4 },
   diffRow:       { flexDirection: 'row', gap: 8, marginBottom: 16 },
   diffChip:      { flex: 1, alignItems: 'center', gap: 2, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 12, paddingVertical: 10 },
   diffChipActive:{ borderColor: '#c0392b', backgroundColor: 'rgba(192,57,43,0.15)' },
