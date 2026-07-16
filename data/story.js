@@ -88,3 +88,4 @@ export const FRIENDS = [
   {id:3, name:'Khalid Al-Shamri', city:'Kuwait',    track:'🕵️', level:'Skilled Communicator', online:false},
   {id:4, name:'Mona Al-Harbi',    city:'Jeddah',    track:'⚖️', level:'Rising Speaker',       online:false},
 ];
+
