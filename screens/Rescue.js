@@ -7,6 +7,7 @@ import { PageHeader, BiboMsg, GemsBadge } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
 import BiboIcon from '../components/BiboIcon';
 import { playSfx } from '../utils/sfx';
+import { playMoodAmbient, stopAmbient } from '../utils/ambientMusic';
 import { speakWord } from '../utils/episodeAudio';
 
 // كل مستوى صعوبة بقى يأثر على ٣ حاجات مش بس الوقت: مزيج أنواع التمارين
@@ -109,7 +110,7 @@ function RescueGame({ words, onDone, addGems, onRescue, onResult, difficulty, la
   }
 
   // صفارة إنذار خفيفة عند بدء مهمة الإنقاذ
-  useEffect(() => { playSfx('rescueStart'); }, []);
+  useEffect(() => { playSfx('rescueGameStart'); playMoodAmbient('rescueStart'); return () => stopAmbient(); }, []);
 
   // مؤقت زمني يعتمد على مستوى الصعوبة المختار
   useEffect(() => {
@@ -159,7 +160,9 @@ function RescueGame({ words, onDone, addGems, onRescue, onResult, difficulty, la
       setChosen(null); setTyped(''); setTypedResult(null);
       const isLast = idx + 1 >= q.length;
       if (isLast) {
-        playSfx(score + (correct ? 1 : 0) >= q.length / 2 ? 'win' : 'lose');
+        const finalScore = score + (correct ? 1 : 0);
+        playSfx(finalScore >= q.length / 2 ? 'win' : 'gameOver');
+        if (finalScore >= q.length / 2) playMoodAmbient('rescueSuccess'); else stopAmbient();
         setDone(true);
       } else setIdx(i => i + 1);
     }, correct ? 800 : 1700); // وقت أطول بعد الغلط عشان يقدر يقرأ التغذية الراجعة المفصّلة
@@ -180,7 +183,7 @@ function RescueGame({ words, onDone, addGems, onRescue, onResult, difficulty, la
     const correct = opt.id === cur.id;
     onResult && onResult(cur.trackId, cur.wordId, correct);
     if (correct) {
-      playSfx('rescueSuccess');
+      playSfx('collect');
       setScore(s => s + 1);
       const newCombo = combo + 1;
       setCombo(newCombo);
@@ -199,7 +202,7 @@ function RescueGame({ words, onDone, addGems, onRescue, onResult, difficulty, la
     setTypedResult(correct ? 'ok' : 'bad');
     onResult && onResult(cur.trackId, cur.wordId, correct);
     if (correct) {
-      playSfx('rescueSuccess');
+      playSfx('collect');
       setScore(s => s + 1);
       const newCombo = combo + 1;
       setCombo(newCombo);

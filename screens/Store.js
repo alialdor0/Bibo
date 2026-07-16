@@ -51,7 +51,7 @@ export function GiftBox({ visible, lang, rewards, title, onOpened, onClose }) {
   const handleOpen = () => {
     if (phase !== 'idle') return;
     setPhase('shaking');
-    playSfx('wrong'); // نقرة إحساس بالتوتر قبل الفتح — بديل مؤقت لصوت اهتزاز مخصص
+    playSfx('pageTurn'); // نقرة إحساس بالتوتر قبل الفتح
     Animated.sequence([
       Animated.timing(shakeAnim, { toValue: 1,  duration: 60, useNativeDriver: true }),
       Animated.timing(shakeAnim, { toValue: -1, duration: 60, useNativeDriver: true }),
@@ -63,7 +63,7 @@ export function GiftBox({ visible, lang, rewards, title, onOpened, onClose }) {
       setPhase('burst');
       const picked = rewards[Math.floor(Math.random() * rewards.length)];
       setReward(picked);
-      playSfx('win');
+      playSfx('giftOpen');
 
       Animated.parallel([
         Animated.timing(boxScale,   { toValue: 1.4, duration: 220, useNativeDriver: true }),
@@ -173,7 +173,7 @@ export default function Store({ onBack }) {
         { text: lang === 'ar' ? 'إلغاء' : 'Cancel', style: 'cancel' },
         { text: lang === 'ar' ? 'شراء' : 'Buy', onPress: () => {
           const success = buyItem(item);
-          if (success) { playSfx('win'); Alert.alert(lang === 'ar' ? 'تم الشراء!' : 'Purchased!', (lang === 'ar' ? item.nameAr : item.name) + (lang === 'ar' ? ' أصبح ضمن قرطاسيتك.' : ' is now in your stationery.')); }
+          if (success) { playSfx('purchase'); Alert.alert(lang === 'ar' ? 'تم الشراء!' : 'Purchased!', (lang === 'ar' ? item.nameAr : item.name) + (lang === 'ar' ? ' أصبح ضمن قرطاسيتك.' : ' is now in your stationery.')); }
           else playSfx('wrong');
         }},
       ]
@@ -197,7 +197,7 @@ export default function Store({ onBack }) {
         { text: lang === 'ar' ? 'إلغاء' : 'Cancel', style: 'cancel' },
         { text: lang === 'ar' ? 'شراء' : 'Buy', onPress: () => {
           const success = buyCosmetic(item);
-          if (success) { playSfx('win'); equipCosmetic(item.slot, item.id); }
+          if (success) { playSfx('purchase'); equipCosmetic(item.slot, item.id); }
           else playSfx('wrong');
         }},
       ]

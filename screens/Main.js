@@ -35,7 +35,7 @@ function HomeTab({ onNav }) {
   const u = user || { fullName: 'Ali', levelTitle: { en: 'Novice Writer', color: '#8B4513' } };
   const tr = track || { icon: '🕵️', name: 'Spy & Mystery', color: '#C0C0C0' };
 
-  useEffect(() => { if (pendingBadge) playSfx('win'); }, [pendingBadge]);
+  useEffect(() => { if (pendingBadge) playSfx('badgeUnlock'); }, [pendingBadge]);
 
   const wordsLearned = new Set((library || []).flatMap(b => (b.words || []).map(w => w.word))).size;
   const episodesDone = (library || []).length;
@@ -542,10 +542,9 @@ function ProfileTab({ onBack, onNav }) {
 }
 
 function SettingsTab({ onBack }) {
-  const { lang, setLang, logout, voiceOn, setVoiceOn, track, setTrack, user, setUser } = useApp();
+  const { lang, setLang, logout, voiceOn, setVoiceOn, sfxOn, setSfxOn, track, setTrack, user, setUser } = useApp();
   const T = (k) => t(k, lang);
 
-  const [sound,     setSound]     = useState(true);
   const [vib,       setVib]       = useState(true);
   const [notif,     setNotif]     = useState(true);
   const [dark,      setDark]      = useState(true);
@@ -699,7 +698,7 @@ function SettingsTab({ onBack }) {
         <View style={s.settingSection}>
           <Text style={s.settingSectionTitle}>🔊 {T('sound')}</Text>
           {[
-            { label: 'Sound Effects', val: sound,  set: setSound  },
+            { label: 'Sound Effects', val: sfxOn,  set: setSfxOn  },
             { label: 'Bibo Voice',    val: voiceOn, set: setVoiceOn },
             { label: 'Vibration',     val: vib,    set: setVib    },
           ].map(item => (

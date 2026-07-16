@@ -5,6 +5,7 @@ import { t, TRACKS } from '../data';
 import { getEpisode, getTotalEpisodes } from '../data/episodes';
 import { buildTemplateVars, fillDeep } from '../utils/templateEngine';
 import { speakWord } from '../utils/episodeAudio';
+import { playTrackAmbient, stopAmbient } from '../utils/ambientMusic';
 import { PageHeader, GemsBadge } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
 import BiboIcon from '../components/BiboIcon';
@@ -16,9 +17,9 @@ function TutorialScreen({ lang, onDone }) {
     { icon: '🤝', title: lang === 'ar' ? 'التعاون مع بيبو' : 'Co-op with Bibo',
       body: lang === 'ar' ? 'أنت وبيبو تعيشان نفس حلقات قصتك الحقيقية معًا، بداية من الحلقة الأولى.' : 'You and Bibo go through your real story episodes together, starting from Episode 1.' },
     { icon: '👤', title: lang === 'ar' ? 'دورك' : 'Your role',
-      body: lang === 'ar' ? 'تكتب الكلمة المهمة في كل جملة من القصة — نفس الكلمات اللي بتتعلمها بالحلقة.' : 'You type the key word in each real story line — the same vocabulary from the episode.' },
+      body: lang === 'ar' ? 'في نص الجمل، تكتب أنت الكلمة المهمة — نفس الكلمات اللي بتتعلمها بالحلقة.' : 'On half the lines, you type the key word — the same vocabulary from the episode.' },
     { icon: null, iconIsBibo: true, title: lang === 'ar' ? 'دور بيبو' : "Bibo's role",
-      body: lang === 'ar' ? 'بيبو يقرأ كل جملة بصوته بعد ما تخلّصها، ويوريك ترجمتها بالعربي.' : 'Bibo reads each line aloud once you finish it, and shows you its Arabic meaning.' },
+      body: lang === 'ar' ? 'في النص التاني، بيبو هو اللي بيكتب الكلمة! تتفرّج عليه وهو بيكتبها، وبعدين يقراها بصوته مع ترجمتها.' : "On the other half, Bibo writes the word himself! Watch him write it, then he reads the line aloud with its translation." },
     { icon: '🎬', title: lang === 'ar' ? 'حلقة بعد حلقة' : 'Episode after episode',
       body: lang === 'ar' ? 'أول ما تخلّصوا حلقة، تقدروا تكملوا للحلقة اللي بعدها فورًا.' : 'As soon as you finish an episode, you can continue straight to the next one.' },
     { icon: '🏆', title: lang === 'ar' ? 'تعلّم مع بيبو' : 'Learn Together',
@@ -75,13 +76,18 @@ function CoopGame({ trackId, lang, user, onEnd, addGems }) {
   const [typed,     setTyped]     = useState('');
   const [done,      setDone]      = useState([]);
   const [showBibo,  setShowBibo]  = useState(false);
+  const [biboWriting, setBiboWriting] = useState(false); // بيبو بيكتب كلمته في دوره
   const [episodeOver, setEpisodeOver] = useState(false);
   const [seasonOver,  setSeasonOver]  = useState(false);
   const autoSkipRef = useRef(new Set());
+  const biboTurnRef = useRef(new Set());
 
   const line = lines[lineIdx] || null;
   const lineWords = (line?.words || []).map(w => w.word);
   const currentWord = lineWords[wordIdx] || '';
+  const isBiboTurn = lineIdx % 2 === 1; // تبادل الأدوار: أسطر زوجية لك، أسطر فردية لبيبو
+
+  useEffect(() => { playTrackAmbient(trackId); return () => stopAmbient(); }, [trackId]);
 
   const advanceLine = () => {
     setShowBibo(true);
@@ -92,7 +98,7 @@ function CoopGame({ trackId, lang, user, onEnd, addGems }) {
       setDone(prev => [...prev, lineIdx]);
       const nextLine = lineIdx + 1;
       if (nextLine >= lines.length) {
-        playSfx('win');
+        playSfx('coopWin');
         if (episodeNum >= totalEpisodes) setSeasonOver(true);
         else setEpisodeOver(true);
       } else { setLineIdx(nextLine); setWordIdx(0); }
@@ -100,7 +106,7 @@ function CoopGame({ trackId, lang, user, onEnd, addGems }) {
   };
 
   // بعض الجمل ممكن متكونش فيها كلمة مفردات جديدة (سطر ربط سردي) — بيبو يقرأها
-  // على طول من غير ما يستنى كتابة
+  // على طول من غير ما يستنى كتابة (من أي طرف)
   useEffect(() => {
     if (!line) return;
     const key = `${episodeNum}-${lineIdx}`;
@@ -111,8 +117,26 @@ function CoopGame({ trackId, lang, user, onEnd, addGems }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lineIdx, episodeNum, episode]);
 
+  // دور بيبو: هو اللي "بيكتب" كلمة السطر ده — بيبيّن مؤشر كتابة لحظات، وبعدين
+  // يكتبها فعليًا، بدل ما يكون المستخدم هو الوحيد اللي بيكتب طول الوقت
+  useEffect(() => {
+    if (!line || lineWords.length === 0 || !isBiboTurn) return;
+    const key = `${episodeNum}-${lineIdx}`;
+    if (biboTurnRef.current.has(key)) return;
+    biboTurnRef.current.add(key);
+    setBiboWriting(true);
+    setWordIdx(0);
+    const t = setTimeout(() => {
+      setBiboWriting(false);
+      setWordIdx(lineWords.length);
+      advanceLine();
+    }, 1500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lineIdx, episodeNum, episode, isBiboTurn]);
+
   const checkWord = () => {
-    if (!currentWord) return;
+    if (isBiboTurn || !currentWord) return;
     if (typed.trim().toLowerCase() !== currentWord.toLowerCase()) { setTyped(''); playSfx('wrong'); return; }
     setTyped(''); playSfx('correct');
     const nextWord = wordIdx + 1;
@@ -183,7 +207,10 @@ function CoopGame({ trackId, lang, user, onEnd, addGems }) {
           </View>
           {lines.map((l, i) => (
             <View key={String(i)} style={s.doneLineWrap}>
-              <Text style={s.doneHero}>{l.text}</Text>
+              <View style={s.doneTurnRow}>
+                {i % 2 === 1 ? <BiboIcon size={14} /> : <Text style={s.doneTurnEmoji}>👤</Text>}
+                <Text style={s.doneHero}> {l.text}</Text>
+              </View>
               <View style={s.donePartnerRow}>
                 <BiboCharacter state="idea" size={20} silent showCosmetics={false} />
                 <Text style={s.donePartner}>{l.arabic}</Text>
@@ -226,7 +253,10 @@ function CoopGame({ trackId, lang, user, onEnd, addGems }) {
       <ScrollView contentContainerStyle={s.gameContent}>
         {done.map(i => (
           <View key={String(i)} style={s.doneLine}>
-            <Text style={s.doneHeroSmall}>{'✅ ' + lines[i].text}</Text>
+            <View style={s.doneTurnRow}>
+              {i % 2 === 1 ? <BiboIcon size={13} /> : <Text style={s.doneTurnEmoji}>👤</Text>}
+              <Text style={s.doneHeroSmall}> {lines[i].text}</Text>
+            </View>
             <View style={s.donePartnerSmallRow}>
               <BiboCharacter state="idea" size={16} silent showCosmetics={false} />
               <Text style={s.donePartnerSmall}>{lines[i].arabic}</Text>
@@ -236,26 +266,52 @@ function CoopGame({ trackId, lang, user, onEnd, addGems }) {
 
         {line && lineWords.length > 0 ? (
           <View style={[s.currentCard, { borderColor: track.color + '44' }]}>
-            <Text style={[s.currentLabel, { color: track.color }]}>{lang === 'ar' ? 'دورك: اكتب الكلمة المضيئة' : 'Your turn: type the highlighted word'}</Text>
-            <Text style={s.currentStory}>{line.text}</Text>
-            <View style={s.wordsRow}>
-              {lineWords.map((w, i) => {
-                const st = i < wordIdx ? 'done' : i === wordIdx ? 'current' : 'pending';
-                return (
-                  <View key={String(i)} style={[s.wordChip, st === 'done' ? { borderColor: '#2E8B57', backgroundColor: 'rgba(46,139,87,0.15)' } : st === 'current' ? { borderColor: track.color, backgroundColor: track.color + '22' } : { borderColor: 'rgba(255,255,255,0.1)' }]}>
-                    <Text style={[s.wordTxt, st === 'done' ? { color: '#a5d6a7' } : st === 'current' ? { color: track.color, fontWeight: '700' } : { color: 'rgba(255,255,255,0.3)' }]}>{w}</Text>
-                  </View>
-                );
-              })}
-            </View>
-            <View style={s.inputRow}>
-              <TextInput style={s.gameInput} value={typed} onChangeText={setTyped} onSubmitEditing={checkWord}
-                placeholder={currentWord} placeholderTextColor="rgba(255,255,255,0.2)"
-                autoCapitalize="none" returnKeyType="done" />
-              <TouchableOpacity style={[s.checkBtn, { backgroundColor: track.color + 'cc' }]} onPress={checkWord}>
-                <Text style={s.checkBtnTxt}>✓</Text>
-              </TouchableOpacity>
-            </View>
+            {isBiboTurn ? (
+              <>
+                <View style={s.biboTurnHeader}>
+                  <BiboIcon size={22} />
+                  <Text style={[s.currentLabel, { color: track.color, marginBottom: 0, marginLeft: 8 }]}>
+                    {lang === 'ar' ? 'دور بيبو: هو اللي بيكتب المرة دي ✍️' : "Bibo's turn: he's writing this time ✍️"}
+                  </Text>
+                </View>
+                <Text style={s.currentStory}>{line.text}</Text>
+                <View style={s.wordsRow}>
+                  {lineWords.map((w, i) => (
+                    <View key={String(i)} style={[s.wordChip, biboWriting ? { borderColor: 'rgba(255,255,255,0.1)' } : { borderColor: track.color, backgroundColor: track.color + '22' }]}>
+                      <Text style={[s.wordTxt, biboWriting ? { color: 'rgba(255,255,255,0.25)' } : { color: track.color, fontWeight: '700' }]}>{biboWriting ? '?' : w}</Text>
+                    </View>
+                  ))}
+                </View>
+                {biboWriting ? (
+                  <Text style={s.biboWritingTxt}>{lang === 'ar' ? 'بيبو بيكتب الآن...' : 'Bibo is writing...'}</Text>
+                ) : (
+                  <Text style={s.biboWrittenTxt}>{lang === 'ar' ? 'بيبو كتبها! ✓' : 'Bibo wrote it! ✓'}</Text>
+                )}
+              </>
+            ) : (
+              <>
+                <Text style={[s.currentLabel, { color: track.color }]}>{lang === 'ar' ? 'دورك: اكتب الكلمة المضيئة' : 'Your turn: type the highlighted word'}</Text>
+                <Text style={s.currentStory}>{line.text}</Text>
+                <View style={s.wordsRow}>
+                  {lineWords.map((w, i) => {
+                    const st = i < wordIdx ? 'done' : i === wordIdx ? 'current' : 'pending';
+                    return (
+                      <View key={String(i)} style={[s.wordChip, st === 'done' ? { borderColor: '#2E8B57', backgroundColor: 'rgba(46,139,87,0.15)' } : st === 'current' ? { borderColor: track.color, backgroundColor: track.color + '22' } : { borderColor: 'rgba(255,255,255,0.1)' }]}>
+                        <Text style={[s.wordTxt, st === 'done' ? { color: '#a5d6a7' } : st === 'current' ? { color: track.color, fontWeight: '700' } : { color: 'rgba(255,255,255,0.3)' }]}>{w}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+                <View style={s.inputRow}>
+                  <TextInput style={s.gameInput} value={typed} onChangeText={setTyped} onSubmitEditing={checkWord}
+                    placeholder={currentWord} placeholderTextColor="rgba(255,255,255,0.2)"
+                    autoCapitalize="none" returnKeyType="done" />
+                  <TouchableOpacity style={[s.checkBtn, { backgroundColor: track.color + 'cc' }]} onPress={checkWord}>
+                    <Text style={s.checkBtnTxt}>✓</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
           </View>
         ) : null}
 
@@ -295,8 +351,8 @@ export default function Coop({ onBack }) {
           <Text style={s.explainTitle}>{lang === 'ar' ? 'عيش قصتك مع بيبو!' : 'Live your story with Bibo!'}</Text>
           <Text style={s.explainBody}>
             {lang === 'ar'
-              ? 'نفس حلقات قصتك الحقيقية، تبدأ من الحلقة الأولى — أنت تكتب الكلمات المهمة، وبيبو يقرأ كل جملة بصوته مع ترجمتها.'
-              : 'The same real story episodes, starting from Episode 1 — you type the key words, and Bibo reads each line aloud with its translation.'}
+              ? 'نفس حلقات قصتك الحقيقية، تبدأ من الحلقة الأولى — تتبادلوا الأدوار: أنت تكتب في نص الجمل، وبيبو يكتب في النص التاني، وكل واحد بيقرا جمله بصوته مع ترجمتها.'
+              : 'The same real story episodes, starting from Episode 1 — you take turns: you write half the lines, Bibo writes the other half, and each of you reads your lines aloud with translation.'}
           </Text>
           <TouchableOpacity style={s.tutBtn} onPress={() => setScreen('tutorial')}>
             <Text style={s.tutBtnTxt}>{lang === 'ar' ? 'كيف يعمل' : 'How it works'}</Text>
@@ -376,9 +432,14 @@ const s = StyleSheet.create({
   gameContent:     { padding: 16, paddingBottom: 40 },
   doneLine:        { marginBottom: 6, opacity: 0.45 },
   doneHeroSmall:   { fontSize: 12, color: '#a5d6a7', lineHeight: 18 },
+  doneTurnRow:     { flexDirection: 'row', alignItems: 'center' },
+  doneTurnEmoji:   { fontSize: 12 },
   donePartnerSmallRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 1 },
   donePartnerSmall:{ fontSize: 12, color: '#7fb3f5', lineHeight: 18, flexShrink: 1 },
   currentCard:     { borderWidth: 1, borderRadius: 14, padding: 14, marginBottom: 12 },
+  biboTurnHeader:  { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  biboWritingTxt:  { fontSize: 12, color: 'rgba(255,255,255,0.4)', fontStyle: 'italic', marginTop: 4 },
+  biboWrittenTxt:  { fontSize: 12, color: '#2E8B57', fontWeight: '700', marginTop: 4 },
   currentLabel:    { fontSize: 11, fontWeight: '700', marginBottom: 8 },
   currentStory:    { fontSize: 14, color: '#fff', fontStyle: 'italic', lineHeight: 22, marginBottom: 12 },
   wordsRow:        { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 },

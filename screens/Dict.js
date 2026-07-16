@@ -328,6 +328,8 @@ function Duel({ words, onDone, lang, addGems }) {
   const [burst,      setBurst]      = useState({ key: 0, emojis: [] });
   const [gift,       setGift]       = useState(null);
 
+  useEffect(() => { playSfx('duelStart'); }, []);
+
   const cur = rounds[idx];
   const isMyTurn = idx % 2 === 0;
   const opts = useRef(null);
@@ -510,7 +512,7 @@ function ClumsyBibo({ words, onDone, lang, addGems }) {
       const choice = wrong ? optsRef.current.find(w => w.id !== cur.id) : cur;
       setBiboPick(choice.id);
       setBiboWrong(wrong);
-      if (wrong) { fireBurst(['😵‍💫', '💥']); playSfx('wrong'); }
+      if (wrong) { fireBurst(['😵\u200d💫', '💥']); playSfx('mischief'); }
       else { fireBurst(['✨']); playSfx('correct'); }
       setPhase('bibo-answered');
       setTimeout(() => setPhase('user-turn'), wrong ? 1600 : 1200);
@@ -756,6 +758,8 @@ function SentenceDuel({ lang, onDone, addGems }) {
   const [phase,     setPhase]     = useState('mine'); // mine | bibo-thinking | bibo-result | done
   const [picked,    setPicked]    = useState([]);
   const [burst,     setBurst]     = useState({ key: 0, emojis: [] });
+
+  useEffect(() => { playSfx('duelStart'); }, []);
 
   const cur = rounds[idx];
   const isMyTurn = idx % 2 === 0;

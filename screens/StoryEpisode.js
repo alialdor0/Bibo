@@ -8,6 +8,7 @@ import { buildTemplateVars, fillDeep } from '../utils/templateEngine';
 import { biboSay } from '../data/biboPhrases';
 import { playSfx } from '../utils/sfx';
 import { speakWord, stopWordAudio } from '../utils/episodeAudio';
+import { playTrackAmbient, stopAmbient } from '../utils/ambientMusic';
 import BiboCharacter from '../components/BiboCharacter';
 import WordInfoModal from '../components/WordInfoModal';
 import Avatar from '../components/Avatar';
@@ -43,6 +44,11 @@ export default function StoryEpisode({ onLeave }) {
   const T = (k) => t(k, lang);
   const trackId = track?.id || 'spy';
 
+  useEffect(() => {
+    playTrackAmbient(trackId);
+    return () => stopAmbient();
+  }, [trackId]);
+
   const episodeState = getEpisodeState(trackId);
   const episodeNum = episodeState.unlocked || 1;
   const rawEpisode = getEpisode(trackId, episodeNum);
@@ -58,6 +64,7 @@ export default function StoryEpisode({ onLeave }) {
   const [chosen, setChosen] = useState(null);
   const [typed, setTyped] = useState('');
   const [feedback, setFeedback] = useState(null); // { type, msg }
+  const [awaitingContinue, setAwaitingContinue] = useState(false); // بعد إجابة غلط: التغذية الراجعة تفضل ظاهرة لحد ما المستخدم يضغط "متابعة" بنفسه (مهم لمستخدمي قارئ الشاشة اللي محتاجين وقت أطول)
   const [arrangePicked, setArrangePicked] = useState([]);
   const [arrangeHintIdx, setArrangeHintIdx] = useState(null); // فهرس الكلمة "المضيئة" كتلميح أول (بدون وضعها تلقائيًا)
   const [gemsThisEpisode, setGemsThisEpisode] = useState(0);
@@ -200,6 +207,7 @@ export default function StoryEpisode({ onLeave }) {
     setHintVisible(false);
     setEliminatedChoice(null);
     setArrangeHintIdx(null);
+    setAwaitingContinue(false);
   }, [lineIdx, wordIdx, phase]);
 
   // كل ما نتحرك لسطر جديد، سجل استخدام التلميح يترجع من الأول (لمكافأة "بدون تلميح")
@@ -210,8 +218,21 @@ export default function StoryEpisode({ onLeave }) {
   const flash = (ok, msgKey, fallbackCat) => {
     playSfx(ok ? 'correct' : 'wrong');
     setFeedback({ type: ok ? 'correct' : 'wrong', msg: bMsg(msgKey, fallbackCat) });
-    if (ok) runFlash(); else runShake();
-    setTimeout(() => setFeedback(null), ok ? 900 : 1800); // وقت أطول بعد الغلط عشان التغذية الراجعة المفصّلة تتقرا
+    if (ok) {
+      runFlash();
+      setTimeout(() => setFeedback(null), 900);
+    } else {
+      runShake();
+      setAwaitingContinue(true); // يفضل ظاهر لحد ما يضغط "متابعة" بنفسه
+    }
+  };
+
+  /** يُستدعى لما المستخدم يضغط "متابعة" بعد قراءة تصحيح الإجابة الغلط */
+  const handleContinueAfterWrong = () => {
+    setFeedback(null);
+    setAwaitingContinue(false);
+    setChosen(null);
+    setTyped('');
   };
 
   const awardGems = (n) => { addGems(n); setGemsThisEpisode(g => g + n); };
@@ -322,7 +343,7 @@ export default function StoryEpisode({ onLeave }) {
   };
 
   const finishEpisode = () => {
-    playSfx('win');
+    playSfx('bigWin');
     completeEpisode(trackId, episodeNum);
     AsyncStorage.removeItem(progressKey).catch(() => {});
     const allWords = lines.flatMap(l => l.words || []);
@@ -349,19 +370,20 @@ export default function StoryEpisode({ onLeave }) {
   };
 
   const handleChoice = (opt) => {
-    if (chosen) return;
+    if (chosen || awaitingContinue) return;
     setChosen(opt);
     const ok = opt === (directionRef.current === 'toArabic' ? word.ar : word.word);
     recordAnswer(ok);
     flash(ok, ok ? 'correct_answer' : 'wrong_answer', ok ? 'correct' : 'wrong');
-    if (ok) awardGems(1);
-    setTimeout(() => {
-      if (ok) { setPhase('blank'); setChosen(null); }
-      else setChosen(null);
-    }, ok ? 800 : 1800);
+    if (ok) {
+      awardGems(1);
+      setTimeout(() => { setPhase('blank'); setChosen(null); }, 800);
+    }
+    // لو غلط: هيفضل الاختيار معطّل والتغذية الراجعة ظاهرة لحد ما يضغط "متابعة"
   };
 
   const checkBlank = () => {
+    if (awaitingContinue) return;
     const ok = typed.trim().toLowerCase() === word.word.toLowerCase();
     recordAnswer(ok);
     flash(ok, ok ? 'correct_answer' : 'wrong_answer', ok ? 'correct' : 'wrong');
@@ -374,7 +396,8 @@ export default function StoryEpisode({ onLeave }) {
         episode.word_expiry?.non_protected_expire_after_episode
       );
       setTimeout(advanceAfterWord, 800);
-    } else setTimeout(() => setTyped(''), 1800);
+    }
+    // لو غلط: هيفضل التغذية الراجعة ظاهرة لحد ما يضغط "متابعة"
   };
 
   const pickArrangeWord = (w, idx) => {
@@ -630,8 +653,9 @@ export default function StoryEpisode({ onLeave }) {
             placeholderTextColor="rgba(255,255,255,0.25)"
             autoCapitalize="none"
             returnKeyType="done"
+            editable={!awaitingContinue}
           />
-          <TouchableOpacity style={s.checkBtn} onPress={checkBlank}>
+          <TouchableOpacity style={[s.checkBtn, awaitingContinue ? { opacity: 0.4 } : null]} onPress={checkBlank} disabled={awaitingContinue}>
             <Text style={s.checkBtnTxt}>✓</Text>
           </TouchableOpacity>
         </View>
@@ -739,6 +763,15 @@ export default function StoryEpisode({ onLeave }) {
                 {word.grammar ? <Text style={s.wordFeedbackGrammar}>{word.grammar}</Text> : null}
               </View>
             </View>
+            <TouchableOpacity
+              style={s.wordFeedbackContinueBtn}
+              onPress={handleContinueAfterWrong}
+              accessible={true}
+              accessibilityRole="button"
+              accessibilityLabel={lang === 'ar' ? 'متابعة' : 'Continue'}
+            >
+              <Text style={s.wordFeedbackContinueTxt}>{lang === 'ar' ? 'متابعة ←' : 'Continue ←'}</Text>
+            </TouchableOpacity>
           </View>
         ) : null}
       </ScrollView>
@@ -787,6 +820,8 @@ const s = StyleSheet.create({
   wordFeedbackPron:  { fontSize: 12, fontWeight: '400', color: 'rgba(255,255,255,0.4)' },
   wordFeedbackAr:    { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
   wordFeedbackGrammar: { fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2, fontStyle: 'italic' },
+  wordFeedbackContinueBtn: { backgroundColor: '#2E8B57', borderRadius: 10, paddingVertical: 11, alignItems: 'center', marginTop: 12 },
+  wordFeedbackContinueTxt: { color: '#fff', fontSize: 14, fontWeight: '800' },
   partnerCard:     { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 14, padding: 10, marginBottom: 10 },
   partnerName:     { color: '#fff', fontWeight: '800', fontSize: 13 },
   partnerLoc:      { color: 'rgba(255,255,255,0.45)', fontSize: 11, marginTop: 1 },
