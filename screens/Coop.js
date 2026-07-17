@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, Alert } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { t, TRACKS } from '../data';
@@ -15,15 +15,15 @@ function TutorialScreen({ lang, onDone }) {
   const [page, setPage] = useState(0);
   const PAGES = [
     { icon: '🤝', title: lang === 'ar' ? 'التعاون مع بيبو' : 'Co-op with Bibo',
-      body: lang === 'ar' ? 'أنت وبيبو تعيشان نفس حلقات قصتك الحقيقية معًا، بداية من الحلقة الأولى.' : 'You and Bibo go through your real story episodes together, starting from Episode 1.' },
+      body: lang === 'ar' ? 'تعيشان معًا حلقات قصتك الحقيقية نفسها، ابتداءً من الحلقة الأولى.' : 'You and Bibo go through your real story episodes together, starting from Episode 1.' },
     { icon: '👤', title: lang === 'ar' ? 'دورك' : 'Your role',
-      body: lang === 'ar' ? 'في نص الجمل، تكتب أنت الكلمة المهمة — نفس الكلمات اللي بتتعلمها بالحلقة.' : 'On half the lines, you type the key word — the same vocabulary from the episode.' },
+      body: lang === 'ar' ? 'في نصف الجمل، تكتب أنت الكلمة المهمة، وهي نفس الكلمات التي تتعلمها في الحلقة.' : 'On half the lines, you type the key word — the same vocabulary from the episode.' },
     { icon: null, iconIsBibo: true, title: lang === 'ar' ? 'دور بيبو' : "Bibo's role",
-      body: lang === 'ar' ? 'في النص التاني، بيبو هو اللي بيكتب الكلمة! تتفرّج عليه وهو بيكتبها، وبعدين يقراها بصوته مع ترجمتها.' : "On the other half, Bibo writes the word himself! Watch him write it, then he reads the line aloud with its translation." },
+      body: lang === 'ar' ? 'وفي النصف الآخر، بيبو هو الذي يكتب الكلمة! تشاهده وهو يكتبها، ثم يقرأ الجملة بصوته مع ترجمتها.' : "On the other half, Bibo writes the word himself! Watch him write it, then he reads the line aloud with its translation." },
     { icon: '🎬', title: lang === 'ar' ? 'حلقة بعد حلقة' : 'Episode after episode',
-      body: lang === 'ar' ? 'أول ما تخلّصوا حلقة، تقدروا تكملوا للحلقة اللي بعدها فورًا.' : 'As soon as you finish an episode, you can continue straight to the next one.' },
+      body: lang === 'ar' ? 'بمجرد أن تنتهيا من حلقة، يمكنكما الانتقال إلى الحلقة التالية فورًا.' : 'As soon as you finish an episode, you can continue straight to the next one.' },
     { icon: '🏆', title: lang === 'ar' ? 'تعلّم مع بيبو' : 'Learn Together',
-      body: lang === 'ar' ? 'تكسب جواهر مع كل جملة وكل حلقة تكملها مع بيبو!' : 'Earn gems with every line and every episode you finish with Bibo!' },
+      body: lang === 'ar' ? 'تكسب الجواهر مع كل جملة وكل حلقة تكملها مع بيبو!' : 'Earn gems with every line and every episode you finish with Bibo!' },
   ];
   const p = PAGES[page];
   return (
@@ -48,7 +48,7 @@ function TutorialScreen({ lang, onDone }) {
             </TouchableOpacity>
           ) : <View style={{ width: 80 }} />}
           <TouchableOpacity style={s.tutNextBtn} onPress={() => page === PAGES.length - 1 ? onDone() : setPage(page + 1)}>
-            <Text style={s.tutNextTxt}>{page === PAGES.length - 1 ? (lang === 'ar' ? 'هيا نبدأ! 🚀' : "Let's go! 🚀") : (lang === 'ar' ? 'التالي →' : 'Next →')}</Text>
+            <Text style={s.tutNextTxt}>{page === PAGES.length - 1 ? (lang === 'ar' ? 'لنبدأ الآن! 🚀' : "Let's go! 🚀") : (lang === 'ar' ? 'التالي →' : 'Next →')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -63,12 +63,12 @@ function TutorialScreen({ lang, onDone }) {
  */
 function CoopGame({ trackId, lang, user, onEnd, addGems }) {
   const track = TRACKS.find(tr => tr.id === trackId) || TRACKS[0];
-  const vars = buildTemplateVars(user);
+  const vars = useMemo(() => buildTemplateVars(user), [user]);
   const totalEpisodes = getTotalEpisodes(trackId);
 
   const [episodeNum, setEpisodeNum] = useState(1);
   const rawEpisode = getEpisode(trackId, episodeNum);
-  const episode = rawEpisode ? fillDeep(rawEpisode, vars) : null;
+  const episode = useMemo(() => (rawEpisode ? fillDeep(rawEpisode, vars) : null), [rawEpisode, vars]);
   const lines = episode?.lines || [];
 
   const [lineIdx,   setLineIdx]   = useState(0);
@@ -179,7 +179,7 @@ function CoopGame({ trackId, lang, user, onEnd, addGems }) {
     return (
       <SafeAreaView style={s.safe}>
         <ScrollView contentContainerStyle={s.doneWrap}>
-          <BiboCharacter state="celebrate" size={80} message={lang === 'ar' ? 'أكملنا الموسم كله سوا! 🏆' : 'We finished the whole season together! 🏆'} />
+          <BiboCharacter state="celebrate" size={80} message={lang === 'ar' ? 'أكملنا الموسم بأكمله معًا! 🏆' : 'We finished the whole season together! 🏆'} />
           <Text style={s.doneTitle}>{lang === 'ar' ? 'الموسم اكتمل!' : 'Season Complete!'}</Text>
           <View style={[s.trackBadge, { borderColor: track.color }]}>
             <Text style={[s.trackBadgeTxt, { color: track.color }]}>{track.icon} {lang === 'ar' ? track.nameAr : track.name}</Text>
@@ -197,7 +197,7 @@ function CoopGame({ trackId, lang, user, onEnd, addGems }) {
     return (
       <SafeAreaView style={s.safe}>
         <ScrollView contentContainerStyle={s.doneWrap}>
-          <BiboCharacter state="celebrate" size={80} message={lang === 'ar' ? 'حلقة رهيبة! 🎉' : 'Great episode! 🎉'} />
+          <BiboCharacter state="celebrate" size={80} message={lang === 'ar' ? 'حلقة رائعة! 🎉' : 'Great episode! 🎉'} />
           <Text style={s.doneTitle}>
             {lang === 'ar' ? `الحلقة ${episodeNum} اكتملت!` : `Episode ${episodeNum} complete!`}
           </Text>
@@ -271,7 +271,7 @@ function CoopGame({ trackId, lang, user, onEnd, addGems }) {
                 <View style={s.biboTurnHeader}>
                   <BiboIcon size={22} />
                   <Text style={[s.currentLabel, { color: track.color, marginBottom: 0, marginLeft: 8 }]}>
-                    {lang === 'ar' ? 'دور بيبو: هو اللي بيكتب المرة دي ✍️' : "Bibo's turn: he's writing this time ✍️"}
+                    {lang === 'ar' ? 'دور بيبو: هو من يكتب في هذه المرة ✍️' : "Bibo's turn: he's writing this time ✍️"}
                   </Text>
                 </View>
                 <Text style={s.currentStory}>{line.text}</Text>
@@ -283,7 +283,7 @@ function CoopGame({ trackId, lang, user, onEnd, addGems }) {
                   ))}
                 </View>
                 {biboWriting ? (
-                  <Text style={s.biboWritingTxt}>{lang === 'ar' ? 'بيبو بيكتب الآن...' : 'Bibo is writing...'}</Text>
+                  <Text style={s.biboWritingTxt}>{lang === 'ar' ? 'بيبو يكتب الآن...' : 'Bibo is writing...'}</Text>
                 ) : (
                   <Text style={s.biboWrittenTxt}>{lang === 'ar' ? 'بيبو كتبها! ✓' : 'Bibo wrote it! ✓'}</Text>
                 )}
@@ -319,7 +319,7 @@ function CoopGame({ trackId, lang, user, onEnd, addGems }) {
           <View style={[s.partnerCard, { borderColor: track.color + '44', backgroundColor: track.color + '12' }]}>
             <BiboCharacter layout="row" size={44} state="encourage" />
             <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={[s.partnerLabel, { color: track.color }]}>{lang === 'ar' ? 'بيبو يقرأ السطر معاك 🔊' : 'Bibo reads the line with you 🔊'}</Text>
+              <Text style={[s.partnerLabel, { color: track.color }]}>{lang === 'ar' ? 'بيبو يقرأ السطر معك 🔊' : 'Bibo reads the line with you 🔊'}</Text>
               <Text style={s.partnerText}>{line?.text}</Text>
               <Text style={s.partnerTextAr}>{line?.arabic}</Text>
             </View>
@@ -348,10 +348,10 @@ export default function Coop({ onBack }) {
       <ScrollView contentContainerStyle={s.pageContent}>
         <View style={[s.explainCard, { borderColor: track.color + '44' }]}>
           <BiboCharacter state="welcome" size={64} style={{ marginBottom: 12 }} />
-          <Text style={s.explainTitle}>{lang === 'ar' ? 'عيش قصتك مع بيبو!' : 'Live your story with Bibo!'}</Text>
+          <Text style={s.explainTitle}>{lang === 'ar' ? 'عِش قصتك مع بيبو!' : 'Live your story with Bibo!'}</Text>
           <Text style={s.explainBody}>
             {lang === 'ar'
-              ? 'نفس حلقات قصتك الحقيقية، تبدأ من الحلقة الأولى — تتبادلوا الأدوار: أنت تكتب في نص الجمل، وبيبو يكتب في النص التاني، وكل واحد بيقرا جمله بصوته مع ترجمتها.'
+              ? 'نفس حلقات قصتك الحقيقية، تبدأ من الحلقة الأولى — تتبادلان الأدوار: تكتب أنت نصف الجمل، ويكتب بيبو النصف الآخر، ويقرأ كل منكما جمله بصوته مع ترجمتها.'
               : 'The same real story episodes, starting from Episode 1 — you take turns: you write half the lines, Bibo writes the other half, and each of you reads your lines aloud with translation.'}
           </Text>
           <TouchableOpacity style={s.tutBtn} onPress={() => setScreen('tutorial')}>
