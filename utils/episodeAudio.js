@@ -17,10 +17,12 @@ function speakFallback(word, onDone) {
 }
 
 let currentPlayer = null;
+let currentListener = null;
 let fallbackTimer = null;
 
 function cleanupPlayer() {
   if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null; }
+  if (currentListener) { try { currentListener.remove(); } catch (e) {} currentListener = null; }
   if (currentPlayer) {
     try { currentPlayer.release(); } catch (e) {}
     currentPlayer = null;
@@ -57,7 +59,7 @@ export function speakWord(word, audioUrl, onDone) {
     // نرجع لنطق الجهاز فورًا بدل ما يحس المستخدم بأي تعليق
     fallbackTimer = setTimeout(() => finishOnce(true), 1200);
 
-    player.addListener('playbackStatusUpdate', (status) => {
+    currentListener = player.addListener('playbackStatusUpdate', (status) => {
       if (status.playbackState === 'error') {
         finishOnce(true);
         return;
