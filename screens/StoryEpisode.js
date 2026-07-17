@@ -50,7 +50,12 @@ export default function StoryEpisode({ onLeave }) {
   }, [trackId]);
 
   const episodeState = getEpisodeState(trackId);
-  const episodeNum = episodeState.unlocked || 1;
+  // ملاحظة مهمة: episodeNum لازم يكون حالة محلية ثابتة، مش قيمة مشتقة مباشرة من
+  // السياق (episodeState.unlocked). لو سبناها مشتقة، أول ما completeEpisode()
+  // يشتغل (بيرفع unlocked فورًا)، الشاشة هتتحول تلقائيًا لبيانات الحلقة الجاية
+  // وسط شاشة الاحتفال بالحلقة اللي خلصت — وده بالظبط اللي كان بيحصل (قفزة فجائية
+  // لمفردات الحلقة التالية بدل ما تفضل شاشة "أنهيت الحلقة" ظاهرة).
+  const [episodeNum, setEpisodeNum] = useState(() => episodeState.unlocked || 1);
   const rawEpisode = getEpisode(trackId, episodeNum);
   const totalEpisodes = getTotalEpisodes(trackId);
 
@@ -81,6 +86,14 @@ export default function StoryEpisode({ onLeave }) {
   const startTimeRef = useRef(null); // وقت بداية الحلقة الفعلي (لحساب مدة الإنجاز)
   const answerStatsRef = useRef({ correct: 0, total: 0 }); // إحصائية دقة الإجابات
   const shakeAnim = useRef(new Animated.Value(0)).current;
+  const phaseFadeAnim = useRef(new Animated.Value(1)).current;
+
+  // لمسة انتقال ناعمة (fade) كل ما نتحرك لمرحلة جديدة (سياق/اختيار/فراغ/ترتيب)
+  // بدل التبديل الفجائي — بيحسّن الإحساس بسلاسة التنقل
+  useEffect(() => {
+    phaseFadeAnim.setValue(0);
+    Animated.timing(phaseFadeAnim, { toValue: 1, duration: 220, useNativeDriver: true }).start();
+  }, [phase, lineIdx, wordIdx]);
   const flashAnim = useRef(new Animated.Value(0)).current;
 
   const runShake = () => {
@@ -369,6 +382,30 @@ export default function StoryEpisode({ onLeave }) {
     setPhase('done');
   };
 
+  /** الانتقال للحلقة التالية مباشرة من شاشة "أنهيت الحلقة" — بيصفّر كل حالة اللعب المحلية */
+  const goToNextEpisode = () => {
+    setEpisodeNum(n => n + 1);
+    setStarted(false);
+    setLineIdx(0);
+    setWordIdx(0);
+    setPhase('context');
+    setChosen(null);
+    setTyped('');
+    setFeedback(null);
+    setAwaitingContinue(false);
+    setArrangePicked([]);
+    setArrangeHintIdx(null);
+    setGemsThisEpisode(0);
+    setHintVisible(false);
+    setEliminatedChoice(null);
+    setLineHintUsed(false);
+    setShowCinema(false);
+    setChoices([]);
+    setArrangeOpts([]);
+    startTimeRef.current = null;
+    answerStatsRef.current = { correct: 0, total: 0 };
+  };
+
   const handleChoice = (opt) => {
     if (chosen || awaitingContinue) return;
     setChosen(opt);
@@ -464,6 +501,7 @@ export default function StoryEpisode({ onLeave }) {
   // ── خلصت الحلقة ──
   if (phase === 'done') {
     const next = episode.next_episode;
+    const hasNextEpisode = episodeNum < totalEpisodes;
     return (
       <SafeAreaView style={s.safe}>
         <ScrollView contentContainerStyle={s.center}>
@@ -497,29 +535,34 @@ export default function StoryEpisode({ onLeave }) {
             onClose={() => setShowLessonGift(false)}
           />
 
-          <View style={s.wordsSummaryCard}>
-            <Text style={s.wordsSummaryTitle}>{lang === 'ar' ? 'الكلمات التي تعلّمتها 🌟' : 'Words you learned 🌟'}</Text>
-            <View style={s.wordsSummaryGrid}>
-              {lines.flatMap(l => l.words || []).map((w, i) => (
-                <View key={String(w.id) + i} style={s.wordsSummaryChip}>
-                  <Text style={s.wordsSummaryEmoji}>{w.emoji}</Text>
-                  <Text style={s.wordsSummaryTxt}>{w.word}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-          {next ? (
-            <View style={s.nextCard}>
-              <Text style={s.nextLabel}>{lang === 'ar' ? 'الحلقة الجاية' : 'Next episode'}</Text>
-              <Text style={s.nextTitle}>{lang === 'ar' ? next.title_arabic : next.title}</Text>
-              <Text style={s.nextPreview}>{next.preview}</Text>
-            </View>
-          ) : null}
-          <TouchableOpacity style={s.cinemaBtn} onPress={() => setShowCinema(true)}>
+          <TouchableOpacity style={s.cinemaBtn} onPress={() => setShowCinema(true)} accessible={true} accessibilityRole="button">
             <Text style={s.cinemaBtnTxt}>🎬 {lang === 'ar' ? 'اقرأ القصة كاملة' : 'Read the full story'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.restartBtn} onPress={onLeave}>
-            <Text style={s.restartTxt}>{lang === 'ar' ? 'رجوع للرئيسية' : 'Back to Home'}</Text>
+
+          {hasNextEpisode && next ? (
+            <TouchableOpacity
+              style={s.nextCard}
+              onPress={goToNextEpisode}
+              accessible={true}
+              accessibilityRole="button"
+              accessibilityLabel={(lang === 'ar' ? 'المتابعة للحلقة التالية: ' : 'Continue to next episode: ') + (lang === 'ar' ? next.title_arabic : next.title)}
+            >
+              <Text style={s.nextLabel}>{lang === 'ar' ? 'الحلقة التالية' : 'Next episode'}</Text>
+              <Text style={s.nextTitle}>{lang === 'ar' ? next.title_arabic : next.title}</Text>
+              <Text style={s.nextPreview}>{next.preview}</Text>
+              <View style={s.nextBtnRow}>
+                <Text style={s.nextBtnTxt}>{lang === 'ar' ? 'متابعة الآن ←' : 'Continue now ←'}</Text>
+              </View>
+            </TouchableOpacity>
+          ) : (
+            <View style={s.nextCard}>
+              <Text style={s.nextLabel}>{lang === 'ar' ? 'الموسم اكتمل! 🏆' : 'Season complete! 🏆'}</Text>
+              <Text style={s.nextPreview}>{lang === 'ar' ? 'أكملت كل حلقات هذا المسار. تابع مسارًا آخر من الشاشة الرئيسية.' : 'You finished every episode in this track. Explore another track from the home screen.'}</Text>
+            </View>
+          )}
+
+          <TouchableOpacity style={s.restartBtnSecondary} onPress={onLeave} accessible={true} accessibilityRole="button">
+            <Text style={s.restartTxtSecondary}>{lang === 'ar' ? 'العودة إلى الرئيسية' : 'Back to Home'}</Text>
           </TouchableOpacity>
         </ScrollView>
 
@@ -744,7 +787,7 @@ export default function StoryEpisode({ onLeave }) {
             false
           }
         />
-        <Animated.View style={shakeStyle}>
+        <Animated.View style={[shakeStyle, { opacity: phaseFadeAnim }]}>
           {phase === 'context' ? renderContext() :
            phase === 'choice' ? renderChoice() :
            phase === 'blank' ? renderBlank() :
@@ -879,18 +922,16 @@ const s = StyleSheet.create({
   doneStat:        { alignItems: 'center' },
   doneStatVal:     { color: '#fff', fontSize: 22, fontWeight: '800' },
   doneStatLbl:     { color: 'rgba(255,255,255,0.5)', fontSize: 12 },
-  wordsSummaryCard:  { width: '100%', backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderRadius: 16, padding: 16, marginBottom: 20 },
-  wordsSummaryTitle: { color: '#fff', fontSize: 14, fontWeight: '800', marginBottom: 12, textAlign: 'center' },
-  wordsSummaryGrid:  { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
-  wordsSummaryChip:  { alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10, minWidth: 60 },
-  wordsSummaryEmoji: { fontSize: 18 },
-  wordsSummaryTxt:   { color: '#fff', fontSize: 10, fontWeight: '600', marginTop: 3 },
-  nextCard:        { width: '100%', backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderRadius: 16, padding: 16, marginBottom: 20 },
+  nextCard:        { width: '100%', backgroundColor: 'rgba(46,139,87,0.08)', borderWidth: 1.5, borderColor: 'rgba(46,139,87,0.35)', borderRadius: 16, padding: 16, marginBottom: 14 },
   nextLabel:       { color: '#a5d6a7', fontSize: 11, fontWeight: '700', marginBottom: 4 },
   nextTitle:       { color: '#fff', fontSize: 16, fontWeight: '800', marginBottom: 6 },
   nextPreview:     { color: 'rgba(255,255,255,0.5)', fontSize: 13, lineHeight: 19 },
+  nextBtnRow:      { marginTop: 12, backgroundColor: '#2E8B57', borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+  nextBtnTxt:      { color: '#fff', fontSize: 14, fontWeight: '800' },
   cinemaBtn:       { backgroundColor: 'rgba(255,179,0,0.15)', borderWidth: 1, borderColor: '#FFB300', borderRadius: 13, paddingHorizontal: 26, paddingVertical: 12, marginBottom: 12 },
   cinemaBtnTxt:    { color: '#FFB300', fontSize: 14, fontWeight: '800', textAlign: 'center' },
   restartBtn:      { backgroundColor: '#1B3A6B', borderRadius: 13, paddingHorizontal: 28, paddingVertical: 13 },
   restartTxt:      { color: '#fff', fontSize: 15, fontWeight: '700' },
+  restartBtnSecondary: { paddingVertical: 10, paddingHorizontal: 20, marginTop: 4 },
+  restartTxtSecondary: { color: 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: '600' },
 });

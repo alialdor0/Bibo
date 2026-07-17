@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator, Alert } from 'react-native';
 import { useApp } from '../context/AppContext';
-import { t, COVER_COLORS, COVER_STICKERS } from '../data';
+import { t, COVER_STICKERS, BOOK_COVERS } from '../data';
 import { GemsBadge } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
 import BottomNav from '../components/BottomNav';
@@ -10,8 +10,10 @@ import { exportBookPDF, shareBookAchievement } from '../utils/libraryExport';
 function BookCard({ book, lang, custom, onPress }) {
   const title = lang === 'ar' ? book.trackNameAr : book.trackName;
   const hasAccuracy = typeof book.accuracy === 'number' && book.totalAnswers > 0;
-  const color = custom?.color || book.color || '#2E8B57';
+  const selectedCover = BOOK_COVERS.find(c => c.id === custom?.coverId);
+  const color = selectedCover ? selectedCover.colors[0] : (book.color || '#2E8B57');
   const stickers = custom?.stickers || [];
+  const stickerEmojis = stickers.map(id => COVER_STICKERS.find(st => st.id === id)).filter(st => st && st.type === 'emoji').map(st => st.emoji);
   return (
     <TouchableOpacity style={[s.book, { borderColor: color + '55', backgroundColor: color + '14' }]} onPress={onPress}>
       {hasAccuracy ? (
@@ -22,8 +24,8 @@ function BookCard({ book, lang, custom, onPress }) {
       <Text style={s.bookIcon}>{book.icon}</Text>
       <Text style={s.bookTitle} numberOfLines={2}>{title}</Text>
       <Text style={s.bookMeta}>{(book.words || []).length} {lang === 'ar' ? 'كلمة' : 'words'}</Text>
-      {stickers.length ? (
-        <Text style={s.bookStickers}>{stickers.map(id => COVER_STICKERS.find(st => st.id === id)?.emoji || '').join(' ')}</Text>
+      {stickerEmojis.length ? (
+        <Text style={s.bookStickers}>{stickerEmojis.join(' ')}</Text>
       ) : null}
       {book.readCount > 1 ? (
         <View style={s.readBadge}><Text style={s.readBadgeTxt}>×{book.readCount}</Text></View>
@@ -63,10 +65,11 @@ function accuracyColor(acc) {
   return '#ff8a65';
 }
 
-function BookDetail({ book, lang, onBack, onReadAgain }) {
-  const { gems, bookCovers, ownedStickers, buySticker, setBookCoverColor, toggleBookSticker } = useApp();
+function BookDetail({ book, lang, onBack, onReadAgain, onGoToStore }) {
+  const { gems, bookCovers, ownedStickers, ownedCovers, setBookCover, toggleBookSticker } = useApp();
   const [exporting, setExporting] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [customStep, setCustomStep] = useState('cover'); // 'cover' | 'sticker' — نظام مراحل بدل الازدحام
   const title = lang === 'ar' ? book.trackNameAr : book.trackName;
   const date = new Date(book.completedAt).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US');
   const duration = formatDuration(book.timeSpentSec, lang);
@@ -74,13 +77,15 @@ function BookDetail({ book, lang, onBack, onReadAgain }) {
 
   const coverKey = `${book.trackId}::${book.episodeId}`;
   const custom = bookCovers[coverKey] || {};
-  const coverColor = custom.color || book.color || '#2E8B57';
+  const selectedCover = BOOK_COVERS.find(c => c.id === custom.coverId);
+  const coverColors = selectedCover ? selectedCover.colors : [book.color || '#2E8B57', book.color || '#2E8B57'];
+  const coverColor = coverColors[0];
   const appliedStickers = custom.stickers || [];
-  const appliedEmojis = appliedStickers.map(id => COVER_STICKERS.find(st => st.id === id)?.emoji).filter(Boolean);
+  const appliedStickerObjs = appliedStickers.map(id => COVER_STICKERS.find(st => st.id === id)).filter(Boolean);
 
   const handleExport = async () => {
     setExporting(true);
-    const ok = await exportBookPDF(book, lang);
+    const ok = await exportBookPDF(book, lang, coverColors, appliedStickerObjs);
     setExporting(false);
     if (!ok) {
       Alert.alert(
@@ -92,7 +97,7 @@ function BookDetail({ book, lang, onBack, onReadAgain }) {
 
   const handleShare = async () => {
     setSharing(true);
-    const ok = await shareBookAchievement(book, lang, coverColor, appliedEmojis);
+    const ok = await shareBookAchievement(book, lang, coverColor, appliedStickerObjs);
     setSharing(false);
     if (!ok) {
       Alert.alert(
@@ -103,20 +108,11 @@ function BookDetail({ book, lang, onBack, onReadAgain }) {
   };
 
   const handleStickerTap = (sticker) => {
-    const owned = ownedStickers.includes(sticker.id);
-    if (owned) {
-      toggleBookSticker(book.trackId, book.episodeId, sticker.id);
-      return;
-    }
-    if (gems < sticker.price) {
-      Alert.alert(
-        lang === 'ar' ? 'الجواهر غير كافية' : 'Not enough gems',
-        lang === 'ar' ? `تحتاج إلى ${sticker.price} 💎 لشراء هذا الملصق.` : `You need ${sticker.price} 💎 to buy this sticker.`
-      );
-      return;
-    }
-    const bought = buySticker(sticker.id, sticker.price);
-    if (bought) toggleBookSticker(book.trackId, book.episodeId, sticker.id);
+    toggleBookSticker(book.trackId, book.episodeId, sticker.id);
+  };
+
+  const handleCoverSelect = (cover) => {
+    setBookCover(book.trackId, book.episodeId, cover.id);
   };
 
   return (
@@ -127,10 +123,18 @@ function BookDetail({ book, lang, onBack, onReadAgain }) {
         </TouchableOpacity>
       </View>
       <ScrollView contentContainerStyle={s.detailBody}>
-        <View style={[s.cover, { borderColor: coverColor, backgroundColor: coverColor + '14' }]}>
+        <View style={[s.cover, { borderColor: coverColors[1], backgroundColor: coverColors[0] + '14' }]}>
           <Text style={{ fontSize: 46 }}>{book.icon}</Text>
-          {appliedEmojis.length ? <Text style={s.coverStickers}>{appliedEmojis.join(' ')}</Text> : null}
-          <Text style={[s.coverTitle, { color: coverColor }]}>{title}</Text>
+          {appliedStickerObjs.length ? (
+            <View style={s.coverStickersRow}>
+              {appliedStickerObjs.map(st => st.type === 'text' ? (
+                <View key={st.id} style={s.coverTextSticker}><Text style={s.coverTextStickerTxt}>{lang === 'ar' ? st.textAr : st.text}</Text></View>
+              ) : (
+                <Text key={st.id} style={s.coverStickers}>{st.emoji}</Text>
+              ))}
+            </View>
+          ) : null}
+          <Text style={[s.coverTitle, { color: coverColors[0] }]}>{title}</Text>
           <Text style={s.coverSub}>
             {(lang === 'ar' ? 'اكتملت في ' : 'Completed on ') + date} · {(book.words || []).length} {lang === 'ar' ? 'كلمة' : 'words'} · +{book.gemsEarned || 0} 💎
           </Text>
@@ -168,35 +172,88 @@ function BookDetail({ book, lang, onBack, onReadAgain }) {
         <View style={s.customCard}>
           <Text style={s.statsTitle}>🎨 {lang === 'ar' ? 'تخصيص الغلاف' : 'Customize cover'}</Text>
 
-          <Text style={s.customLbl}>{lang === 'ar' ? 'لون الغلاف' : 'Cover color'}</Text>
-          <View style={s.colorRow}>
-            {COVER_COLORS.map(c => (
-              <TouchableOpacity
-                key={c}
-                style={[s.colorDot, { backgroundColor: c }, coverColor === c ? s.colorDotActive : null]}
-                onPress={() => setBookCoverColor(book.trackId, book.episodeId, c)}
-              />
-            ))}
+          {/* مؤشر المرحلة */}
+          <View style={s.customStepsRow}>
+            <TouchableOpacity
+              style={[s.customStepBtn, customStep === 'cover' ? s.customStepBtnActive : null]}
+              onPress={() => setCustomStep('cover')}
+              accessible={true}
+              accessibilityRole="button"
+              accessibilityLabel={lang === 'ar' ? 'الخطوة الأولى: اختيار الغلاف' : 'Step one: choose cover'}
+            >
+              <Text style={[s.customStepTxt, customStep === 'cover' ? s.customStepTxtActive : null]}>{lang === 'ar' ? '١. الغلاف' : '1. Cover'}</Text>
+            </TouchableOpacity>
+            <Text style={s.customStepArrow}>←</Text>
+            <TouchableOpacity
+              style={[s.customStepBtn, customStep === 'sticker' ? s.customStepBtnActive : null]}
+              onPress={() => setCustomStep('sticker')}
+              accessible={true}
+              accessibilityRole="button"
+              accessibilityLabel={lang === 'ar' ? 'الخطوة الثانية: اختيار الملصقات' : 'Step two: choose stickers'}
+            >
+              <Text style={[s.customStepTxt, customStep === 'sticker' ? s.customStepTxtActive : null]}>{lang === 'ar' ? '٢. الملصقات' : '2. Stickers'}</Text>
+            </TouchableOpacity>
           </View>
 
-          <Text style={[s.customLbl, { marginTop: 14 }]}>{lang === 'ar' ? 'الملصقات (بحد أقصى 3)' : 'Stickers (up to 3)'}</Text>
-          <View style={s.stickerRow}>
-            {COVER_STICKERS.map(st => {
-              const owned = ownedStickers.includes(st.id);
-              const applied = appliedStickers.includes(st.id);
-              return (
-                <TouchableOpacity
-                  key={st.id}
-                  style={[s.stickerBox, applied ? s.stickerBoxActive : null]}
-                  onPress={() => handleStickerTap(st)}
-                >
-                  <Text style={s.stickerEmoji}>{st.emoji}</Text>
-                  <Text style={s.stickerName} numberOfLines={1}>{lang === 'ar' ? st.nameAr : st.name}</Text>
-                  {!owned ? <Text style={s.stickerPrice}>{st.price}💎</Text> : null}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          {customStep === 'cover' ? (
+            <>
+              <Text style={s.customLbl}>{lang === 'ar' ? 'اختر غلافًا من أغلفتك المملوكة' : 'Choose from your owned covers'}</Text>
+              <View style={s.coverOptionsRow}>
+                {BOOK_COVERS.filter(c => ownedCovers.includes(c.id)).map(c => {
+                  const active = selectedCover ? selectedCover.id === c.id : c.id === 'cover_green';
+                  const name = lang === 'ar' ? c.nameAr : c.name;
+                  return (
+                    <TouchableOpacity
+                      key={c.id}
+                      style={[s.colorDot, { backgroundColor: c.colors[0], borderColor: c.colors[1] }, active ? s.colorDotActive : null]}
+                      onPress={() => handleCoverSelect(c)}
+                      accessible={true}
+                      accessibilityRole="button"
+                      accessibilityLabel={name + (active ? (lang === 'ar' ? '، مُختار حاليًا' : ', currently selected') : '')}
+                      accessibilityState={{ selected: active }}
+                    />
+                  );
+                })}
+              </View>
+              <TouchableOpacity onPress={onGoToStore} accessible={true} accessibilityRole="button" style={s.moreLink}>
+                <Text style={s.moreLinkTxt}>{lang === 'ar' ? '🛍️ المزيد من الأغلفة الاحترافية بالمتجر' : '🛍️ More professional covers in the Store'}</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Text style={s.customLbl}>{lang === 'ar' ? 'الملصقات المملوكة (بحد أقصى 3 على الغلاف)' : 'Owned stickers (up to 3 per cover)'}</Text>
+              <View style={s.stickerRow}>
+                {COVER_STICKERS.filter(st => ownedStickers.includes(st.id)).map(st => {
+                  const applied = appliedStickers.includes(st.id);
+                  const name = lang === 'ar' ? st.nameAr : st.name;
+                  return (
+                    <TouchableOpacity
+                      key={st.id}
+                      style={[s.stickerBox, applied ? s.stickerBoxActive : null]}
+                      onPress={() => handleStickerTap(st)}
+                      accessible={true}
+                      accessibilityRole="button"
+                      accessibilityLabel={name + (applied ? (lang === 'ar' ? '، مُطبَّق على الغلاف' : ', applied to cover') : '')}
+                      accessibilityState={{ selected: applied }}
+                    >
+                      {st.type === 'text' ? (
+                        <Text style={s.stickerTextBoxTxt} numberOfLines={1}>{lang === 'ar' ? st.textAr : st.text}</Text>
+                      ) : (
+                        <Text style={s.stickerEmoji}>{st.emoji}</Text>
+                      )}
+                      <Text style={s.stickerName} numberOfLines={1}>{name}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+                {COVER_STICKERS.filter(st => ownedStickers.includes(st.id)).length === 0 ? (
+                  <Text style={s.noStickersTxt}>{lang === 'ar' ? 'لسه معندكش ملصقات — تقدر تشتريها من المتجر.' : "You don't own any stickers yet — buy some from the Store."}</Text>
+                ) : null}
+              </View>
+              <TouchableOpacity onPress={onGoToStore} accessible={true} accessibilityRole="button" style={s.moreLink}>
+                <Text style={s.moreLinkTxt}>{lang === 'ar' ? '🛍️ المزيد من الملصقات بالمتجر' : '🛍️ More stickers in the Store'}</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
 
         <View style={s.actionsRow}>
@@ -240,6 +297,7 @@ export default function Library({ onNav }) {
         lang={lang}
         onBack={() => setSelected(null)}
         onReadAgain={() => onNav('story')}
+        onGoToStore={() => onNav('store')}
       />
     );
   }
@@ -332,7 +390,10 @@ const s = StyleSheet.create({
   cover:           { alignItems: 'center', borderWidth: 2, borderRadius: 20, padding: 26, marginBottom: 18 },
   coverTitle:      { fontSize: 20, fontWeight: '800', marginTop: 8 },
   coverSub:        { color: 'rgba(255,255,255,0.5)', fontSize: 12, marginTop: 6, textAlign: 'center' },
-  coverStickers:   { fontSize: 20, marginTop: 6, letterSpacing: 4 },
+  coverStickers:   { fontSize: 20, marginTop: 6 },
+  coverStickersRow:{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 6 },
+  coverTextSticker:{ backgroundColor: 'rgba(255,213,79,0.15)', borderWidth: 1, borderColor: 'rgba(255,213,79,0.4)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  coverTextStickerTxt: { color: '#FFD54F', fontSize: 11, fontWeight: '800' },
   statsCard:       { backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 14, marginBottom: 18 },
   statsTitle:      { color: '#fff', fontWeight: '800', fontSize: 13, marginBottom: 10 },
   statsRow:        { flexDirection: 'row', justifyContent: 'space-between' },
@@ -342,15 +403,25 @@ const s = StyleSheet.create({
   statLbl:         { color: 'rgba(255,255,255,0.45)', fontSize: 10, marginTop: 2, textAlign: 'center' },
   customCard:      { backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 14, marginBottom: 18 },
   customLbl:       { color: 'rgba(255,255,255,0.5)', fontSize: 11, marginBottom: 8, fontWeight: '700' },
+  customStepsRow:  { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
+  customStepBtn:   { flex: 1, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', borderRadius: 10, paddingVertical: 9, alignItems: 'center' },
+  customStepBtnActive: { borderColor: '#2E8B57', backgroundColor: 'rgba(46,139,87,0.15)' },
+  customStepTxt:   { color: 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: '700' },
+  customStepTxtActive: { color: '#a5d6a7' },
+  customStepArrow: { color: 'rgba(255,255,255,0.25)', fontSize: 12 },
+  coverOptionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   colorRow:        { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  colorDot:        { width: 30, height: 30, borderRadius: 15, borderWidth: 2, borderColor: 'transparent' },
-  colorDotActive:  { borderColor: '#fff' },
+  colorDot:        { width: 36, height: 36, borderRadius: 18, borderWidth: 3 },
+  colorDotActive:  { borderColor: '#fff', borderWidth: 3, transform: [{ scale: 1.15 }] },
   stickerRow:      { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   stickerBox:      { width: 62, height: 68, borderRadius: 12, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   stickerBoxActive:{ borderColor: '#a5d6a7', backgroundColor: 'rgba(165,214,167,0.15)' },
   stickerEmoji:    { fontSize: 20 },
+  stickerTextBoxTxt: { color: '#FFD54F', fontSize: 10, fontWeight: '800', textAlign: 'center' },
   stickerName:     { color: 'rgba(255,255,255,0.7)', fontSize: 9, marginTop: 2, fontWeight: '600', textAlign: 'center' },
-  stickerPrice:    { color: 'rgba(255,255,255,0.5)', fontSize: 9, marginTop: 1, fontWeight: '700' },
+  noStickersTxt:   { color: 'rgba(255,255,255,0.35)', fontSize: 11, lineHeight: 17 },
+  moreLink:        { marginTop: 14, alignItems: 'center' },
+  moreLinkTxt:     { color: '#7fb3f5', fontSize: 12, fontWeight: '700' },
   actionsRow:      { flexDirection: 'row', gap: 10, marginBottom: 12 },
   actionBtn:       { flex: 1, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', borderRadius: 14, paddingVertical: 13, alignItems: 'center' },
   actionPrimary:   { backgroundColor: '#a5d6a7', borderColor: '#a5d6a7' },

@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, Alert, Modal, Animated, Easing } from 'react-native';
 import { useApp } from '../context/AppContext';
-import { t, STORE_ITEMS, GIFT_REWARDS, WEEKLY_GIFT_REWARDS, COSMETIC_ITEMS, COSMETIC_SLOTS } from '../data';
+import { t, STORE_ITEMS, GIFT_REWARDS, WEEKLY_GIFT_REWARDS, COSMETIC_ITEMS, COSMETIC_SLOTS, BOOK_COVERS, COVER_STICKERS } from '../data';
 import { PageHeader, GemsBadge, StationeryBar } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
 import { playSfx } from '../utils/sfx';
@@ -11,6 +11,7 @@ const SECTIONS = [
   { key: 'eraser',    label: 'Erasers',    labelAr: 'الممحاة',     icon: '🧹' },
   { key: 'paper',     label: 'Paper',      labelAr: 'الأوراق',     icon: '📄' },
   { key: 'cosmetics', label: 'Bibo style', labelAr: 'إطلالة بيبو', icon: '🎩' },
+  { key: 'covers',    label: 'Covers',     labelAr: 'الأغلفة والملصقات', icon: '📔' },
 ];
 
 const PARTICLE_EMOJIS = ['💎', '✨', '🎉', '⭐', '💎', '✨'];
@@ -146,6 +147,7 @@ export default function Store({ onBack }) {
   const {
     lang, gems, stationery, buyItem, claimGift, claimWeeklyGift, canClaimDailyGift, canClaimWeeklyGift,
     ownedCosmetics, equippedCosmetics, buyCosmetic, equipCosmetic,
+    ownedCovers, buyCover, ownedStickers, buySticker,
   } = useApp();
   const T = (k) => t(k, lang);
 
@@ -208,6 +210,54 @@ export default function Store({ onBack }) {
     const owned = ownedCosmetics.includes(item.id);
     if (owned) { playSfx('correct'); equipCosmetic(item.slot, item.id); }
     else handleBuyCosmetic(item);
+  };
+
+  const handleCoverTap = (cover) => {
+    if (ownedCovers.includes(cover.id)) return; // مملوك أصلًا — اختياره كغلاف فعلي يتم من صفحة الكتاب بالمكتبة
+    if (gems < cover.price) {
+      playSfx('wrong');
+      Alert.alert(
+        lang === 'ar' ? 'الجواهر غير كافية' : 'Not enough gems',
+        lang === 'ar' ? `تحتاج إلى ${cover.price} جوهرة لشراء هذا الغلاف.` : `You need ${cover.price} gems to buy this cover.`
+      );
+      return;
+    }
+    const name = lang === 'ar' ? cover.nameAr : cover.name;
+    Alert.alert(
+      lang === 'ar' ? `شراء غلاف ${name}؟` : `Buy ${name} cover?`,
+      lang === 'ar' ? `سيتم خصم ${cover.price} جوهرة، وسيصبح الغلاف ملكك للأبد.` : `${cover.price} gems will be deducted. This cover is yours forever.`,
+      [
+        { text: lang === 'ar' ? 'إلغاء' : 'Cancel', style: 'cancel' },
+        { text: lang === 'ar' ? 'شراء' : 'Buy', onPress: () => {
+          const success = buyCover(cover.id, cover.price);
+          playSfx(success ? 'purchase' : 'wrong');
+        }},
+      ]
+    );
+  };
+
+  const handleStickerBuyTap = (sticker) => {
+    if (ownedStickers.includes(sticker.id)) return;
+    if (gems < sticker.price) {
+      playSfx('wrong');
+      Alert.alert(
+        lang === 'ar' ? 'الجواهر غير كافية' : 'Not enough gems',
+        lang === 'ar' ? `تحتاج إلى ${sticker.price} جوهرة لشراء هذا الملصق.` : `You need ${sticker.price} gems to buy this sticker.`
+      );
+      return;
+    }
+    const name = lang === 'ar' ? sticker.nameAr : sticker.name;
+    Alert.alert(
+      lang === 'ar' ? `شراء ملصق ${name}؟` : `Buy ${name} sticker?`,
+      lang === 'ar' ? `سيتم خصم ${sticker.price} جوهرة، وسيصبح الملصق ملكك للأبد.` : `${sticker.price} gems will be deducted. This sticker is yours forever.`,
+      [
+        { text: lang === 'ar' ? 'إلغاء' : 'Cancel', style: 'cancel' },
+        { text: lang === 'ar' ? 'شراء' : 'Buy', onPress: () => {
+          const success = buySticker(sticker.id, sticker.price);
+          playSfx(success ? 'purchase' : 'wrong');
+        }},
+      ]
+    );
   };
 
   const handleGiftReward = (reward) => {
@@ -357,6 +407,73 @@ export default function Store({ onBack }) {
               );
             })}
           </>
+        ) : tab === 'covers' ? (
+          <>
+            <Text style={s.sectionSubTitle}>{lang === 'ar' ? '📔 أغلفة احترافية' : '📔 Professional covers'}</Text>
+            <View style={s.coversGrid}>
+              {BOOK_COVERS.map(cover => {
+                const owned = ownedCovers.includes(cover.id);
+                return (
+                  <TouchableOpacity
+                    key={cover.id}
+                    style={s.coverCard}
+                    onPress={() => handleCoverTap(cover)}
+                    accessible={true}
+                    accessibilityRole="button"
+                    accessibilityLabel={(lang === 'ar' ? cover.nameAr : cover.name) + (owned ? (lang === 'ar' ? '، مملوك' : ', owned') : (lang === 'ar' ? `، السعر ${cover.price} جوهرة` : `, price ${cover.price} gems`))}
+                  >
+                    <View style={[s.coverSwatch, { backgroundColor: cover.colors[0], borderColor: cover.colors[1] }]} />
+                    <Text style={s.coverName} numberOfLines={1}>{lang === 'ar' ? cover.nameAr : cover.name}</Text>
+                    {owned ? (
+                      <Text style={s.cosmeticOwnedTxt}>{lang === 'ar' ? 'مملوك ✓' : 'Owned ✓'}</Text>
+                    ) : cover.price === 0 ? (
+                      <Text style={s.cosmeticOwnedTxt}>{lang === 'ar' ? 'مجاني' : 'Free'}</Text>
+                    ) : (
+                      <View style={s.cosmeticPriceRow}>
+                        <Text style={s.buyBtnGem}>💎</Text>
+                        <Text style={s.cosmeticPriceTxt}>{cover.price}</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={[s.sectionSubTitle, { marginTop: 20 }]}>{lang === 'ar' ? '🎨 ملصقات' : '🎨 Stickers'}</Text>
+            <View style={s.coversGrid}>
+              {COVER_STICKERS.map(st => {
+                const owned = ownedStickers.includes(st.id);
+                return (
+                  <TouchableOpacity
+                    key={st.id}
+                    style={s.coverCard}
+                    onPress={() => handleStickerBuyTap(st)}
+                    accessible={true}
+                    accessibilityRole="button"
+                    accessibilityLabel={(lang === 'ar' ? st.nameAr : st.name) + (owned ? (lang === 'ar' ? '، مملوك' : ', owned') : (lang === 'ar' ? `، السعر ${st.price} جوهرة` : `, price ${st.price} gems`))}
+                  >
+                    {st.type === 'text' ? (
+                      <View style={s.stickerTextPreview}><Text style={s.stickerTextPreviewTxt}>{lang === 'ar' ? st.textAr : st.text}</Text></View>
+                    ) : (
+                      <Text style={{ fontSize: 30 }}>{st.emoji}</Text>
+                    )}
+                    <Text style={s.coverName} numberOfLines={1}>{lang === 'ar' ? st.nameAr : st.name}</Text>
+                    {owned ? (
+                      <Text style={s.cosmeticOwnedTxt}>{lang === 'ar' ? 'مملوك ✓' : 'Owned ✓'}</Text>
+                    ) : (
+                      <View style={s.cosmeticPriceRow}>
+                        <Text style={s.buyBtnGem}>💎</Text>
+                        <Text style={s.cosmeticPriceTxt}>{st.price}</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text style={s.coversHint}>
+              {lang === 'ar' ? 'بعد الشراء، اختر الغلاف والملصقات من صفحة أي كتاب بمكتبتك.' : 'After buying, pick your cover and stickers from any book in your Library.'}
+            </Text>
+          </>
         ) : (
           /* المنتجات الاستهلاكية */
           stationeryItems.map(item => (
@@ -472,6 +589,14 @@ const s = StyleSheet.create({
   slotGroup:       { marginBottom: 16 },
   slotTitle:       { color: '#fff', fontWeight: '800', fontSize: 13, marginBottom: 10 },
   cosmeticsGrid:   { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  sectionSubTitle: { color: '#fff', fontWeight: '800', fontSize: 14, marginBottom: 12 },
+  coversGrid:      { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  coverCard:       { width: '31%', aspectRatio: 0.9, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.1)', borderRadius: 14, alignItems: 'center', justifyContent: 'center', padding: 6 },
+  coverSwatch:     { width: 40, height: 40, borderRadius: 10, borderWidth: 3, marginBottom: 6 },
+  coverName:       { color: '#fff', fontSize: 11, fontWeight: '700', textAlign: 'center', marginBottom: 4 },
+  stickerTextPreview:    { backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, marginBottom: 6, maxWidth: '100%' },
+  stickerTextPreviewTxt: { color: '#FFD54F', fontSize: 11, fontWeight: '800', textAlign: 'center' },
+  coversHint:      { color: 'rgba(255,255,255,0.35)', fontSize: 11, textAlign: 'center', marginTop: 16, lineHeight: 17 },
   cosmeticCard:    { width: '31%', aspectRatio: 0.9, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.1)', borderRadius: 14, alignItems: 'center', justifyContent: 'center', padding: 6 },
   cosmeticCardEquipped: { borderColor: '#a5d6a7', backgroundColor: 'rgba(165,214,167,0.12)' },
   cosmeticEmoji:   { fontSize: 30, marginBottom: 4 },
