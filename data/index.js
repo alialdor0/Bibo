@@ -378,17 +378,33 @@ export const ACHIEVEMENTS = [
   { id:'perfect_ep',   icon:'⭐', nameAr:'إتقان تام',       name:'Perfect Score',   descAr:'أكملت حلقة بدقة 100%',              desc:'Finished an episode with 100% accuracy', type:'perfect_episode', goal:1 },
   { id:'level_up',     icon:'🌟', nameAr:'ترقية المستوى',   name:'Level Up',        descAr:'وصلت لمستوى "متواصل ماهر" أو أعلى', desc:'Reached "Skilled Communicator" or higher', type:'level_reached', goal:2 },
 ];
-export const COVER_COLORS = ['#2E8B57', '#3F51B5', '#E91E63', '#FF9800', '#9C27B0', '#00BCD4', '#F44336', '#8BC34A'];
+// ── متجر أغلفة المكتبة — أغلفة احترافية بتدرّج لوني، أول غلافين مجانيين والباقي بأسعار متدرّجة ──
+export const BOOK_COVERS = [
+  { id: 'cover_green',  price: 0,  colors: ['#2E8B57', '#1f6b41'], name: 'Forest Green',  nameAr: 'أخضر الغابة' },
+  { id: 'cover_indigo', price: 0,  colors: ['#3F51B5', '#28348a'], name: 'Royal Indigo',  nameAr: 'نيلي ملكي' },
+  { id: 'cover_rose',   price: 15, colors: ['#E91E63', '#a3123f'], name: 'Rose Gold',     nameAr: 'وردي ذهبي' },
+  { id: 'cover_amber',  price: 15, colors: ['#FF9800', '#c26e00'], name: 'Amber Sunset',  nameAr: 'غروب العنبر' },
+  { id: 'cover_violet', price: 25, colors: ['#9C27B0', '#6a1b7d'], name: 'Violet Dream',  nameAr: 'حلم بنفسجي' },
+  { id: 'cover_ocean',  price: 25, colors: ['#00BCD4', '#007c8c'], name: 'Ocean Depths',  nameAr: 'أعماق المحيط' },
+  { id: 'cover_ruby',   price: 35, colors: ['#F44336', '#a8221a'], name: 'Ruby Elite',    nameAr: 'ياقوت فاخر' },
+  { id: 'cover_gold',   price: 50, colors: ['#FFD54F', '#c79a00'], name: 'Golden Legend', nameAr: 'أسطورة ذهبية' },
+];
+export const DEFAULT_OWNED_COVERS = ['cover_green', 'cover_indigo'];
 
 export const COVER_STICKERS = [
-  { id: 'star',     emoji: '⭐', price: 15, name: 'Star',     nameAr: 'نجمة' },
-  { id: 'heart',    emoji: '❤️', price: 15, name: 'Heart',    nameAr: 'قلب' },
-  { id: 'sparkles', emoji: '✨', price: 15, name: 'Sparkles', nameAr: 'بريق' },
-  { id: 'balloon',  emoji: '🎈', price: 15, name: 'Balloon',  nameAr: 'بالون' },
-  { id: 'rainbow',  emoji: '🌈', price: 20, name: 'Rainbow',  nameAr: 'قوس قزح' },
-  { id: 'rocket',   emoji: '🚀', price: 20, name: 'Rocket',   nameAr: 'صاروخ' },
-  { id: 'crown',    emoji: '👑', price: 25, name: 'Crown',    nameAr: 'تاج' },
-  { id: 'trophy',   emoji: '🏆', price: 25, name: 'Trophy',   nameAr: 'كأس' },
+  { id: 'star',     type: 'emoji', emoji: '⭐', price: 15, name: 'Star',     nameAr: 'نجمة' },
+  { id: 'heart',    type: 'emoji', emoji: '❤️', price: 15, name: 'Heart',    nameAr: 'قلب' },
+  { id: 'sparkles', type: 'emoji', emoji: '✨', price: 15, name: 'Sparkles', nameAr: 'بريق' },
+  { id: 'balloon',  type: 'emoji', emoji: '🎈', price: 15, name: 'Balloon',  nameAr: 'بالون' },
+  { id: 'rainbow',  type: 'emoji', emoji: '🌈', price: 20, name: 'Rainbow',  nameAr: 'قوس قزح' },
+  { id: 'rocket',   type: 'emoji', emoji: '🚀', price: 20, name: 'Rocket',   nameAr: 'صاروخ' },
+  { id: 'crown',    type: 'emoji', emoji: '👑', price: 25, name: 'Crown',    nameAr: 'تاج' },
+  { id: 'trophy',   type: 'emoji', emoji: '🏆', price: 25, name: 'Trophy',   nameAr: 'كأس' },
+  // ملصقات نصية — عبارات جميلة تُطبع على الغلاف بدل الإيموجي
+  { id: 'txt_hero',     type: 'text', text: 'Story Hero',  textAr: 'بطل القصة',    price: 20, name: 'Story Hero',    nameAr: 'بطل القصة' },
+  { id: 'txt_reader',   type: 'text', text: 'Avid Reader', textAr: 'قارئ نهم',     price: 20, name: 'Avid Reader',   nameAr: 'قارئ نهم' },
+  { id: 'txt_master',   type: 'text', text: 'Word Master', textAr: 'سيّد الكلمات', price: 30, name: 'Word Master',   nameAr: 'سيّد الكلمات' },
+  { id: 'txt_complete', type: 'text', text: 'Completed!',  textAr: 'مكتملة!',      price: 15, name: 'Completed',     nameAr: 'مكتملة' },
 ];
 
 // ── دوال مساعدة ──
@@ -419,4 +435,3 @@ export const getZodiac = (day, monthEn) => {
 export const getTrack    = (id)    => TRACKS.find(tr => tr.id === id) || TRACKS[0];
 export const itemLabel   = (item, lang) => lang === 'ar' ? item[1] : item[0];
 export const fullName    = (u)     => { const p = getPrefix(u.job); return (p ? p + ' ' : '') + u.firstName + ' ' + u.lastName; };
-
