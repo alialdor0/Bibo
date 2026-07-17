@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
-import { getLevel, getPrefix, fullName, isWordKnownForLevel, ACHIEVEMENTS, LEVEL_TITLES } from '../data';
+import { getLevel, getPrefix, fullName, isWordKnownForLevel, ACHIEVEMENTS, LEVEL_TITLES, DEFAULT_OWNED_COVERS } from '../data';
 import { touchLastSeen } from '../utils/companion';
 import { scheduleBiboReminder, cancelBiboReminders } from '../utils/notifications';
 import { loadMany, saveJSON, removeKeys } from '../utils/storage';
@@ -48,6 +48,7 @@ export function AppProvider({ children }) {
   const [library, setLibrary] = useState([]);
   const [bookCovers, setBookCovers] = useState({}); // { "trackId::episodeId": { color, stickers:[ids] } }
   const [ownedStickers, setOwnedStickers] = useState([]); // ["star","heart",...]
+  const [ownedCovers, setOwnedCovers] = useState(DEFAULT_OWNED_COVERS); // أغلفة المكتبة المملوكة — أول اتنين مجانيين افتراضيًا
   const [ownedCosmetics, setOwnedCosmetics] = useState([]); // ["hat_cap","ring_gold",...]
   const [equippedCosmetics, setEquippedCosmetics] = useState({ hat: null, glasses: null, ring: null });
   const [weeklyProgress, setWeeklyProgress] = useState({ weekKey: getWeekKey(), wordsLearned: 0, episodesDone: 0, wordsRescued: 0, claimed: [] });
@@ -77,6 +78,7 @@ export function AppProvider({ children }) {
         library: [],
         bookCovers: {},
         ownedStickers: [],
+        ownedCovers: DEFAULT_OWNED_COVERS,
         ownedCosmetics: [],
         equippedCosmetics: { hat: null, glasses: null, ring: null },
         weeklyProgress: { weekKey: getWeekKey(), wordsLearned: 0, episodesDone: 0, wordsRescued: 0, claimed: [] },
@@ -101,6 +103,7 @@ export function AppProvider({ children }) {
       setLibrary(saved.library);
       setBookCovers(saved.bookCovers);
       setOwnedStickers(saved.ownedStickers);
+      setOwnedCovers(saved.ownedCovers || DEFAULT_OWNED_COVERS);
       setOwnedCosmetics(saved.ownedCosmetics);
       setEquippedCosmetics(saved.equippedCosmetics);
       const curWeek = getWeekKey();
@@ -150,6 +153,7 @@ export function AppProvider({ children }) {
   useEffect(() => { if (hydratedRef.current) saveJSON('library', library); }, [library]);
   useEffect(() => { if (hydratedRef.current) saveJSON('bookCovers', bookCovers); }, [bookCovers]);
   useEffect(() => { if (hydratedRef.current) saveJSON('ownedStickers', ownedStickers); }, [ownedStickers]);
+  useEffect(() => { if (hydratedRef.current) saveJSON('ownedCovers', ownedCovers); }, [ownedCovers]);
   useEffect(() => { if (hydratedRef.current) saveJSON('ownedCosmetics', ownedCosmetics); }, [ownedCosmetics]);
   useEffect(() => { if (hydratedRef.current) saveJSON('equippedCosmetics', equippedCosmetics); }, [equippedCosmetics]);
   useEffect(() => { if (hydratedRef.current) saveJSON('weeklyProgress', weeklyProgress); }, [weeklyProgress]);
@@ -166,11 +170,11 @@ export function AppProvider({ children }) {
   useEffect(() => {
     if (!hydratedRef.current || !user?.loginCode) return;
     saveAccountSnapshot(user.loginCode, {
-      user, track, gems, stationery, library, bookCovers, ownedStickers,
+      user, track, gems, stationery, library, bookCovers, ownedStickers, ownedCovers,
       ownedCosmetics, equippedCosmetics, weeklyProgress, episodeProgress,
       wordBank, excludedWords,
     });
-  }, [user, track, gems, stationery, library, bookCovers, ownedStickers, ownedCosmetics, equippedCosmetics, weeklyProgress, episodeProgress, wordBank, excludedWords]);
+  }, [user, track, gems, stationery, library, bookCovers, ownedStickers, ownedCovers, ownedCosmetics, equippedCosmetics, weeklyProgress, episodeProgress, wordBank, excludedWords]);
 
   const addGems = useCallback((amount) => {
     setGems(prev => prev + amount);
@@ -472,10 +476,19 @@ export function AppProvider({ children }) {
     return true;
   }, [ownedStickers]);
 
-  /** بيغيّر لون غلاف كتاب معيّن بالمكتبة */
-  const setBookCoverColor = useCallback((trackId, episodeId, color) => {
+  /** يشتري غلافًا احترافيًا بالجواهر (لو مش مملوك أصلًا). بيرجع true لو نجحت العملية */
+  const buyCover = useCallback((coverId, price) => {
+    if (ownedCovers.includes(coverId)) return true;
+    if (gems < price) return false;
+    setGems(prev => prev - price);
+    setOwnedCovers(prev => [...prev, coverId]);
+    return true;
+  }, [gems, ownedCovers]);
+
+  /** بيغيّر غلاف كتاب معيّن بالمكتبة (لازم يكون الغلاف مملوكًا أصلًا) */
+  const setBookCover = useCallback((trackId, episodeId, coverId) => {
     const key = coverKey(trackId, episodeId);
-    setBookCovers(prev => ({ ...prev, [key]: { ...(prev[key] || {}), color } }));
+    setBookCovers(prev => ({ ...prev, [key]: { ...(prev[key] || {}), coverId } }));
   }, []);
 
   /** بيضيف/بيشيل ملصق من غلاف كتاب معيّن (بحد أقصى 3 ملصقات على نفس الغلاف) */
@@ -492,10 +505,10 @@ export function AppProvider({ children }) {
 
   /** يبني نسخة كاملة من بيانات الحساب الحالي — تُستخدم وقت الحفظ بالكود */
   const buildAccountSnapshot = useCallback(() => ({
-    user, track, gems, stationery, library, bookCovers, ownedStickers,
+    user, track, gems, stationery, library, bookCovers, ownedStickers, ownedCovers,
     ownedCosmetics, equippedCosmetics, weeklyProgress, episodeProgress,
     wordBank, excludedWords,
-  }), [user, track, gems, stationery, library, bookCovers, ownedStickers, ownedCosmetics, equippedCosmetics, weeklyProgress, episodeProgress, wordBank, excludedWords]);
+  }), [user, track, gems, stationery, library, bookCovers, ownedStickers, ownedCovers, ownedCosmetics, equippedCosmetics, weeklyProgress, episodeProgress, wordBank, excludedWords]);
 
   /** يولّد كود دخول جديد للمستخدم الحالي (لو ما عندوش واحد أصلًا) ويربطه بحسابه */
   const ensureLoginCode = useCallback(() => {
@@ -518,6 +531,7 @@ export function AppProvider({ children }) {
     setLibrary(snap.library || []);
     setBookCovers(snap.bookCovers || {});
     setOwnedStickers(snap.ownedStickers || []);
+    setOwnedCovers(snap.ownedCovers || DEFAULT_OWNED_COVERS);
     setOwnedCosmetics(snap.ownedCosmetics || []);
     setEquippedCosmetics(snap.equippedCosmetics || { hat: null, glasses: null, ring: null });
     setWeeklyProgress(snap.weeklyProgress || { weekKey: getWeekKey(), wordsLearned: 0, episodesDone: 0, wordsRescued: 0, claimed: [] });
@@ -533,7 +547,7 @@ export function AppProvider({ children }) {
     if (user?.loginCode) {
       await saveAccountSnapshot(user.loginCode, buildAccountSnapshot());
     }
-    await removeKeys(['user', 'track', 'gems', 'stationery', 'library', 'episodeProgress', 'wordBank', 'excludedWords', 'bookCovers', 'ownedStickers', 'ownedCosmetics', 'equippedCosmetics', 'weeklyProgress']);
+    await removeKeys(['user', 'track', 'gems', 'stationery', 'library', 'episodeProgress', 'wordBank', 'excludedWords', 'bookCovers', 'ownedStickers', 'ownedCovers', 'ownedCosmetics', 'equippedCosmetics', 'weeklyProgress']);
     await cancelBiboReminders();
     setUser(null);
     setTrack(null);
@@ -545,6 +559,7 @@ export function AppProvider({ children }) {
     setExcludedWords({});
     setBookCovers({});
     setOwnedStickers([]);
+    setOwnedCovers(DEFAULT_OWNED_COVERS);
     setOwnedCosmetics([]);
     setEquippedCosmetics({ hat: null, glasses: null, ring: null });
     setWeeklyProgress({ weekKey: getWeekKey(), wordsLearned: 0, episodesDone: 0, wordsRescued: 0, claimed: [] });
@@ -559,7 +574,7 @@ export function AppProvider({ children }) {
     stationery, useInk, useEraser, usePage, buyItem, claimGift, claimWeeklyGift, canClaimDailyGift, canClaimWeeklyGift,
     voiceOn, setVoiceOn, sfxOn, setSfxOn,
     library, addLibraryEntry,
-    bookCovers, ownedStickers, buySticker, grantSticker, setBookCoverColor, toggleBookSticker,
+    bookCovers, ownedStickers, ownedCovers, buySticker, grantSticker, buyCover, setBookCover, toggleBookSticker,
     ownedCosmetics, equippedCosmetics, buyCosmetic, equipCosmetic,
     weeklyProgress, claimWeeklyReward,
     episodeProgress, getEpisodeState, completeEpisode,
