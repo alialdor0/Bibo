@@ -286,7 +286,7 @@ export const TRACKS = [
 // أصبح مع بيبو نفسه ولا يحتاج مؤثرات جوية إضافية؛ صوت بيبو (utils/sounds.js) كافٍ.
 // ملاحظة: كان هنا 3 مصفوفات ثابتة وهمية (STORY_LINES, COOP_STORY, COOP_WORDS) —
 // قصة واحدة مكرّرة بشخصيات وهمية (أحمد/خالد..) مفصولة تمامًا عن محتوى الحلقات
-// الحقيقي. تمت إزالتها؛ شاشتا Coop.js وDict.js (SentenceDuel) بقوا يستخدموا
+// الحقيقي. تمت إزالتها؛ شاشتا Coop.js وRescue.js (SentenceDuel) بقوا يستخدموا
 // بيانات الحلقات الحقيقية من data/episodes مباشرة، مع استبدال متغيرات المستخدم
 // ({{user_name}}...) عبر utils/templateEngine.js.
 
