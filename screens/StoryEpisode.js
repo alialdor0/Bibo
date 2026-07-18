@@ -566,7 +566,7 @@ export default function StoryEpisode({ onLeave }) {
           </TouchableOpacity>
         </ScrollView>
 
-        <CinematicReading visible={showCinema} episode={episode} lang={lang} onClose={() => setShowCinema(false)} />
+        <CinematicReading visible={showCinema} episode={episode} lang={lang} trackId={trackId} onClose={() => setShowCinema(false)} />
       </SafeAreaView>
     );
   }

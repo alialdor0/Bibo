@@ -73,7 +73,7 @@ export default function Leaderboard({ onBack, onNav }) {
     ? (lang === 'ar' ? 'أنت أسرع مني! رهيب 🏆' : "You're faster than me! Amazing 🏆")
     : (lang === 'ar' ? 'تحدٍّ ممتع... لنرَ من يصل أولًا! 🏁' : "Fun challenge... let's see who gets there first! 🏁");
 
-  const goDict = (mode) => onNav && onNav('dict', { initialMode: mode });
+  const goChallenge = (mode) => onNav && onNav('rescue', { initialChallenge: mode });
 
   return (
     <SafeAreaView style={s.safe}>
@@ -88,21 +88,21 @@ export default function Leaderboard({ onBack, onNav }) {
           color="#FFB300"
           title={lang === 'ar' ? 'مبارزة بالكلمات' : 'Word Duel'}
           subtitle={lang === 'ar' ? 'تحدٍّ سريع بالوقت — أنت مقابل بيبو' : 'A fast timed challenge — you vs Bibo'}
-          onPress={() => goDict('duel')}
+          onPress={() => goChallenge('duel')}
         />
         <GameCard
           icon="📝"
           color="#7fb3f5"
           title={lang === 'ar' ? 'مبارزة بالجمل' : 'Sentence Duel'}
           subtitle={lang === 'ar' ? 'رتّب جملة كاملة قبل بيبو!' : 'Arrange a full sentence before Bibo!'}
-          onPress={() => goDict('sentenceDuel')}
+          onPress={() => goChallenge('sentenceDuel')}
         />
         <GameCard
           icon="🤪"
           color="#a5d6a7"
           title={lang === 'ar' ? 'بيبو المشاكس' : 'Clumsy Bibo'}
           subtitle={lang === 'ar' ? 'بيبو يحاول الإجابة... صحّح له إن أخطأ!' : 'Bibo tries to answer... correct him if he errs!'}
-          onPress={() => goDict('clumsy')}
+          onPress={() => goChallenge('clumsy')}
         />
 
         <Text style={[s.sectionTitle, { marginTop: 10 }]}>{lang === 'ar' ? 'معدّل بيبو الأسبوعي' : "Bibo's weekly pace"}</Text>

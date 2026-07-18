@@ -8,6 +8,7 @@ import { GemsBadge } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
 import BottomNav from '../components/BottomNav';
 import CinematicReading from '../components/CinematicReading';
+import { stopAmbient } from '../utils/ambientMusic';
 import { exportBookPDF, shareBookAchievement } from '../utils/libraryExport';
 
 function BookCard({ book, lang, custom, onPress }) {
@@ -296,7 +297,8 @@ function BookDetail({ book, lang, onBack, onGoToStore }) {
         visible={showCinema}
         episode={episodeForReading}
         lang={lang}
-        onClose={() => setShowCinema(false)}
+        trackId={book.trackId}
+        onClose={() => { setShowCinema(false); stopAmbient(); }}
       />
     </SafeAreaView>
   );
