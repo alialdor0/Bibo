@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../context/AppContext';
 import { t, TRACKS } from '../data';
 import { getEpisode, getTotalEpisodes } from '../data/episodes';
@@ -62,14 +63,22 @@ function TutorialScreen({ lang, onDone }) {
  * كل جملة بتتقرأ بصوت بيبو الفعلي (TTS) وبتوريك ترجمتها العربية.
  */
 function CoopGame({ trackId, lang, user, onEnd, addGems }) {
+  const { addWordToBank } = useApp();
   const track = TRACKS.find(tr => tr.id === trackId) || TRACKS[0];
   const vars = useMemo(() => buildTemplateVars(user), [user]);
   const totalEpisodes = getTotalEpisodes(trackId);
+  const progressKey = `coop_progress_${trackId}`;
 
   const [episodeNum, setEpisodeNum] = useState(1);
+  const [restored, setRestored] = useState(false);
   const rawEpisode = getEpisode(trackId, episodeNum);
   const episode = useMemo(() => (rawEpisode ? fillDeep(rawEpisode, vars) : null), [rawEpisode, vars]);
   const lines = episode?.lines || [];
+  const vocabById = useMemo(() => {
+    const map = {};
+    (episode?.vocabulary || []).forEach(v => { map[v.id] = v; });
+    return map;
+  }, [episode]);
 
   const [lineIdx,   setLineIdx]   = useState(0);
   const [wordIdx,   setWordIdx]   = useState(0);
@@ -89,10 +98,45 @@ function CoopGame({ trackId, lang, user, onEnd, addGems }) {
 
   useEffect(() => { playTrackAmbient(trackId); return () => stopAmbient(); }, [trackId]);
 
+  // استرجاع آخر تقدّم محفوظ لهذا المسار (رقم الحلقة والسطر) — كانت هذه المشكلة
+  // المُبلَّغ عنها: التعاون كان بيرجع للحلقة الأولى دايمًا لأنه ماكانش بيحفظ حاجة
+  useEffect(() => {
+    AsyncStorage.getItem(progressKey)
+      .then(raw => {
+        if (raw) {
+          const saved = JSON.parse(raw);
+          if (typeof saved.episodeNum === 'number' && saved.episodeNum >= 1) setEpisodeNum(saved.episodeNum);
+          if (typeof saved.lineIdx === 'number' && saved.lineIdx >= 0) setLineIdx(saved.lineIdx);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setRestored(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackId]);
+
+  useEffect(() => {
+    if (!restored) return; // متسجّلش أول قراءة فاضية فوق التقدّم المحفوظ قبل ما نسترجعه
+    AsyncStorage.setItem(progressKey, JSON.stringify({ episodeNum, lineIdx })).catch(() => {});
+  }, [episodeNum, lineIdx, restored]);
+
+  /** يضيف كل كلمات السطر اللي خلص (بتاعتك أو بتاعة بيبو) لبنك الكلمات — عشان تظهر بالقاموس */
+  const saveLineWordsToBank = () => {
+    (line?.words || []).forEach(w => {
+      const full = vocabById[w.id] || w;
+      addWordToBank(
+        trackId, w.id,
+        { word: full.word, ar: full.ar, phonetic: full.phonetic, pron: full.pron, emoji: full.emoji, grammar: full.grammar, difficulty: full.difficulty },
+        episodeNum,
+        episode?.word_expiry?.non_protected_expire_after_episode
+      );
+    });
+  };
+
   const advanceLine = () => {
     setShowBibo(true);
     playSfx('pageTurn');
     speakWord(line.text);
+    saveLineWordsToBank();
     setTimeout(() => {
       setShowBibo(false);
       setDone(prev => [...prev, lineIdx]);

@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated, SafeAreaView, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated, Easing, SafeAreaView, TextInput } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../context/AppContext';
-import { t } from '../data';
+import { t, COVER_STICKERS } from '../data';
+import { SEASONS } from '../data/episodes';
+import { buildTemplateVars, fillTemplate } from '../utils/templateEngine';
 import { PageHeader, BiboMsg, GemsBadge } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
 import BiboIcon from '../components/BiboIcon';
@@ -79,6 +81,693 @@ const wc = StyleSheet.create({
   ar:       { fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 },
   badge:    { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
   badgeTxt: { fontSize: 11, fontWeight: '600' },
+});
+
+
+const BIBO_PARTICLE = require('../assets/bibo/welcome.png');
+
+/** إيموجيات صغيرة (أو أيقونة بيبو) تتطاير من نقطة معيّنة وتختفي — تُستخدم كتفاعل بصري خفيف عند لحظات الفوز/الخسارة */
+function FlyingEmojis({ burstKey, emojis }) {
+  const anims = useRef(emojis.map(() => new Animated.Value(0))).current;
+  useEffect(() => {
+    anims.forEach(a => a.setValue(0));
+    Animated.stagger(60, anims.map(a => Animated.timing(a, { toValue: 1, duration: 700, easing: Easing.out(Easing.quad), useNativeDriver: true }))).start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [burstKey]);
+  return (
+    <View pointerEvents="none" style={fe.wrap}>
+      {emojis.map((em, i) => {
+        const angle = (i / emojis.length) * Math.PI * 2;
+        const tx = anims[i].interpolate({ inputRange: [0, 1], outputRange: [0, Math.cos(angle) * 60] });
+        const ty = anims[i].interpolate({ inputRange: [0, 1], outputRange: [0, Math.sin(angle) * 60 - 20] });
+        const op = anims[i].interpolate({ inputRange: [0, 0.7, 1], outputRange: [1, 1, 0] });
+        const sc = anims[i].interpolate({ inputRange: [0, 1], outputRange: [0.6, 1.2] });
+        const transform = [{ translateX: tx }, { translateY: ty }, { scale: sc }];
+        if (em === 'bibo') {
+          return <Animated.Image key={i} source={BIBO_PARTICLE} style={[fe.biboImg, { opacity: op, transform }]} />;
+        }
+        return (
+          <Animated.Text key={i} style={[fe.emoji, { opacity: op, transform }]}>
+            {em}
+          </Animated.Text>
+        );
+      })}
+    </View>
+  );
+}
+const fe = StyleSheet.create({
+  wrap:   { position: 'absolute', top: '50%', left: '50%', width: 1, height: 1 },
+  emoji:  { position: 'absolute', fontSize: 22 },
+  biboImg:{ position: 'absolute', width: 22, height: 22, borderRadius: 11 },
+});
+
+function pick(arr, excludeId, n) {
+  return shuffle(arr.filter(w => w.id !== excludeId)).slice(0, n);
+}
+
+/** يختار ملصق هدية عشوائي غير مملوك بعد — يُستخدم كمكافأة نادرة من بيبو عند أداء ممتاز */
+function pickGiftSticker(ownedStickers) {
+  const available = COVER_STICKERS.filter(st => !ownedStickers.includes(st.id));
+  if (available.length === 0) return null;
+  return available[Math.floor(Math.random() * available.length)];
+}
+
+const DUEL_ROUNDS = 6;
+const DUEL_TIME = 5; // ثواني لكل جولة
+// بدل احتمال ثابت، نجاح بيبو بقى يعتمد على صعوبة الكلمة الفعلية (A1/A2/B1) —
+// كلمة سهلة يعرفها بيبو غالبًا، وكلمة صعبة ممكن يتلخبط فيها زي أي متعلم حقيقي
+const BIBO_SUCCESS_BY_DIFFICULTY = { A1: 0.85, A2: 0.65, B1: 0.5 };
+function biboSuccessChance(word) {
+  return BIBO_SUCCESS_BY_DIFFICULTY[word?.difficulty] ?? 0.65;
+}
+
+/** مبارزة الكلمات — تحدي سريع مع بيبو، الأدوار تتبادل بين "دورك" و"دور بيبو" */
+function Duel({ words, onDone, lang, addGems }) {
+  const { ownedStickers, grantSticker } = useApp();
+  const rounds = useRef(shuffle(words).slice(0, Math.min(DUEL_ROUNDS, words.length))).current;
+  const [idx,        setIdx]        = useState(0);
+  const [myScore,    setMyScore]    = useState(0);
+  const [biboScore,  setBiboScore]  = useState(0);
+  const [timeLeft,   setTimeLeft]   = useState(DUEL_TIME);
+  const [phase,      setPhase]      = useState('mine'); // mine | bibo-thinking | bibo-result | done
+  const [chosen,     setChosen]     = useState(null);
+  const [burst,      setBurst]      = useState({ key: 0, emojis: [] });
+  const [gift,       setGift]       = useState(null);
+
+  useEffect(() => { playSfx('duelStart'); }, []);
+
+  const cur = rounds[idx];
+  const isMyTurn = idx % 2 === 0;
+  const opts = useRef(null);
+  if (!opts.current || opts.current._for !== cur?.id) {
+    opts.current = cur ? shuffle([cur, ...pick(words, cur.id, 3)]) : [];
+    if (cur) opts.current._for = cur.id;
+  }
+
+  const fireBurst = (emojis) => setBurst(b => ({ key: b.key + 1, emojis }));
+
+  const nextRound = () => {
+    setChosen(null);
+    if (idx + 1 >= rounds.length) { setPhase('done'); return; }
+    setIdx(i => i + 1);
+    setTimeLeft(DUEL_TIME);
+    setPhase('mine');
+  };
+
+  // مؤقت دور المستخدم
+  useEffect(() => {
+    if (phase !== 'mine' || !isMyTurn || chosen) return;
+    if (timeLeft <= 0) { playSfx('wrong'); fireBurst(['⌛']); setTimeout(runOpponentOrNext, 500); return; }
+    const t = setTimeout(() => setTimeLeft(s => s - 1), 1000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, timeLeft, isMyTurn, chosen]);
+
+  const runOpponentOrNext = () => nextRound();
+
+  const answerMine = (w) => {
+    if (chosen) return;
+    setChosen(w.id);
+    const ok = w.id === cur.id;
+    if (ok) { setMyScore(s => s + 1); playSfx('correct'); fireBurst(['✅', '⭐']); }
+    else { playSfx('wrong'); fireBurst(['💥']); }
+    setTimeout(nextRound, 700);
+  };
+
+  // دور بيبو: يفكر شوي، بعدين يجاوب باحتمال نجاح ثابت
+  useEffect(() => {
+    if (phase !== 'mine' || isMyTurn) return;
+    setPhase('bibo-thinking');
+    const t = setTimeout(() => {
+      const ok = Math.random() < biboSuccessChance(cur);
+      if (ok) { setBiboScore(s => s + 1); playSfx('win'); fireBurst(['bibo', '✨']); }
+      else { playSfx('wrong'); fireBurst(['😵‍💫', '💫']); }
+      setPhase('bibo-result');
+      setTimeout(nextRound, 1400);
+    }, 1300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, isMyTurn]);
+
+  // هدية من بيبو عند الفوز — مرة وحدة بس لما نوصل لمرحلة "done"
+  useEffect(() => {
+    if (phase !== 'done') return;
+    if (myScore > biboScore) {
+      const st = pickGiftSticker(ownedStickers);
+      if (st && grantSticker(st.id)) setGift(st);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
+  if (phase === 'done') {
+    const won = myScore > biboScore;
+    const tie = myScore === biboScore;
+    return (
+      <View style={ex.card}>
+        <FlyingEmojis burstKey={burst.key} emojis={burst.emojis} />
+        <BiboCharacter
+          state={won ? 'idea' : tie ? 'encourage' : 'celebrate'}
+          size={72}
+          message={
+            won
+              ? (lang === 'ar' ? 'فزت هذه المرة! 😭' : 'You won this time! 😭')
+              : tie
+              ? (lang === 'ar' ? 'تعادلنا! مبارزة أخرى؟' : "It's a tie! Another duel?")
+              : (lang === 'ar' ? 'فزت هذه المرة! 😋' : 'I won this time! 😋')
+          }
+        />
+        <Text style={duel.finalScore}>{lang === 'ar' ? 'أنت' : 'You'} {myScore} — {biboScore} {lang === 'ar' ? 'بيبو' : 'Bibo'}</Text>
+        {gift ? (
+          <View style={duel.giftBox}>
+            <Text style={duel.giftEmoji}>{gift.emoji}</Text>
+            <Text style={duel.giftTxt}>{lang === 'ar' ? `هدية من بيبو: ${gift.nameAr}! 🎁` : `Gift from Bibo: ${gift.name}! 🎁`}</Text>
+          </View>
+        ) : null}
+        <TouchableOpacity style={ex.doneBtn} onPress={() => { addGems(myScore * 2 + 3); onDone(); }}>
+          <Text style={ex.doneBtnTxt}>{lang === 'ar' ? `تم ✓ (+${myScore * 2 + 3} 💎)` : `Done ✓ (+${myScore * 2 + 3} 💎)`}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={ex.card}>
+      <FlyingEmojis burstKey={burst.key} emojis={burst.emojis} />
+      <View style={duel.scoreRow}>
+        <Text style={duel.scoreTxt}>{lang === 'ar' ? 'أنت' : 'You'}: {myScore}</Text>
+        <Text style={duel.roundTxt}>{idx + 1}/{rounds.length}</Text>
+        <View style={duel.scoreBiboRow}><BiboIcon size={14} /><Text style={duel.scoreTxt}> {lang === 'ar' ? 'بيبو' : 'Bibo'}: {biboScore}</Text></View>
+      </View>
+
+      {isMyTurn ? (
+        <>
+          <View style={duel.timerRow}>
+            <Text style={[duel.timerTxt, timeLeft <= 2 ? { color: '#c0392b' } : null]}>⏱ {timeLeft}</Text>
+          </View>
+          <Text style={ex.label}>{lang === 'ar' ? 'دورك!' : 'Your turn!'}</Text>
+          <Text style={{ fontSize: 44, marginBottom: 6 }}>{cur.emoji}</Text>
+          <Text style={ex.bigWord}>{cur.word}</Text>
+          <Text style={ex.qTxt}>{lang === 'ar' ? 'ما معنى هذه الكلمة؟' : 'What does this mean?'}</Text>
+          <View style={ex.opts}>
+            {opts.current.map(w => {
+              const isSel = chosen === w.id; const isOk = w.id === cur.id;
+              return (
+                <TouchableOpacity key={String(w.id)} style={[ex.opt, { backgroundColor: !isSel ? 'rgba(255,255,255,0.05)' : isOk ? 'rgba(46,139,87,0.3)' : 'rgba(192,57,43,0.3)', borderColor: !isSel ? 'rgba(255,255,255,0.1)' : isOk ? '#2E8B57' : '#c0392b' }]}
+                  onPress={() => answerMine(w)}>
+                  <Text style={ex.optTxt}>{w.ar}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </>
+      ) : (
+        <>
+          <Text style={ex.label}>{lang === 'ar' ? 'دور بيبو' : "Bibo's turn"}</Text>
+          <BiboCharacter
+            state={phase === 'bibo-thinking' ? 'thinking' : biboScore > myScore ? 'celebrate' : 'idea'}
+            size={72}
+          />
+          <Text style={{ fontSize: 36, marginTop: 10 }}>{cur.emoji}</Text>
+          <Text style={ex.bigWord}>{cur.word}</Text>
+          <Text style={duel.biboStatusTxt}>
+            {phase === 'bibo-thinking'
+              ? (lang === 'ar' ? 'بيبو يفكّر... 🤔' : 'Bibo is thinking... 🤔')
+              : cur.ar}
+          </Text>
+        </>
+      )}
+    </View>
+  );
+}
+
+const CLUMSY_ROUNDS = 5;
+// نفس فكرة الاحتمال المتغيّر: كلمة صعبة تخلق فرصة أكبر إن بيبو "يغلط عمدًا"
+// (فرصة تعليمية للمستخدم يصحّحله)، وكلمة سهلة يندر يغلط فيها
+const CLUMSY_MISTAKE_BY_DIFFICULTY = { A1: 0.25, A2: 0.45, B1: 0.65 };
+function biboMistakeChance(word) {
+  return CLUMSY_MISTAKE_BY_DIFFICULTY[word?.difficulty] ?? 0.45;
+}
+
+/** بيبو المشاكس — بيبو يحاول يجاوب أول، وأحيانًا يخطئ عمدًا، وعلى المستخدم ملاحظة الخطأ وتصحيحه */
+function ClumsyBibo({ words, onDone, lang, addGems }) {
+  const { ownedStickers, grantSticker } = useApp();
+  const rounds = useRef(shuffle(words).slice(0, Math.min(CLUMSY_ROUNDS, words.length))).current;
+  const [idx,       setIdx]       = useState(0);
+  const [phase,      setPhase]     = useState('thinking'); // thinking | bibo-answered | user-turn | round-done
+  const [biboPick,   setBiboPick]  = useState(null);
+  const [biboWrong,  setBiboWrong] = useState(false);
+  const [userPick,   setUserPick]  = useState(null);
+  const [earned,     setEarned]    = useState(0);
+  const [burst,      setBurst]     = useState({ key: 0, emojis: [] });
+  const [gift,       setGift]      = useState(null);
+
+  const cur = rounds[idx];
+  const optsRef = useRef(null);
+  if (!optsRef.current || optsRef.current._for !== cur?.id) {
+    optsRef.current = cur ? shuffle([cur, ...pick(words, cur.id, 3)]) : [];
+    if (cur) optsRef.current._for = cur.id;
+  }
+
+  const fireBurst = (emojis) => setBurst(b => ({ key: b.key + 1, emojis }));
+
+  // بيبو يفكّر، بعدين يختار (صح أو غلط عمدًا حسب الاحتمال)
+  useEffect(() => {
+    if (phase !== 'thinking' || !cur) return;
+    const t = setTimeout(() => {
+      const wrong = Math.random() < biboMistakeChance(cur);
+      const choice = wrong ? optsRef.current.find(w => w.id !== cur.id) : cur;
+      setBiboPick(choice.id);
+      setBiboWrong(wrong);
+      if (wrong) { fireBurst(['😵\u200d💫', '💥']); playSfx('mischief'); }
+      else { fireBurst(['✨']); playSfx('correct'); }
+      setPhase('bibo-answered');
+      setTimeout(() => setPhase('user-turn'), wrong ? 1600 : 1200);
+    }, 1300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, idx]);
+
+  const nextRound = () => {
+    setBiboPick(null); setBiboWrong(false); setUserPick(null);
+    if (idx + 1 >= rounds.length) { setPhase('done'); return; }
+    setIdx(i => i + 1);
+    setPhase('thinking');
+  };
+
+  // لما بيبو يكون صح: المستخدم بس يأكّد
+  const confirmBibo = () => {
+    setEarned(e => e + 1); fireBurst(['👍']); playSfx('correct');
+    setTimeout(nextRound, 700);
+  };
+
+  // لما بيبو يكون غلط: المستخدم لازم يختار الإجابة الصحيحة بنفسه
+  const correctBibo = (w) => {
+    if (userPick) return;
+    setUserPick(w.id);
+    const ok = w.id === cur.id;
+    if (ok) { setEarned(e => e + 2); fireBurst(['❤️', '✨']); playSfx('win'); }
+    else { fireBurst(['💭']); playSfx('wrong'); }
+    setTimeout(nextRound, 900);
+  };
+
+  // هدية من بيبو لو ساعدته كويس (تصحيح أو تأكيد ناجح بمعظم الجولات)
+  useEffect(() => {
+    if (phase !== 'done') return;
+    if (earned >= rounds.length) {
+      const st = pickGiftSticker(ownedStickers);
+      if (st && grantSticker(st.id)) setGift(st);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
+  if (!cur || phase === 'done') {
+    return (
+      <View style={ex.card}>
+        <FlyingEmojis burstKey={burst.key} emojis={burst.emojis} />
+        <BiboCharacter state="celebrate" size={72} message={lang === 'ar' ? 'شكرًا لمساعدتك! 🙏' : 'Thanks for your help! 🙏'} />
+        <Text style={clumsy.finalScore}>{lang === 'ar' ? `كسبت ${earned * 2} 💎` : `You earned ${earned * 2} 💎`}</Text>
+        {gift ? (
+          <View style={duel.giftBox}>
+            <Text style={duel.giftEmoji}>{gift.emoji}</Text>
+            <Text style={duel.giftTxt}>{lang === 'ar' ? `هدية من بيبو: ${gift.nameAr}! 🎁` : `Gift from Bibo: ${gift.name}! 🎁`}</Text>
+          </View>
+        ) : null}
+        <TouchableOpacity style={ex.doneBtn} onPress={() => { addGems(earned * 2); onDone(); }}>
+          <Text style={ex.doneBtnTxt}>{lang === 'ar' ? 'تم ✓' : 'Done ✓'}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={ex.card}>
+      <FlyingEmojis burstKey={burst.key} emojis={burst.emojis} />
+      <Text style={clumsy.roundTxt}>{idx + 1}/{rounds.length}</Text>
+      <BiboCharacter
+        state={phase === 'thinking' ? 'thinking' : biboWrong ? 'attention' : 'celebrate'}
+        size={68}
+      />
+      <Text style={{ fontSize: 38, marginTop: 10 }}>{cur.emoji}</Text>
+      <Text style={ex.bigWord}>{cur.word}</Text>
+
+      {phase === 'thinking' ? (
+        <Text style={clumsy.statusTxt}>{lang === 'ar' ? 'بيبو يفكّر بمعنى الكلمة... 🤔' : "Bibo is thinking about the word's meaning... 🤔"}</Text>
+      ) : (
+        <>
+          <View style={clumsy.optsWrap}>
+            {optsRef.current.map(w => {
+              const isBiboPick = biboPick === w.id;
+              const isUserPick = userPick === w.id;
+              const isCorrectAns = w.id === cur.id;
+              const showResult = phase === 'user-turn' && userPick;
+              let bg = 'rgba(255,255,255,0.05)', bd = 'rgba(255,255,255,0.1)';
+              if (isBiboPick) { bg = biboWrong ? 'rgba(192,57,43,0.25)' : 'rgba(46,139,87,0.25)'; bd = biboWrong ? '#c0392b' : '#2E8B57'; }
+              if (showResult && isUserPick) { bg = isCorrectAns ? 'rgba(46,139,87,0.3)' : 'rgba(192,57,43,0.3)'; bd = isCorrectAns ? '#2E8B57' : '#c0392b'; }
+              return (
+                <View key={String(w.id)} style={[clumsy.opt, { backgroundColor: bg, borderColor: bd }]}>
+                  <Text style={ex.optTxt}>{w.ar}</Text>
+                  {isBiboPick ? <BiboIcon size={16} style={clumsy.biboTag} /> : null}
+                </View>
+              );
+            })}
+          </View>
+
+          {phase === 'bibo-answered' ? (
+            <Text style={clumsy.statusTxt}>
+              {biboWrong ? (lang === 'ar' ? 'بيبو غير متأكد من إجابته... 😳' : "Bibo isn't sure about this one... 😳") : (lang === 'ar' ? 'بيبو يبدو واثقًا! ✨' : 'Bibo looks confident! ✨')}
+            </Text>
+          ) : biboWrong && !userPick ? (
+            <>
+              <Text style={clumsy.promptTxt}>{lang === 'ar' ? 'بيبو أخطأ! اختر الإجابة الصحيحة لتصحيحه 👇' : 'Bibo got it wrong! Tap the correct answer to fix it 👇'}</Text>
+              <View style={clumsy.fixRow}>
+                {optsRef.current.filter(w => w.id !== biboPick).map(w => (
+                  <TouchableOpacity key={String(w.id)} style={clumsy.fixBtn} onPress={() => correctBibo(w)}>
+                    <Text style={clumsy.fixBtnTxt}>{w.ar}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          ) : !biboWrong && !userPick ? (
+            <TouchableOpacity style={clumsy.confirmBtn} onPress={confirmBibo}>
+              <Text style={clumsy.confirmBtnTxt}>{lang === 'ar' ? '👍 بيبو صح، تابع' : '👍 Bibo is right, continue'}</Text>
+            </TouchableOpacity>
+          ) : null}
+        </>
+      )}
+    </View>
+  );
+}
+
+const TEACH_ROUNDS = 4;
+
+/** علّم بيبو (تحدي الأدوار المعكوسة) — بيبو نسي كلمة ويطلب مساعدتك، وعليك كتابتها بنفسك لتُعلّمه إياها */
+function TeachBibo({ words, onDone, lang, addGems }) {
+  const rounds = useRef(shuffle(words).slice(0, Math.min(TEACH_ROUNDS, words.length))).current;
+  const [idx,     setIdx]     = useState(0);
+  const [typed,   setTyped]   = useState('');
+  const [phase,   setPhase]   = useState('asking'); // asking | correct | wrong | done
+  const [earned,  setEarned]  = useState(0);
+  const [burst,   setBurst]   = useState({ key: 0, emojis: [] });
+
+  const cur = rounds[idx];
+  const fireBurst = (emojis) => setBurst(b => ({ key: b.key + 1, emojis }));
+
+  const nextRound = () => {
+    setTyped('');
+    if (idx + 1 >= rounds.length) { setPhase('done'); return; }
+    setIdx(i => i + 1);
+    setPhase('asking');
+  };
+
+  const submit = () => {
+    if (phase !== 'asking') return;
+    const ok = typed.trim().toLowerCase() === cur.word.toLowerCase();
+    if (ok) { setEarned(e => e + 2); setPhase('correct'); playSfx('correct'); fireBurst(['✨', '🙏']); }
+    else { setPhase('wrong'); playSfx('wrong'); fireBurst(['😳']); }
+    setTimeout(nextRound, ok ? 1300 : 1800);
+  };
+
+  if (!cur || phase === 'done') {
+    return (
+      <View style={ex.card}>
+        <FlyingEmojis burstKey={burst.key} emojis={burst.emojis} />
+        <BiboCharacter state="celebrate" size={72} message={lang === 'ar' ? 'شكرًا لأنك علّمتني! 🙏' : 'Thanks for teaching me! 🙏'} />
+        <Text style={clumsy.finalScore}>{lang === 'ar' ? `كسبت ${earned} 💎` : `You earned ${earned} 💎`}</Text>
+        <TouchableOpacity style={ex.doneBtn} onPress={() => { addGems(earned); onDone(); }}>
+          <Text style={ex.doneBtnTxt}>{lang === 'ar' ? 'تم ✓' : 'Done ✓'}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={ex.card}>
+      <FlyingEmojis burstKey={burst.key} emojis={burst.emojis} />
+      <Text style={clumsy.roundTxt}>{idx + 1}/{rounds.length}</Text>
+      <BiboCharacter
+        state={phase === 'asking' ? 'attention' : phase === 'correct' ? 'celebrate' : 'encourage'}
+        size={68}
+        message={
+          phase === 'asking'
+            ? (lang === 'ar' ? 'همم... نسيت هذه الكلمة، ساعدني! 🤔' : "Hmmm... I forgot this word, help me! 🤔")
+            : phase === 'correct'
+            ? (lang === 'ar' ? 'آها! فهمت، شكرًا! ✨' : 'Aha! Got it, thanks! ✨')
+            : (lang === 'ar' ? `أوبس! الكلمة الصح هي "${cur.word}"` : `Oops! The right word was "${cur.word}"`)
+        }
+      />
+      <Text style={{ fontSize: 38, marginTop: 10 }}>{cur.emoji}</Text>
+      <Text style={teach.meaningTxt}>{cur.ar}</Text>
+      <View style={teach.inputRow}>
+        <TextInput
+          style={[teach.input, phase === 'correct' ? { borderColor: '#2E8B57' } : phase === 'wrong' ? { borderColor: '#c0392b' } : null]}
+          value={typed}
+          onChangeText={setTyped}
+          editable={phase === 'asking'}
+          onSubmitEditing={submit}
+          placeholder={lang === 'ar' ? 'اكتب الكلمة بالإنجليزي...' : 'Type the word in English...'}
+          placeholderTextColor="rgba(255,255,255,0.25)"
+          autoCapitalize="none"
+          returnKeyType="done"
+        />
+        {phase === 'asking' ? (
+          <TouchableOpacity style={teach.checkBtn} onPress={submit}>
+            <Text style={teach.checkBtnTxt}>✓</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+const SENTENCE_ROUNDS = 4;
+const SENTENCE_TIME = 20; // ثواني لترتيب الجملة كل جولة
+// مفيش بيانات صعوبة لكل كلمة هنا (الجُمل من قصص التعاون)، فبنستخدم طول
+// الجملة كمقياس واقعي للصعوبة — جملة قصيرة يرتّبها بيبو غالبًا صح، وجملة
+// طويلة فرصة أكبر يتلخبط فيها
+function biboSentenceChance(sentence) {
+  const wc = sentence.split(' ').filter(Boolean).length;
+  if (wc <= 4) return 0.8;
+  if (wc <= 7) return 0.6;
+  return 0.4;
+}
+
+function stripPunct(w) { return w.replace(/[.,!?"']/g, ''); }
+
+/** يجمع جملًا قصيرة (٣-٩ كلمات) من محتوى الحلقات الحقيقي عبر كل المسارات، بعد استبدال متغيرات المستخدم مثل {{user_name}} */
+function getRealSentencePool(vars) {
+  const all = [];
+  Object.values(SEASONS).forEach(season => {
+    (season.episodes || []).forEach(ep => {
+      (ep.lines || []).forEach(line => {
+        if (!line.text) return;
+        const filled = fillTemplate(stripPunct(line.text), vars);
+        const wc = filled.split(' ').filter(Boolean).length;
+        if (wc >= 3 && wc <= 9) all.push(filled);
+      });
+    });
+  });
+  return all;
+}
+
+/** مبارزة الجمل — نفس فكرة مبارزة الكلمات بس بجمل قصيرة كاملة من محتوى الحلقات الحقيقي، ترتيب بدل اختيار */
+function SentenceDuel({ lang, onDone, addGems }) {
+  const { user } = useApp();
+  const allLines = useRef(
+    shuffle(getRealSentencePool(buildTemplateVars(user)))
+  ).current;
+  const rounds = useRef(allLines.slice(0, Math.min(SENTENCE_ROUNDS, allLines.length))).current;
+
+  const [idx,       setIdx]       = useState(0);
+  const [myScore,   setMyScore]   = useState(0);
+  const [biboScore, setBiboScore] = useState(0);
+  const [timeLeft,  setTimeLeft]  = useState(SENTENCE_TIME);
+  const [phase,     setPhase]     = useState('mine'); // mine | bibo-thinking | bibo-result | done
+  const [picked,    setPicked]    = useState([]);
+  const [burst,     setBurst]     = useState({ key: 0, emojis: [] });
+
+  useEffect(() => { playSfx('duelStart'); }, []);
+
+  const cur = rounds[idx];
+  const isMyTurn = idx % 2 === 0;
+  const wordsRef = useRef(null);
+  const targetWords = cur ? cur.split(' ') : [];
+  if (!wordsRef.current || wordsRef.current._for !== idx) {
+    wordsRef.current = shuffle(targetWords);
+    wordsRef.current._for = idx;
+  }
+
+  const fireBurst = (emojis) => setBurst(b => ({ key: b.key + 1, emojis }));
+
+  const nextRound = () => {
+    setPicked([]);
+    if (idx + 1 >= rounds.length) { setPhase('done'); return; }
+    setIdx(i => i + 1);
+    setTimeLeft(SENTENCE_TIME);
+    setPhase('mine');
+  };
+
+  useEffect(() => {
+    if (phase !== 'mine' || !isMyTurn) return;
+    if (timeLeft <= 0) { playSfx('wrong'); fireBurst(['⌛']); setTimeout(nextRound, 500); return; }
+    const t = setTimeout(() => setTimeLeft(s => s - 1), 1000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, timeLeft, isMyTurn, picked]);
+
+  const pickWord = (w, i) => {
+    if (picked.some(p => p.i === i)) return;
+    const next = [...picked, { w, i }];
+    setPicked(next);
+    playSfx('writing');
+    if (next.length === targetWords.length) {
+      const ok = next.every((p, k) => p.w === targetWords[k]);
+      if (ok) { setMyScore(s => s + 1); playSfx('correct'); fireBurst(['✅', '⭐']); }
+      else { playSfx('wrong'); fireBurst(['💥']); }
+      setTimeout(nextRound, 800);
+    }
+  };
+
+  useEffect(() => {
+    if (phase !== 'mine' || isMyTurn) return;
+    setPhase('bibo-thinking');
+    const t = setTimeout(() => {
+      const ok = Math.random() < biboSentenceChance(cur);
+      if (ok) { setBiboScore(s => s + 1); playSfx('win'); fireBurst(['bibo', '✨']); }
+      else { playSfx('wrong'); fireBurst(['😵‍💫']); }
+      setPhase('bibo-result');
+      setTimeout(nextRound, 1600);
+    }, 1800);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, isMyTurn]);
+
+  if (!cur || phase === 'done') {
+    const won = myScore > biboScore;
+    const tie = myScore === biboScore;
+    return (
+      <View style={ex.card}>
+        <FlyingEmojis burstKey={burst.key} emojis={burst.emojis} />
+        <BiboCharacter
+          state={won ? 'idea' : tie ? 'encourage' : 'celebrate'}
+          size={72}
+          message={
+            won ? (lang === 'ar' ? 'فزت هذه المرة! 😭' : 'You won this time! 😭') :
+            tie ? (lang === 'ar' ? 'تعادلنا! مبارزة أخرى؟' : "It's a tie! Another duel?") :
+            (lang === 'ar' ? 'فزت هذه المرة! 😋' : 'I won this time! 😋')
+          }
+        />
+        <Text style={duel.finalScore}>{lang === 'ar' ? 'أنت' : 'You'} {myScore} — {biboScore} {lang === 'ar' ? 'بيبو' : 'Bibo'}</Text>
+        <TouchableOpacity style={ex.doneBtn} onPress={() => { addGems(myScore * 4 + 3); onDone(); }}>
+          <Text style={ex.doneBtnTxt}>{lang === 'ar' ? `تم ✓ (+${myScore * 4 + 3} 💎)` : `Done ✓ (+${myScore * 4 + 3} 💎)`}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={ex.card}>
+      <FlyingEmojis burstKey={burst.key} emojis={burst.emojis} />
+      <View style={duel.scoreRow}>
+        <Text style={duel.scoreTxt}>{lang === 'ar' ? 'أنت' : 'You'}: {myScore}</Text>
+        <Text style={duel.roundTxt}>{idx + 1}/{rounds.length}</Text>
+        <View style={duel.scoreBiboRow}><BiboIcon size={14} /><Text style={duel.scoreTxt}> {lang === 'ar' ? 'بيبو' : 'Bibo'}: {biboScore}</Text></View>
+      </View>
+
+      {isMyTurn ? (
+        <>
+          <View style={duel.timerRow}>
+            <Text style={[duel.timerTxt, timeLeft <= 5 ? { color: '#c0392b' } : null]}>⏱ {timeLeft}</Text>
+          </View>
+          <Text style={ex.label}>{lang === 'ar' ? 'رتّب الجملة!' : 'Arrange the sentence!'}</Text>
+          <View style={teach.inputRow}>
+            <View style={[s.builtRow, { minHeight: 44 }]}>
+              {picked.length === 0 ? <Text style={s.builtPlaceholder}>...</Text> : picked.map((p, i) => (
+                <View key={String(i)} style={s.builtChip}><Text style={s.builtChipTxt}>{p.w}</Text></View>
+              ))}
+            </View>
+          </View>
+          <View style={s.chipsRow}>
+            {wordsRef.current.map((w, i) => {
+              const used = picked.some(p => p.i === i);
+              if (used) return null;
+              return (
+                <TouchableOpacity key={String(i)} style={s.arrangeChip} onPress={() => pickWord(w, i)}>
+                  <Text style={s.arrangeChipTxt}>{w}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </>
+      ) : (
+        <>
+          <Text style={ex.label}>{lang === 'ar' ? 'دور بيبو' : "Bibo's turn"}</Text>
+          <BiboCharacter state={phase === 'bibo-thinking' ? 'thinking' : biboScore > myScore ? 'celebrate' : 'idea'} size={72} />
+          <Text style={duel.biboStatusTxt}>
+            {phase === 'bibo-thinking'
+              ? (lang === 'ar' ? 'بيبو يرتّب الجملة... 🤔' : 'Bibo is arranging the sentence... 🤔')
+              : cur}
+          </Text>
+        </>
+      )}
+    </View>
+  );
+}
+
+const teach = StyleSheet.create({
+  meaningTxt: { color: 'rgba(255,255,255,0.6)', fontSize: 15, marginTop: 8, marginBottom: 16, fontWeight: '600' },
+  inputRow:   { flexDirection: 'row', gap: 8, width: '100%' },
+  input:      { flex: 1, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: 11, color: '#fff', fontSize: 15 },
+  checkBtn:   { width: 46, borderRadius: 10, backgroundColor: '#1B3A6B', alignItems: 'center', justifyContent: 'center' },
+  checkBtnTxt:{ color: '#fff', fontSize: 20, fontWeight: '700' },
+});
+
+const clumsy = StyleSheet.create({
+  roundTxt:    { color: 'rgba(255,255,255,0.4)', fontSize: 12, marginBottom: 6 },
+  statusTxt:   { color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 10, textAlign: 'center' },
+  promptTxt:   { color: '#FFB300', fontSize: 13, fontWeight: '700', marginTop: 10, marginBottom: 10, textAlign: 'center' },
+  optsWrap:    { width: '100%', marginTop: 14, gap: 8 },
+  opt:         { borderWidth: 1.5, borderRadius: 10, padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  biboTag:     { marginLeft: 6 },
+  fixRow:      { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
+  fixBtn:      { borderWidth: 1, borderColor: '#2E8B57', backgroundColor: 'rgba(46,139,87,0.15)', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9 },
+  fixBtnTxt:   { color: '#a5d6a7', fontSize: 13, fontWeight: '700' },
+  confirmBtn:  { backgroundColor: 'rgba(46,139,87,0.25)', borderWidth: 1, borderColor: '#2E8B57', borderRadius: 12, paddingHorizontal: 20, paddingVertical: 11, marginTop: 8 },
+  confirmBtnTxt:{ color: '#a5d6a7', fontSize: 14, fontWeight: '700' },
+  finalScore:  { color: '#fff', fontSize: 18, fontWeight: '800', marginTop: 12, marginBottom: 4 },
+});
+
+const duel = StyleSheet.create({
+  giftBox:        { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,179,0,0.12)', borderWidth: 1, borderColor: 'rgba(255,179,0,0.4)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginTop: 8, marginBottom: 4 },
+  giftEmoji:      { fontSize: 24 },
+  giftTxt:        { color: '#FFB300', fontSize: 12, fontWeight: '700', flexShrink: 1 },
+  scoreRow:       { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 12 },
+  scoreTxt:       { color: '#fff', fontSize: 13, fontWeight: '700' },
+  scoreBiboRow:   { flexDirection: 'row', alignItems: 'center' },
+  roundTxt:       { color: 'rgba(255,255,255,0.4)', fontSize: 12 },
+  timerRow:       { marginBottom: 8 },
+  timerTxt:       { fontSize: 18, fontWeight: '800', color: '#FFB300' },
+  biboStatusTxt:  { color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 8 },
+  finalScore:     { color: '#fff', fontSize: 18, fontWeight: '800', marginTop: 12, marginBottom: 4 },
+});
+
+const ex = StyleSheet.create({
+  card:       { backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 18, padding: 18, alignItems: 'center' },
+  label:      { fontSize: 11, color: 'rgba(255,255,255,0.35)', alignSelf: 'flex-start', marginBottom: 12 },
+  bigWord:    { fontSize: 26, fontWeight: '800', color: '#fff', marginBottom: 4 },
+  bigWordAr:  { fontSize: 24, fontWeight: '800', color: '#a5d6a7', marginBottom: 4 },
+  qTxt:       { fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 16 },
+  opts:       { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, width: '100%' },
+  opt:        { borderWidth: 1, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10, minWidth: '44%', alignItems: 'center' },
+  optTxt:     { color: '#fff', fontSize: 14, fontWeight: '600' },
+  matchGrid:  { flexDirection: 'row', gap: 10, width: '100%' },
+  matchCol:   { flex: 1, gap: 8 },
+  matchBtn:   { borderWidth: 1, borderRadius: 10, padding: 10, alignItems: 'center' },
+  matchTxtEn: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  matchTxtAr: { color: '#a5d6a7', fontSize: 13, fontWeight: '600' },
+  doneCard:   { backgroundColor: 'rgba(46,139,87,0.1)', borderWidth: 1, borderColor: 'rgba(46,139,87,0.3)', borderRadius: 18, padding: 24, alignItems: 'center' },
+  doneScore:  { fontSize: 36, fontWeight: '900', color: '#a5d6a7', marginTop: 8, marginBottom: 16 },
+  doneBtn:    { backgroundColor: '#1B3A6B', borderRadius: 12, paddingHorizontal: 28, paddingVertical: 12 },
+  doneBtnTxt: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });
 
 function RescueGame({ words, onDone, addGems, onRescue, onResult, difficulty, lang }) {
@@ -390,11 +1079,13 @@ const rg = StyleSheet.create({
   doneBtnTxt:  { color: '#fff', fontSize: 15, fontWeight: '700' },
 });
 
-export default function Rescue({ onBack }) {
+export default function Rescue({ onBack, initialChallenge }) {
   const { lang, gems, addGems, getWordBankWords, rescueWord, recordWordResult } = useApp();
   const T = (k) => t(k, lang);
   const [screen, setScreen] = useState('home');
   const [filter, setFilter] = useState('all');
+  const [challengeMode, setChallengeMode] = useState(initialChallenge || null); // duel | clumsy | teach | sentenceDuel
+  const [challengeKey, setChallengeKey] = useState(0);
   const [difficulty, setDifficultyState] = useState('medium');
   useEffect(() => {
     AsyncStorage.getItem('rescue_difficulty').then(v => { if (v) setDifficultyState(v); }).catch(() => {});
@@ -409,6 +1100,31 @@ export default function Rescue({ onBack }) {
   const soon   = allWords.filter(w => w.episodesLeft > 0 && w.episodesLeft <= 1);
   const later  = allWords.filter(w => w.episodesLeft > 1);
   const gameWords = filter === 'urgent' ? urgent : filter === 'soon' ? soon : allWords;
+  const learnedWords = allWords.filter(w => w.status === 'learned');
+
+  const startChallenge = (m) => { setChallengeKey(k => k + 1); setChallengeMode(m); };
+  const endChallenge = () => setChallengeMode(null);
+
+  if (challengeMode) return (
+    <SafeAreaView style={s.safe}>
+      <PageHeader
+        title={
+          challengeMode === 'duel' ? (lang === 'ar' ? 'مبارزة بالكلمات' : 'Word Duel') :
+          challengeMode === 'clumsy' ? (lang === 'ar' ? 'بيبو المشاكس' : 'Clumsy Bibo') :
+          challengeMode === 'teach' ? (lang === 'ar' ? 'علّم بيبو' : 'Teach Bibo') :
+          (lang === 'ar' ? 'مبارزة بالجمل' : 'Sentence Duel')
+        }
+        onBack={endChallenge}
+        backLabel={T('back')}
+      />
+      <ScrollView contentContainerStyle={s.pageContent}>
+        {challengeMode === 'duel' ? <Duel key={String(challengeKey)} words={learnedWords} onDone={endChallenge} lang={lang} addGems={addGems} /> :
+         challengeMode === 'clumsy' ? <ClumsyBibo key={String(challengeKey)} words={learnedWords} onDone={endChallenge} lang={lang} addGems={addGems} /> :
+         challengeMode === 'teach' ? <TeachBibo key={String(challengeKey)} words={learnedWords} onDone={endChallenge} lang={lang} addGems={addGems} /> :
+         <SentenceDuel key={String(challengeKey)} onDone={endChallenge} lang={lang} addGems={addGems} />}
+      </ScrollView>
+    </SafeAreaView>
+  );
 
   if (screen === 'game') return (
     <SafeAreaView style={s.safe}>
@@ -503,6 +1219,35 @@ export default function Rescue({ onBack }) {
           <Text style={s.startBtnArrow}>←</Text>
         </TouchableOpacity>
 
+        <Text style={s.listLabel}>{lang === 'ar' ? 'تحدَّ بيبو 🎮' : 'Challenge Bibo 🎮'}</Text>
+        <Text style={s.diffSubLabel}>
+          {learnedWords.length >= 4
+            ? (lang === 'ar' ? 'تحديات ممتعة تختبر كلماتك المتقنة ضد بيبو' : 'Fun challenges that test your mastered words against Bibo')
+            : (lang === 'ar' ? '⚠️ تحتاج 4 كلمات متقنة على الأقل لبدء التحديات' : '⚠️ You need at least 4 mastered words to start challenges')}
+        </Text>
+        {[
+          { key: 'duel',         label: lang === 'ar' ? 'مبارزة بالكلمات' : 'Word Duel',     icon: '⚔️', sub: lang === 'ar' ? 'تحدٍّ سريع بالوقت — أنت مقابل بيبو' : 'A fast timed challenge — you vs Bibo', gated: learnedWords.length < 4 },
+          { key: 'sentenceDuel', label: lang === 'ar' ? 'مبارزة بالجمل' : 'Sentence Duel',   icon: '📝', sub: lang === 'ar' ? 'رتّب جملة كاملة قبل بيبو!' : 'Arrange a full sentence before Bibo!', gated: false },
+          { key: 'clumsy',       label: lang === 'ar' ? 'بيبو المشاكس' : 'Clumsy Bibo',       icon: '🤪', sub: lang === 'ar' ? 'بيبو يحاول الإجابة... صحّح له إن أخطأ!' : 'Bibo tries to answer... correct him if he errs!', gated: learnedWords.length < 4 },
+          { key: 'teach',        label: lang === 'ar' ? 'علّم بيبو' : 'Teach Bibo',           icon: '❓', sub: lang === 'ar' ? 'بيبو نسي كلمة... ساعده يتذكّرها!' : 'Bibo forgot a word... help him remember it!', gated: learnedWords.length < 4 },
+        ].map(ch => (
+          <TouchableOpacity
+            key={ch.key}
+            style={[s.challengeCard, ch.gated ? { opacity: 0.4 } : null]}
+            onPress={() => !ch.gated && startChallenge(ch.key)}
+            disabled={ch.gated}
+            accessibilityRole="button"
+            accessibilityLabel={ch.label}
+          >
+            <Text style={{ fontSize: 24 }}>{ch.icon}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={s.challengeLabel}>{ch.label}</Text>
+              <Text style={s.challengeSub}>{ch.sub}</Text>
+            </View>
+            <Text style={s.startBtnArrow}>←</Text>
+          </TouchableOpacity>
+        ))}
+
         {urgent.length > 0 ? <Text style={s.listLabel}>{lang === 'ar' ? 'اليوم' : 'Today'}</Text> : null}
         {urgent.map(w => <WordCard key={String(w.id)} word={w} lang={lang} />)}
         {soon.length > 0 ? <Text style={s.listLabel}>{lang === 'ar' ? 'قريبًا' : 'Coming Soon'}</Text> : null}
@@ -537,4 +1282,7 @@ const s = StyleSheet.create({
   startBtnSub:   { fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 },
   startBtnArrow: { marginLeft: 'auto', color: '#c0392b', fontSize: 18, fontWeight: '700' },
   listLabel:     { fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 8, marginTop: 4 },
+  challengeCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 14, padding: 14, marginBottom: 10 },
+  challengeLabel:{ fontSize: 14, fontWeight: '700', color: '#fff' },
+  challengeSub:  { fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 },
 });
