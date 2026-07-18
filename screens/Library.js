@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator, Alert } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { t, COVER_STICKERS, BOOK_COVERS } from '../data';
+import { getEpisode } from '../data/episodes';
+import { buildTemplateVars, fillDeep } from '../utils/templateEngine';
 import { GemsBadge } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
 import BottomNav from '../components/BottomNav';
+import CinematicReading from '../components/CinematicReading';
 import { exportBookPDF, shareBookAchievement } from '../utils/libraryExport';
 
 function BookCard({ book, lang, custom, onPress }) {
@@ -65,15 +68,22 @@ function accuracyColor(acc) {
   return '#ff8a65';
 }
 
-function BookDetail({ book, lang, onBack, onReadAgain, onGoToStore }) {
-  const { gems, bookCovers, ownedStickers, ownedCovers, setBookCover, toggleBookSticker } = useApp();
+function BookDetail({ book, lang, onBack, onGoToStore }) {
+  const { gems, bookCovers, ownedStickers, ownedCovers, setBookCover, toggleBookSticker, user } = useApp();
   const [exporting, setExporting] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [showCinema, setShowCinema] = useState(false);
   const [customStep, setCustomStep] = useState('cover'); // 'cover' | 'sticker' — نظام مراحل بدل الازدحام
   const title = lang === 'ar' ? book.trackNameAr : book.trackName;
   const date = new Date(book.completedAt).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US');
   const duration = formatDuration(book.timeSpentSec, lang);
   const hasAccuracy = typeof book.accuracy === 'number' && book.totalAnswers > 0;
+
+  // نجيب بيانات الحلقة الحقيقية بنفس رقمها (book.episodeId) — بدل ما "إعادة القراءة" تودّينا
+  // لأي حلقة تانية (كانت المشكلة: كانت بتفتح آخر حلقة مفتوحة بدل الحلقة اللي فعلاً خلّصتها)
+  const vars = useMemo(() => buildTemplateVars(user), [user]);
+  const rawEpisode = getEpisode(book.trackId, book.episodeId);
+  const episodeForReading = useMemo(() => (rawEpisode ? fillDeep(rawEpisode, vars) : null), [rawEpisode, vars]);
 
   const coverKey = `${book.trackId}::${book.episodeId}`;
   const custom = bookCovers[coverKey] || {};
@@ -260,7 +270,7 @@ function BookDetail({ book, lang, onBack, onReadAgain, onGoToStore }) {
           <TouchableOpacity style={[s.actionBtn, s.actionPrimary]} onPress={handleExport} disabled={exporting}>
             {exporting ? <ActivityIndicator color="#08080f" /> : <Text style={s.actionPrimaryTxt}>📄 {lang === 'ar' ? 'تصدير PDF' : 'Export PDF'}</Text>}
           </TouchableOpacity>
-          <TouchableOpacity style={s.actionBtn} onPress={onReadAgain}>
+          <TouchableOpacity style={s.actionBtn} onPress={() => setShowCinema(true)} accessible={true} accessibilityRole="button">
             <Text style={s.actionTxt}>🔁 {lang === 'ar' ? 'إعادة القراءة' : 'Read again'}</Text>
           </TouchableOpacity>
         </View>
@@ -281,6 +291,13 @@ function BookDetail({ book, lang, onBack, onReadAgain, onGoToStore }) {
           </View>
         ))}
       </ScrollView>
+
+      <CinematicReading
+        visible={showCinema}
+        episode={episodeForReading}
+        lang={lang}
+        onClose={() => setShowCinema(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -296,7 +313,6 @@ export default function Library({ onNav }) {
         book={selected}
         lang={lang}
         onBack={() => setSelected(null)}
-        onReadAgain={() => onNav('story')}
         onGoToStore={() => onNav('store')}
       />
     );
