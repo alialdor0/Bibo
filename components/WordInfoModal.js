@@ -15,12 +15,13 @@ function Row({ label, value }) {
  * مودال "معلومات الكلمة" — يعرض بيانات المفردة الكاملة (نطق، مقاطع،
  * نوع نحوي، مستوى) لما المستخدم يدوس على أيقونة ℹ️.
  *
- * Props: visible, word (كائن vocabulary كامل), lang, onClose, onPlay
+ * Props: visible, word (كائن vocabulary كامل), lang, onClose, onPlay, isFavorite, onToggleFavorite
  */
-export default function WordInfoModal({ visible, word, lang, onClose, onPlay }) {
+export default function WordInfoModal({ visible, word, lang, onClose, onPlay, isFavorite, onToggleFavorite }) {
   if (!word) return null;
   const isAr = lang === 'ar';
-  const syllableList = word.syllables && word.syllables.length ? word.syllables : [word.word];
+  const displayWord = word.word || word.en;
+  const syllableList = word.syllables && word.syllables.length ? word.syllables : [displayWord];
   const stressIdx = (word.stress || 1) - 1;
 
   return (
@@ -32,8 +33,19 @@ export default function WordInfoModal({ visible, word, lang, onClose, onPlay }) 
             <Text style={s.closeTxt}>✕</Text>
           </TouchableOpacity>
 
+          {onToggleFavorite ? (
+            <TouchableOpacity
+              style={s.favBtn}
+              onPress={onToggleFavorite}
+              accessibilityRole="button"
+              accessibilityLabel={isFavorite ? (isAr ? 'إزالة من المفضلة' : 'Remove from favorites') : (isAr ? 'إضافة إلى المفضلة' : 'Add to favorites')}
+            >
+              <Text style={s.favTxt}>{isFavorite ? '⭐' : '☆'}</Text>
+            </TouchableOpacity>
+          ) : null}
+
           <Text style={s.emoji}>{word.emoji}</Text>
-          <Text style={s.word}>{word.word}</Text>
+          <Text style={s.word}>{displayWord}</Text>
           <Text style={s.phonetic}>{word.phonetic}</Text>
 
           <TouchableOpacity style={s.playBtn} onPress={onPlay} accessibilityRole="button">
@@ -71,6 +83,8 @@ const s = StyleSheet.create({
   card:       { width: '100%', maxWidth: 340, backgroundColor: '#12121c', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderRadius: 20, padding: 22, alignItems: 'center' },
   closeBtn:   { position: 'absolute', top: 12, right: 12, width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
   closeTxt:   { color: '#fff', fontSize: 14 },
+  favBtn:     { position: 'absolute', top: 12, left: 12, width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(255,179,0,0.12)', alignItems: 'center', justifyContent: 'center' },
+  favTxt:     { fontSize: 16, color: '#FFB300' },
   emoji:      { fontSize: 40, marginTop: 6 },
   word:       { color: '#fff', fontSize: 24, fontWeight: '800', marginTop: 6 },
   phonetic:   { color: 'rgba(255,255,255,0.45)', fontSize: 13, fontStyle: 'italic', marginTop: 2 },
