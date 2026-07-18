@@ -59,6 +59,7 @@ export function AppProvider({ children }) {
   const [lastWeeklyGiftClaimedAt, setLastWeeklyGiftClaimedAt] = useState(null); // مفتاح الأسبوع — آخر مرة اتفتحت فيها الهدية الأسبوعية
   const [totalGemsEarned, setTotalGemsEarned] = useState(0); // إجمالي الجواهر اللي اتكسبت (بدون خصم اللي اتصرفت) — لشارات الإنجاز
   const [unlockedAchievements, setUnlockedAchievements] = useState([]); // مصفوفة IDs بتاعة الشارات المفتوحة
+  const [favoriteWords, setFavoriteWords] = useState([]); // مصفوفة "trackId::wordId" — كلمات القاموس المفضّلة
   const [pendingBadge, setPendingBadge] = useState(null); // آخر شارة اتفتحت ولسه ما اتعرضتلوش احتفال
   const [hydrated, setHydrated] = useState(false);
   const hydratedRef = useRef(false);
@@ -89,6 +90,7 @@ export function AppProvider({ children }) {
         lastWeeklyGiftClaimedAt: null,
         totalGemsEarned: 0,
         unlockedAchievements: [],
+        favoriteWords: [],
       });
       if (!mounted) return;
       setLang(saved.lang);
@@ -119,6 +121,7 @@ export function AppProvider({ children }) {
       setLastWeeklyGiftClaimedAt(saved.lastWeeklyGiftClaimedAt);
       setTotalGemsEarned(saved.totalGemsEarned || 0);
       setUnlockedAchievements(saved.unlockedAchievements || []);
+      setFavoriteWords(saved.favoriteWords || []);
       hydratedRef.current = true;
       setHydrated(true);
     })();
@@ -164,6 +167,7 @@ export function AppProvider({ children }) {
   useEffect(() => { if (hydratedRef.current) saveJSON('lastWeeklyGiftClaimedAt', lastWeeklyGiftClaimedAt); }, [lastWeeklyGiftClaimedAt]);
   useEffect(() => { if (hydratedRef.current) saveJSON('totalGemsEarned', totalGemsEarned); }, [totalGemsEarned]);
   useEffect(() => { if (hydratedRef.current) saveJSON('unlockedAchievements', unlockedAchievements); }, [unlockedAchievements]);
+  useEffect(() => { if (hydratedRef.current) saveJSON('favoriteWords', favoriteWords); }, [favoriteWords]);
 
   // لو عند المستخدم كود دخول، احفظ نسخة محدّثة من حسابه بشكل دوري (مش وقت تسجيل الخروج بس)
   // عشان يقدر يسترجعها حتى لو أعاد تثبيت التطبيق بدون تسجيل خروج صريح.
@@ -357,6 +361,12 @@ export function AppProvider({ children }) {
 
   const dismissPendingBadge = useCallback(() => setPendingBadge(null), []);
 
+  /** يضيف/يشيل كلمة من قائمة المفضّلة بالقاموس */
+  const toggleFavorite = useCallback((trackId, wordId) => {
+    const key = `${trackId}::${wordId}`;
+    setFavoriteWords(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+  }, []);
+
   /** إنقاذ كلمة: بيمدد تاريخ انتهائها من الحلقة الحالية */
   const rescueWord = useCallback((trackId, wordId, extendBy = 4) => {
     const exists = !!wordBank[trackId]?.[wordId];
@@ -403,6 +413,7 @@ export function AppProvider({ children }) {
           wordId: w.id,
           trackId,
           en: w.word,
+          word: w.word, // نفس القيمة بمرادف تاني — بعض الشاشات القديمة كانت بتقرأ .word فتلاقيه undefined لأن الحقل الوحيد كان .en، فكانت الكلمة الإنجليزية بتختفي من القاموس
           ar: w.ar,
           phonetic: w.phonetic,
           pron: w.pron,
@@ -581,6 +592,7 @@ export function AppProvider({ children }) {
     wordBank, addWordToBank, rescueWord, getWordBankWords, recordWordResult,
     excludedWords, isWordExcludedByLevel, addExcludedWordToBank, getExcludedWordLines,
     unlockedAchievements, pendingBadge, dismissPendingBadge, getAchievementProgress,
+    favoriteWords, toggleFavorite,
     hydrated, logout,
     ensureLoginCode, loginWithCode,
   };
