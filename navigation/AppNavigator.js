@@ -81,8 +81,8 @@ export default function AppNavigator() {
   else if (screen === 'trackselect') content = <TrackSelect  onSelect={handleTrackSelect} />;
   else if (screen === 'main')        content = <Main         onNav={handleNav} />;
   else if (screen === 'story')       content = <Story        onLeave={() => go('main')} />;
-  else if (screen === 'dict')        content = <Dict         onBack={() => go('main')} onNav={handleNav} initialMode={screenParams?.initialMode} />;
-  else if (screen === 'rescue')      content = <Rescue       onBack={() => go('main')} />;
+  else if (screen === 'dict')        content = <Dict         onBack={() => go('main')} onNav={handleNav} />;
+  else if (screen === 'rescue')      content = <Rescue       onBack={() => go('main')} initialChallenge={screenParams?.initialChallenge} />;
   else if (screen === 'leaderboard') content = <Leaderboard  onBack={() => go('main')} onNav={handleNav} />;
   else if (screen === 'coop')        content = <Coop         onBack={() => go('main')} />;
   else if (screen === 'store')       content = <Store        onBack={() => go('main')} />;
