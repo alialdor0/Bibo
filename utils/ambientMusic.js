@@ -86,3 +86,30 @@ export function stopAmbient() {
     }
   }, 80);
 }
+
+let duckTimer = null;
+let preDuckVolume = null;
+
+/**
+ * يخفّت صوت الموسيقى الخلفية مؤقتًا (مثلًا لحظة سماع مؤثر احتفالي)، ثم
+ * يرجّعها تدريجيًا لمستواها الأصلي بعد `durationMs`. لو مفيش موسيقى شغّالة
+ * حاليًا، الدالة مالهاش أي تأثير.
+ */
+export function duckAmbient(factor = 0.4, durationMs = 900) {
+  if (!activePlayer) return;
+  if (duckTimer) { clearTimeout(duckTimer); duckTimer = null; }
+  if (preDuckVolume == null) preDuckVolume = activePlayer.volume ?? 0.28;
+  try { activePlayer.volume = preDuckVolume * factor; } catch (e) { return; }
+  duckTimer = setTimeout(() => {
+    if (!activePlayer) { preDuckVolume = null; return; }
+    const target = preDuckVolume;
+    preDuckVolume = null;
+    // رجوع تدريجي بدل قفزة فجائية
+    let vol = activePlayer.volume ?? (target * factor);
+    const restoreTimer = setInterval(() => {
+      vol = Math.min(target, vol + (target * 0.15));
+      try { activePlayer.volume = vol; } catch (e) { clearInterval(restoreTimer); return; }
+      if (vol >= target) clearInterval(restoreTimer);
+    }, 60);
+  }, durationMs);
+}

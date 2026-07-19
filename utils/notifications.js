@@ -61,3 +61,36 @@ export async function scheduleBiboReminder(lang, hoursDelay = 20) {
     });
   } catch (e) {}
 }
+
+/**
+ * يجدول سلسلة تذكيرات تصاعدية أثناء فترة غياب المستخدم، عشان يحافظ على
+ * سلسلته المتواصلة (streak): تذكير عام (20 ساعة)، تحذير إن السلسلة معرّضة
+ * (48 ساعة)، وتحذير أخير قبل ساعتين من موعد انقطاعها (STREAK_BREAK_HOURS).
+ * بيتنادى بدل scheduleBiboReminder لو المستخدم عنده سلسلة يستاهل يحافظ عليها.
+ */
+export async function scheduleStreakReminders(lang, currentStreak, streakBreakHours = 72) {
+  if (!Notifications) return;
+  const granted = await requestNotificationPermission();
+  if (!granted) return;
+
+  await cancelBiboReminders();
+  const soundOpt = Platform.OS === 'ios' ? 'notification.mp3' : 'notification';
+
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: { title: lang === 'ar' ? 'بيبو 🐦' : 'Bibo 🐦', body: biboSay('reminder', lang), sound: soundOpt },
+      trigger: { seconds: 20 * 60 * 60 },
+    });
+
+    if (currentStreak > 0) {
+      await Notifications.scheduleNotificationAsync({
+        content: { title: lang === 'ar' ? 'بيبو 🔥' : 'Bibo 🔥', body: biboSay('streakWarning', lang), sound: soundOpt },
+        trigger: { seconds: 48 * 60 * 60 },
+      });
+      await Notifications.scheduleNotificationAsync({
+        content: { title: lang === 'ar' ? 'بيبو ⏳' : 'Bibo ⏳', body: biboSay('streakLastChance', lang), sound: soundOpt },
+        trigger: { seconds: Math.max(60, (streakBreakHours - 2) * 60 * 60) },
+      });
+    }
+  } catch (e) {}
+}
