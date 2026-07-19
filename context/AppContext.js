@@ -216,8 +216,11 @@ export function AppProvider({ children }) {
       user, track, gems, stationery, library, bookCovers, ownedStickers, ownedCovers,
       ownedCosmetics, equippedCosmetics, weeklyProgress, episodeProgress,
       wordBank, excludedWords,
+      totalGemsEarned, unlockedAchievements, favoriteWords,
+      streakFreezes, streakBrokenAt, lastStreakBeforeBreak,
+      lastGiftClaimedAt, lastWeeklyGiftClaimedAt,
     });
-  }, [user, track, gems, stationery, library, bookCovers, ownedStickers, ownedCovers, ownedCosmetics, equippedCosmetics, weeklyProgress, episodeProgress, wordBank, excludedWords]);
+  }, [user, track, gems, stationery, library, bookCovers, ownedStickers, ownedCovers, ownedCosmetics, equippedCosmetics, weeklyProgress, episodeProgress, wordBank, excludedWords, totalGemsEarned, unlockedAchievements, favoriteWords, streakFreezes, streakBrokenAt, lastStreakBeforeBreak, lastGiftClaimedAt, lastWeeklyGiftClaimedAt]);
 
   const addGems = useCallback((amount) => {
     setGems(prev => prev + amount);
@@ -576,7 +579,10 @@ export function AppProvider({ children }) {
     user, track, gems, stationery, library, bookCovers, ownedStickers, ownedCovers,
     ownedCosmetics, equippedCosmetics, weeklyProgress, episodeProgress,
     wordBank, excludedWords,
-  }), [user, track, gems, stationery, library, bookCovers, ownedStickers, ownedCovers, ownedCosmetics, equippedCosmetics, weeklyProgress, episodeProgress, wordBank, excludedWords]);
+    totalGemsEarned, unlockedAchievements, favoriteWords,
+    streakFreezes, streakBrokenAt, lastStreakBeforeBreak,
+    lastGiftClaimedAt, lastWeeklyGiftClaimedAt,
+  }), [user, track, gems, stationery, library, bookCovers, ownedStickers, ownedCovers, ownedCosmetics, equippedCosmetics, weeklyProgress, episodeProgress, wordBank, excludedWords, totalGemsEarned, unlockedAchievements, favoriteWords, streakFreezes, streakBrokenAt, lastStreakBeforeBreak, lastGiftClaimedAt, lastWeeklyGiftClaimedAt]);
 
   /** يولّد كود دخول جديد للمستخدم الحالي (لو ما عندوش واحد أصلًا) ويربطه بحسابه */
   const ensureLoginCode = useCallback(() => {
@@ -606,6 +612,14 @@ export function AppProvider({ children }) {
     setEpisodeProgress(snap.episodeProgress || {});
     setWordBank(snap.wordBank || {});
     setExcludedWords(snap.excludedWords || {});
+    setTotalGemsEarned(snap.totalGemsEarned || 0);
+    setUnlockedAchievements(snap.unlockedAchievements || []);
+    setFavoriteWords(snap.favoriteWords || []);
+    setStreakFreezes(snap.streakFreezes || 0);
+    setStreakBrokenAt(snap.streakBrokenAt || null);
+    setLastStreakBeforeBreak(snap.lastStreakBeforeBreak || 0);
+    setLastGiftClaimedAt(snap.lastGiftClaimedAt || null);
+    setLastWeeklyGiftClaimedAt(snap.lastWeeklyGiftClaimedAt || null);
     return true;
   }, []);
 
@@ -615,7 +629,7 @@ export function AppProvider({ children }) {
     if (user?.loginCode) {
       await saveAccountSnapshot(user.loginCode, buildAccountSnapshot());
     }
-    await removeKeys(['user', 'track', 'gems', 'stationery', 'library', 'episodeProgress', 'wordBank', 'excludedWords', 'bookCovers', 'ownedStickers', 'ownedCovers', 'ownedCosmetics', 'equippedCosmetics', 'weeklyProgress']);
+    await removeKeys(['user', 'track', 'gems', 'stationery', 'library', 'episodeProgress', 'wordBank', 'excludedWords', 'bookCovers', 'ownedStickers', 'ownedCovers', 'ownedCosmetics', 'equippedCosmetics', 'weeklyProgress', 'totalGemsEarned', 'unlockedAchievements', 'favoriteWords', 'streakFreezes', 'streakBrokenAt', 'lastStreakBeforeBreak', 'lastGiftClaimedAt', 'lastWeeklyGiftClaimedAt']);
     await cancelBiboReminders();
     setUser(null);
     setTrack(null);
@@ -631,6 +645,14 @@ export function AppProvider({ children }) {
     setOwnedCosmetics([]);
     setEquippedCosmetics({ hat: null, glasses: null, ring: null });
     setWeeklyProgress({ weekKey: getWeekKey(), wordsLearned: 0, episodesDone: 0, wordsRescued: 0, claimed: [] });
+    setTotalGemsEarned(0);
+    setUnlockedAchievements([]);
+    setFavoriteWords([]);
+    setStreakFreezes(0);
+    setStreakBrokenAt(null);
+    setLastStreakBeforeBreak(0);
+    setLastGiftClaimedAt(null);
+    setLastWeeklyGiftClaimedAt(null);
   }, [user, buildAccountSnapshot]);
 
   const value = {
