@@ -1,12 +1,13 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { getLevel, getPrefix, fullName, isWordKnownForLevel, ACHIEVEMENTS, LEVEL_TITLES, DEFAULT_OWNED_COVERS } from '../data';
-import { touchLastSeen } from '../utils/companion';
-import { scheduleBiboReminder, cancelBiboReminders } from '../utils/notifications';
+import { touchLastSeen, STREAK_BREAK_HOURS } from '../utils/companion';
+import { scheduleStreakReminders, cancelBiboReminders } from '../utils/notifications';
 import { loadMany, saveJSON, removeKeys } from '../utils/storage';
 import { generateLoginCode, saveAccountSnapshot, getAccountSnapshot, normalizeCode } from '../utils/authCode';
 import { prepareAudioMode } from '../utils/sounds';
 import { playSfx, setSfxEnabled } from '../utils/sfx';
 import { setAmbientEnabled } from '../utils/ambientMusic';
+import { setHapticsEnabled } from '../utils/haptics';
 
 /** بيرجع مفتاح الأسبوع الحالي بصيغة ISO (مثلاً "2026-W28") — يُستخدم لتصفير التحديات الأسبوعية تلقائيًا */
 function getWeekKey(date = new Date()) {
@@ -37,6 +38,9 @@ export function AppProvider({ children }) {
   const [track, setTrack] = useState(null);
   const [gems, setGems]   = useState(50);
   const [companion, setCompanion] = useState({ gapHours: 0, isComeback: false, streak: 1 });
+  const [streakFreezes, setStreakFreezes] = useState(0); // عدد "تجميدات الحماسة" المملوكة
+  const [streakBrokenAt, setStreakBrokenAt] = useState(null); // وقت آخر انقطاع للسلسلة (لإتاحة استعادتها خلال شهر)
+  const [lastStreakBeforeBreak, setLastStreakBeforeBreak] = useState(0);
   const [stationery, setStationery] = useState(DEFAULT_STATIONERY);
   const [voiceOn, setVoiceOn] = useState(true);
   const [sfxOn, setSfxOnState] = useState(true);
@@ -45,6 +49,13 @@ export function AppProvider({ children }) {
     setSfxEnabled(v);
     setAmbientEnabled(v);
   }, []);
+  const [hapticsOn, setHapticsOnState] = useState(true);
+  const setHapticsOn = useCallback((v) => {
+    setHapticsOnState(v);
+    setHapticsEnabled(v);
+  }, []);
+  const [learningMode, setLearningMode] = useState('speak'); // choose | type | speak — نوع تمارين تعلّم الكلمة الجديدة بالحلقة
+  const [reviewWordsCount, setReviewWordsCount] = useState(10); // عدد كلمات المراجعة اليومية بتمرين القاموس
   const [library, setLibrary] = useState([]);
   const [bookCovers, setBookCovers] = useState({}); // { "trackId::episodeId": { color, stickers:[ids] } }
   const [ownedStickers, setOwnedStickers] = useState([]); // ["star","heart",...]
@@ -76,6 +87,9 @@ export function AppProvider({ children }) {
         stationery: DEFAULT_STATIONERY,
         voiceOn: true,
         sfxOn: true,
+        hapticsOn: true,
+        learningMode: 'speak',
+        reviewWordsCount: 10,
         library: [],
         bookCovers: {},
         ownedStickers: [],
@@ -91,6 +105,9 @@ export function AppProvider({ children }) {
         totalGemsEarned: 0,
         unlockedAchievements: [],
         favoriteWords: [],
+        streakFreezes: 0,
+        streakBrokenAt: null,
+        lastStreakBeforeBreak: 0,
       });
       if (!mounted) return;
       setLang(saved.lang);
@@ -102,6 +119,10 @@ export function AppProvider({ children }) {
       setSfxOnState(saved.sfxOn !== false);
       setSfxEnabled(saved.sfxOn !== false);
       setAmbientEnabled(saved.sfxOn !== false);
+      setHapticsOnState(saved.hapticsOn !== false);
+      setHapticsEnabled(saved.hapticsOn !== false);
+      setLearningMode(saved.learningMode || 'speak');
+      setReviewWordsCount(saved.reviewWordsCount || 10);
       setLibrary(saved.library);
       setBookCovers(saved.bookCovers);
       setOwnedStickers(saved.ownedStickers);
@@ -122,26 +143,38 @@ export function AppProvider({ children }) {
       setTotalGemsEarned(saved.totalGemsEarned || 0);
       setUnlockedAchievements(saved.unlockedAchievements || []);
       setFavoriteWords(saved.favoriteWords || []);
+      setStreakFreezes(saved.streakFreezes || 0);
+      setStreakBrokenAt(saved.streakBrokenAt || null);
+      setLastStreakBeforeBreak(saved.lastStreakBeforeBreak || 0);
       hydratedRef.current = true;
       setHydrated(true);
     })();
     return () => { mounted = false; };
   }, []);
 
-  // عند فتح التطبيق: سجّل وقت الدخول، احسب فجوة الغياب، وجدول تذكير بيبو القادم
+  // عند فتح التطبيق (وبعد استرجاع البيانات المحفوظة): سجّل وقت الدخول، احسب
+  // فجوة الغياب، استهلك تجميد حماسة تلقائيًا لو الأمر يستدعي، وسجّل وقت
+  // انقطاع السلسلة لو انكسرت (لإتاحة استعادتها خلال شهر بإكمال حلقة)
   useEffect(() => {
+    if (!hydrated) return;
     let mounted = true;
     (async () => {
-      const { gapHours, streak } = await touchLastSeen();
+      const { gapHours, streak, freezeUsed, broke, brokenStreakValue } = await touchLastSeen(streakFreezes);
       if (!mounted) return;
       setCompanion({ gapHours, isComeback: gapHours >= 20, streak });
+      if (freezeUsed) setStreakFreezes(prev => Math.max(0, prev - 1));
+      if (broke) {
+        setStreakBrokenAt(Date.now());
+        setLastStreakBeforeBreak(brokenStreakValue);
+      }
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [hydrated]);
 
   useEffect(() => {
-    scheduleBiboReminder(lang, 20);
-  }, [lang]);
+    if (!hydrated) return;
+    scheduleStreakReminders(lang, companion.streak, STREAK_BREAK_HOURS);
+  }, [lang, hydrated, companion.streak]);
 
   useEffect(() => { prepareAudioMode(); }, []);
 
@@ -153,6 +186,9 @@ export function AppProvider({ children }) {
   useEffect(() => { if (hydratedRef.current) saveJSON('stationery', stationery); }, [stationery]);
   useEffect(() => { if (hydratedRef.current) saveJSON('voiceOn', voiceOn); }, [voiceOn]);
   useEffect(() => { if (hydratedRef.current) saveJSON('sfxOn', sfxOn); }, [sfxOn]);
+  useEffect(() => { if (hydratedRef.current) saveJSON('hapticsOn', hapticsOn); }, [hapticsOn]);
+  useEffect(() => { if (hydratedRef.current) saveJSON('learningMode', learningMode); }, [learningMode]);
+  useEffect(() => { if (hydratedRef.current) saveJSON('reviewWordsCount', reviewWordsCount); }, [reviewWordsCount]);
   useEffect(() => { if (hydratedRef.current) saveJSON('library', library); }, [library]);
   useEffect(() => { if (hydratedRef.current) saveJSON('bookCovers', bookCovers); }, [bookCovers]);
   useEffect(() => { if (hydratedRef.current) saveJSON('ownedStickers', ownedStickers); }, [ownedStickers]);
@@ -168,6 +204,9 @@ export function AppProvider({ children }) {
   useEffect(() => { if (hydratedRef.current) saveJSON('totalGemsEarned', totalGemsEarned); }, [totalGemsEarned]);
   useEffect(() => { if (hydratedRef.current) saveJSON('unlockedAchievements', unlockedAchievements); }, [unlockedAchievements]);
   useEffect(() => { if (hydratedRef.current) saveJSON('favoriteWords', favoriteWords); }, [favoriteWords]);
+  useEffect(() => { if (hydratedRef.current) saveJSON('streakFreezes', streakFreezes); }, [streakFreezes]);
+  useEffect(() => { if (hydratedRef.current) saveJSON('streakBrokenAt', streakBrokenAt); }, [streakBrokenAt]);
+  useEffect(() => { if (hydratedRef.current) saveJSON('lastStreakBeforeBreak', lastStreakBeforeBreak); }, [lastStreakBeforeBreak]);
 
   // لو عند المستخدم كود دخول، احفظ نسخة محدّثة من حسابه بشكل دوري (مش وقت تسجيل الخروج بس)
   // عشان يقدر يسترجعها حتى لو أعاد تثبيت التطبيق بدون تسجيل خروج صريح.
@@ -441,7 +480,25 @@ export function AppProvider({ children }) {
       const unlocked = Math.max(cur.unlocked, episodeNumber + 1);
       return { ...prev, [trackId]: { unlocked, completed } };
     });
-  }, []);
+    // لو السلسلة المتواصلة انكسرت قبل كده، وإكمال الحلقة ده حصل خلال شهر من
+    // وقت الانقطاع، بنستعيدها بدل ما تفضل صفر — مكافأة لرجوعه واستمراره
+    if (streakBrokenAt) {
+      const daysSinceBreak = (Date.now() - streakBrokenAt) / (1000 * 60 * 60 * 24);
+      if (daysSinceBreak <= 30) {
+        setCompanion(prev => ({ ...prev, streak: lastStreakBeforeBreak + 1 }));
+      }
+      setStreakBrokenAt(null);
+      setLastStreakBeforeBreak(0);
+    }
+  }, [streakBrokenAt, lastStreakBeforeBreak]);
+
+  /** يشتري "تجميد حماسة" — يحمي السلسلة المتواصلة تلقائيًا لو غاب المستخدم يوم. بتكلفة عالية لأنها ميزة قوية */
+  const buyStreakFreeze = useCallback((price) => {
+    if (gems < price) return false;
+    setGems(prev => prev - price);
+    setStreakFreezes(prev => prev + 1);
+    return true;
+  }, [gems]);
 
   const addLibraryEntry = useCallback((entry) => {
     const isNewEpisode = !library.some(b => b.trackId === entry.trackId && b.episodeId === entry.episodeId);
@@ -582,8 +639,10 @@ export function AppProvider({ children }) {
     track, setTrack,
     gems, addGems,
     companion,
+    streakFreezes, buyStreakFreeze,
     stationery, useInk, useEraser, usePage, buyItem, claimGift, claimWeeklyGift, canClaimDailyGift, canClaimWeeklyGift,
-    voiceOn, setVoiceOn, sfxOn, setSfxOn,
+    voiceOn, setVoiceOn, sfxOn, setSfxOn, hapticsOn, setHapticsOn,
+    learningMode, setLearningMode, reviewWordsCount, setReviewWordsCount,
     library, addLibraryEntry,
     bookCovers, ownedStickers, ownedCovers, buySticker, grantSticker, buyCover, setBookCover, toggleBookSticker,
     ownedCosmetics, equippedCosmetics, buyCosmetic, equipCosmetic,
