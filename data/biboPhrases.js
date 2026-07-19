@@ -100,6 +100,26 @@ export const BIBO_PHRASES = {
       'Remember your story? Let’s continue together 🎬',
     ],
   },
+  // تحذير إن السلسلة اليومية (streak) على وشك تنكسر
+  streakWarning: {
+    ar: [
+      'سلسلتك المتواصلة معرّضة للانقطاع قريبًا! أكمل حلقة اليوم للمحافظة عليها 🔥',
+      'باقي وقت قليل قبل ما تفقد سلسلتك المتواصلة. عد الآن وأكملها! 🔥',
+    ],
+    en: [
+      'Your streak is about to break! Finish an episode today to keep it 🔥',
+      'Not much time left before your streak resets. Come back and continue it! 🔥',
+    ],
+  },
+  // آخر تحذير — ساعة أو ساعتين متبقية قبل انقطاع السلسلة
+  streakLastChance: {
+    ar: [
+      'آخر فرصة! سلسلتك المتواصلة ستنقطع خلال ساعات قليلة إن لم تعد الآن ⏳',
+    ],
+    en: [
+      'Last chance! Your streak resets in a few hours unless you come back now ⏳',
+    ],
+  },
 };
 
 // اختيار عبارة عشوائية من فئة معينة بلغة معينة
