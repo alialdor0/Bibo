@@ -162,7 +162,7 @@ const ex = StyleSheet.create({
 });
 
 export default function Dict({ onBack, onNav }) {
-  const { lang, gems, getWordBankWords, favoriteWords, toggleFavorite } = useApp();
+  const { lang, gems, getWordBankWords, favoriteWords, toggleFavorite, reviewWordsCount } = useApp();
   const T = (k) => t(k, lang);
   const [mode, setMode] = useState(null); // null | 'exercise'
   const [search,      setSearch]      = useState('');
@@ -194,14 +194,18 @@ export default function Dict({ onBack, onNav }) {
   const infoWord = allWordsRaw.find(w => w.id === infoWordId) || null;
   const infoWordFav = infoWord ? favoriteWords.includes(`${infoWord.trackId}::${infoWord.wordId}`) : false;
 
-  if (mode === 'exercise') return (
-    <SafeAreaView style={s.safe}>
-      <PageHeader title={lang === 'ar' ? 'مراجعة الكلمات' : 'Word Review'} onBack={() => setMode(null)} backLabel={T('back')} />
-      <ScrollView contentContainerStyle={s.pageContent}>
-        <ReviewExercise words={allWords.length >= 4 ? allWords : allWordsRaw} onDone={() => setMode(null)} lang={lang} />
-      </ScrollView>
-    </SafeAreaView>
-  );
+  if (mode === 'exercise') {
+    const pool = allWords.length >= 4 ? allWords : allWordsRaw;
+    const sessionWords = shuffle(pool).slice(0, Math.min(reviewWordsCount, pool.length));
+    return (
+      <SafeAreaView style={s.safe}>
+        <PageHeader title={lang === 'ar' ? 'مراجعة الكلمات' : 'Word Review'} onBack={() => setMode(null)} backLabel={T('back')} />
+        <ScrollView contentContainerStyle={s.pageContent}>
+          <ReviewExercise words={sessionWords.length >= 4 ? sessionWords : pool} onDone={() => setMode(null)} lang={lang} />
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   if (allWordsRaw.length === 0) {
     return (
@@ -322,7 +326,7 @@ export default function Dict({ onBack, onNav }) {
                 <Text style={s.exLabel}>{lang === 'ar' ? 'مراجعة سريعة' : 'Quick Review'}</Text>
                 <Text style={s.exSub2}>
                   {allWords.length >= 4
-                    ? (lang === 'ar' ? `تمرين على ${allWords.length} كلمة من القائمة الحالية` : `Practice on ${allWords.length} words from the current list`)
+                    ? (lang === 'ar' ? `${Math.min(reviewWordsCount, allWords.length)} كلمة من القائمة الحالية (حسب إعداداتك)` : `${Math.min(reviewWordsCount, allWords.length)} words from the current list (per your settings)`)
                     : (lang === 'ar' ? 'تمرين على كل كلماتك' : 'Practice on all your words')}
                 </Text>
               </View>

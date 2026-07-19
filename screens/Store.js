@@ -15,6 +15,7 @@ const SECTIONS = [
 ];
 
 const PARTICLE_EMOJIS = ['💎', '✨', '🎉', '⭐', '💎', '✨'];
+const STREAK_FREEZE_PRICE = 150; // تكلفة عالية عمدًا — ميزة قوية بتحمي السلسلة المتواصلة تلقائيًا
 
 /**
  * صندوق الهدية المتحرك — بديل الـ Alert الصامت القديم.
@@ -148,6 +149,7 @@ export default function Store({ onBack }) {
     lang, gems, stationery, buyItem, claimGift, claimWeeklyGift, canClaimDailyGift, canClaimWeeklyGift,
     ownedCosmetics, equippedCosmetics, buyCosmetic, equipCosmetic,
     ownedCovers, buyCover, ownedStickers, buySticker,
+    streakFreezes, buyStreakFreeze,
   } = useApp();
   const T = (k) => t(k, lang);
 
@@ -264,6 +266,28 @@ export default function Store({ onBack }) {
     claimGift(reward);
   };
 
+  const handleBuyStreakFreeze = () => {
+    if (gems < STREAK_FREEZE_PRICE) {
+      playSfx('wrong');
+      Alert.alert(
+        lang === 'ar' ? 'الجواهر غير كافية' : 'Not enough gems',
+        lang === 'ar' ? `تحتاج إلى ${STREAK_FREEZE_PRICE} جوهرة لشراء تجميد الحماسة.` : `You need ${STREAK_FREEZE_PRICE} gems to buy a Streak Freeze.`
+      );
+      return;
+    }
+    Alert.alert(
+      lang === 'ar' ? 'شراء تجميد الحماسة؟' : 'Buy a Streak Freeze?',
+      lang === 'ar' ? `سيتم خصم ${STREAK_FREEZE_PRICE} جوهرة. هيحمي سلسلتك تلقائيًا أول مرة تفوّت فيها يوم.` : `${STREAK_FREEZE_PRICE} gems will be deducted. It auto-protects your streak the next time you miss a day.`,
+      [
+        { text: lang === 'ar' ? 'إلغاء' : 'Cancel', style: 'cancel' },
+        { text: lang === 'ar' ? 'شراء' : 'Buy', onPress: () => {
+          const success = buyStreakFreeze(STREAK_FREEZE_PRICE);
+          playSfx(success ? 'purchase' : 'wrong');
+        }},
+      ]
+    );
+  };
+
   const handleWeeklyGiftReward = (reward) => {
     claimWeeklyGift(reward);
   };
@@ -340,6 +364,31 @@ export default function Store({ onBack }) {
             </View>
           </View>
           <Text style={s.giftArrow}>{weeklyReady ? '→' : '✓'}</Text>
+        </TouchableOpacity>
+
+        {/* تجميد الحماسة — يحمي السلسلة المتواصلة تلقائيًا لو غاب المستخدم يوم، بتكلفة عالية */}
+        <TouchableOpacity
+          style={[s.giftCard, s.freezeCard]}
+          onPress={handleBuyStreakFreeze}
+          accessible={true}
+          accessibilityRole="button"
+          accessibilityLabel={(lang === 'ar' ? 'تجميد الحماسة، السعر' : 'Streak Freeze, price') + ` ${STREAK_FREEZE_PRICE} ${lang === 'ar' ? 'جوهرة' : 'gems'}. ` + (lang === 'ar' ? `تملك ${streakFreezes} حاليًا` : `You own ${streakFreezes}`)}
+        >
+          <View style={s.giftLeft}>
+            <Text style={s.giftIcon}>🧊</Text>
+            <View>
+              <Text style={s.giftTitle}>{lang === 'ar' ? 'تجميد الحماسة' : 'Streak Freeze'}</Text>
+              <Text style={s.giftDesc}>
+                {lang === 'ar'
+                  ? `يحافظ على سلسلتك تلقائيًا لو فاتك يوم — تملك ${streakFreezes}`
+                  : `Auto-protects your streak if you miss a day — you own ${streakFreezes}`}
+              </Text>
+            </View>
+          </View>
+          <View style={s.cosmeticPriceRow}>
+            <Text style={s.buyBtnGem}>💎</Text>
+            <Text style={s.cosmeticPriceTxt}>{STREAK_FREEZE_PRICE}</Text>
+          </View>
         </TouchableOpacity>
 
         {/* تبويبات المتجر */}
@@ -558,6 +607,7 @@ const s = StyleSheet.create({
   detailTxt:       { fontSize: 11, color: 'rgba(255,255,255,0.5)' },
   giftCard:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(255,179,0,0.1)', borderWidth: 1, borderColor: 'rgba(255,179,0,0.3)', borderRadius: 14, padding: 16, marginBottom: 16 },
   weeklyGiftCard:  { backgroundColor: 'rgba(155,89,182,0.12)', borderColor: 'rgba(155,89,182,0.35)' },
+  freezeCard:      { backgroundColor: 'rgba(0,188,212,0.1)', borderColor: 'rgba(0,188,212,0.3)' },
   giftCardDisabled:{ opacity: 0.45 },
   giftLeft:        { flexDirection: 'row', alignItems: 'center', gap: 12 },
   giftIcon:        { fontSize: 32 },

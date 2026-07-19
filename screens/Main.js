@@ -542,15 +542,12 @@ function ProfileTab({ onBack, onNav }) {
 }
 
 function SettingsTab({ onBack }) {
-  const { lang, setLang, logout, voiceOn, setVoiceOn, sfxOn, setSfxOn, track, setTrack, user, setUser } = useApp();
+  const { lang, setLang, logout, voiceOn, setVoiceOn, sfxOn, setSfxOn, hapticsOn, setHapticsOn, learningMode, setLearningMode, reviewWordsCount, setReviewWordsCount, track, setTrack, user, setUser } = useApp();
   const T = (k) => t(k, lang);
 
-  const [vib,       setVib]       = useState(true);
   const [notif,     setNotif]     = useState(true);
   const [dark,      setDark]      = useState(true);
   const [offline,   setOffline]   = useState(false);
-  const [inputMode, setInputMode] = useState('type');
-  const [dailyRev,  setDailyRev]  = useState(10);
   const [fontSize,  setFontSize]  = useState('M');
   const [showTrackPicker, setShowTrackPicker] = useState(false);
   const [showLevelTest,   setShowLevelTest]   = useState(false);
@@ -700,7 +697,7 @@ function SettingsTab({ onBack }) {
           {[
             { label: 'Sound Effects', val: sfxOn,  set: setSfxOn  },
             { label: 'Bibo Voice',    val: voiceOn, set: setVoiceOn },
-            { label: 'Vibration',     val: vib,    set: setVib    },
+            { label: 'Vibration',     val: hapticsOn, set: setHapticsOn },
           ].map(item => (
             <View key={item.label} style={s.settingRow}>
               <Text style={s.settingLabel}>{item.label}</Text>
@@ -714,9 +711,9 @@ function SettingsTab({ onBack }) {
           <View style={s.segmented}>
             {[['type','Type'],['speak','Speak'],['choose','Choose']].map(([mode, label]) => (
               <TouchableOpacity key={mode}
-                style={[s.segBtn, inputMode === mode ? s.segBtnActive : null]}
-                onPress={() => setInputMode(mode)} accessibilityRole="button">
-                <Text style={[s.segBtnTxt, inputMode === mode ? s.segBtnTxtActive : null]}>{label}</Text>
+                style={[s.segBtn, learningMode === mode ? s.segBtnActive : null]}
+                onPress={() => setLearningMode(mode)} accessibilityRole="button">
+                <Text style={[s.segBtnTxt, learningMode === mode ? s.segBtnTxtActive : null]}>{label}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -725,17 +722,17 @@ function SettingsTab({ onBack }) {
             <View style={s.stepper}>
               <TouchableOpacity
                 style={s.stepperBtn}
-                onPress={() => setDailyRev(v => Math.max(5, v - 5))}
+                onPress={() => setReviewWordsCount(v => Math.max(5, v - 5))}
                 accessible={true}
                 accessibilityRole="button"
                 accessibilityLabel={lang === 'ar' ? 'إنقاص العدد' : 'Decrease'}
               >
                 <Text style={s.stepperTxt} importantForAccessibility="no">−</Text>
               </TouchableOpacity>
-              <Text style={s.stepperVal}>{dailyRev}</Text>
+              <Text style={s.stepperVal}>{reviewWordsCount}</Text>
               <TouchableOpacity
                 style={s.stepperBtn}
-                onPress={() => setDailyRev(v => Math.min(50, v + 5))}
+                onPress={() => setReviewWordsCount(v => Math.min(50, v + 5))}
                 accessible={true}
                 accessibilityRole="button"
                 accessibilityLabel={lang === 'ar' ? 'زيادة العدد' : 'Increase'}

@@ -40,7 +40,7 @@ function buildChoices(word, vocabulary, direction) {
 }
 
 export default function StoryEpisode({ onLeave }) {
-  const { lang, track, user, addGems, addLibraryEntry, getEpisodeState, completeEpisode, addWordToBank, isWordExcludedByLevel, addExcludedWordToBank, canClaimDailyGift, claimGift } = useApp();
+  const { lang, track, user, addGems, addLibraryEntry, getEpisodeState, completeEpisode, addWordToBank, isWordExcludedByLevel, addExcludedWordToBank, canClaimDailyGift, claimGift, learningMode } = useApp();
   const T = (k) => t(k, lang);
   const trackId = track?.id || 'spy';
 
@@ -179,8 +179,9 @@ export default function StoryEpisode({ onLeave }) {
     if (word && phase === 'choice') {
       directionRef.current = lineDirectionsRef.current[wordIdx] || 'toArabic';
       setChoices(buildChoices(word, episode.vocabulary, directionRef.current));
+      if (learningMode === 'speak') speakWord(word.word); // نمط "استماع": ننطق الكلمة تلقائيًا كل ما تظهر
     }
-  }, [word, phase, wordIdx]);
+  }, [word, phase, wordIdx, learningMode]);
 
   // ── كلمة يُفترض أن المستخدم يعرفها مسبقًا حسب نتيجة اختبار مستواه: تُستبعد من
   // التمرين تلقائيًا، وتُضاف مباشرة للقاموس (بدون اختبار)، وننتقل للكلمة التالية ──
@@ -308,6 +309,10 @@ export default function StoryEpisode({ onLeave }) {
     return '';
   };
 
+  // نمط التعلّم المفضّل من الإعدادات: 'choose' = اختيار من متعدد بس،
+  // 'type' = كتابة بس، 'speak' (افتراضي) = نفس التدفق العادي (اختيار ثم كتابة) مع نطق تلقائي إضافي
+  const firstPhaseForWord = () => (learningMode === 'type' ? 'blank' : 'choice');
+
   const advanceAfterWord = () => {
     const nextWordIdx = wordIdx + 1;
     if (nextWordIdx >= (line.words || []).length) {
@@ -315,7 +320,7 @@ export default function StoryEpisode({ onLeave }) {
       else finishLine();
     } else {
       setWordIdx(nextWordIdx);
-      setPhase('choice');
+      setPhase(firstPhaseForWord());
       setChosen(null); setTyped('');
     }
   };
@@ -414,7 +419,18 @@ export default function StoryEpisode({ onLeave }) {
     flash(ok, ok ? 'correct_answer' : 'wrong_answer', ok ? 'correct' : 'wrong');
     if (ok) {
       awardGems(1);
-      setTimeout(() => { setPhase('blank'); setChosen(null); }, 800);
+      if (learningMode === 'choose') {
+        // نمط "اختيار فقط" — منعديش لمرحلة الكتابة، ننتقل للكلمة التالية مباشرة
+        addWordToBank(
+          trackId, word.id,
+          { word: word.word, ar: word.ar, phonetic: word.phonetic, pron: word.pron, emoji: word.emoji, grammar: word.grammar, difficulty: vocabById[word.id]?.difficulty },
+          episodeNum,
+          episode.word_expiry?.non_protected_expire_after_episode
+        );
+        setTimeout(() => { setChosen(null); advanceAfterWord(); }, 800);
+      } else {
+        setTimeout(() => { setPhase('blank'); setChosen(null); }, 800);
+      }
     }
     // لو غلط: هيفضل الاختيار معطّل والتغذية الراجعة ظاهرة لحد ما يضغط "متابعة"
   };
@@ -628,7 +644,7 @@ export default function StoryEpisode({ onLeave }) {
           </View>
         ))}
       </View>
-      <TouchableOpacity style={s.startBtn2} onPress={() => { setPhase('choice'); setWordIdx(0); }}>
+      <TouchableOpacity style={s.startBtn2} onPress={() => { setPhase(firstPhaseForWord()); setWordIdx(0); }}>
         <Text style={s.startBtn2Txt}>{lang === 'ar' ? 'هيا نتعلّم 🎯' : "Let's learn 🎯"}</Text>
       </TouchableOpacity>
     </View>
