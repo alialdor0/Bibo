@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, TextInput, Animated, Alert, I18nManager } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, TextInput, Animated, Alert, I18nManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../context/AppContext';
+import ThemedSafeArea from '../components/Themed';
 import { t, GIFT_REWARDS } from '../data';
 import { getEpisode, getTotalEpisodes } from '../data/episodes';
 import { buildTemplateVars, fillDeep } from '../utils/templateEngine';
@@ -481,7 +482,7 @@ export default function StoryEpisode({ onLeave }) {
   // ── حلقة مش موجودة (خلصنا الموسم أو مفيش بيانات) ──
   if (!rawEpisode) {
     return (
-      <SafeAreaView style={s.safe}>
+      <ThemedSafeArea style={s.safe}>
         <View style={s.center}>
           <BiboCharacter
             state="celebrate"
@@ -494,14 +495,14 @@ export default function StoryEpisode({ onLeave }) {
             <Text style={s.restartTxt}>{lang === 'ar' ? 'رجوع' : 'Back'}</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </ThemedSafeArea>
     );
   }
 
   // ── مقدمة الحلقة ──
   if (!started) {
     return (
-      <SafeAreaView style={s.safe}>
+      <ThemedSafeArea style={s.safe}>
         <View style={s.center}>
           <Text style={s.epNum}>{lang === 'ar' ? 'الحلقة' : 'Episode'} {episodeNum}</Text>
           <Text style={s.epTitle}>{lang === 'ar' ? episode.title_arabic : episode.title}</Text>
@@ -510,7 +511,7 @@ export default function StoryEpisode({ onLeave }) {
             <Text style={s.startBtn2Txt}>▶ {lang === 'ar' ? 'ابدأ' : 'Start'}</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </ThemedSafeArea>
     );
   }
 
@@ -519,7 +520,7 @@ export default function StoryEpisode({ onLeave }) {
     const next = episode.next_episode;
     const hasNextEpisode = episodeNum < totalEpisodes;
     return (
-      <SafeAreaView style={s.safe}>
+      <ThemedSafeArea style={s.safe}>
         <ScrollView contentContainerStyle={s.center}>
           <BiboCharacter state="celebrate" size={100} message={bMsg('episode_complete', 'episodeComplete')} />
           <View style={s.doneStatsRow}>
@@ -583,7 +584,7 @@ export default function StoryEpisode({ onLeave }) {
         </ScrollView>
 
         <CinematicReading visible={showCinema} episode={episode} lang={lang} trackId={trackId} onClose={() => setShowCinema(false)} />
-      </SafeAreaView>
+      </ThemedSafeArea>
     );
   }
 
@@ -779,7 +780,7 @@ export default function StoryEpisode({ onLeave }) {
   };
 
   return (
-    <SafeAreaView style={s.safe}>
+    <ThemedSafeArea style={s.safe}>
       <View style={s.header}>
         <TouchableOpacity style={s.leaveBtn} onPress={confirmLeave}><Text style={s.leaveTxt}>← {T('leave')}</Text></TouchableOpacity>
         <Text style={s.headerInfo}>{lang === 'ar' ? 'حلقة' : 'Ep'} {episodeNum} · {lineIdx + 1}/{lines.length}</Text>
@@ -842,7 +843,7 @@ export default function StoryEpisode({ onLeave }) {
         onClose={closeWordInfo}
         onPlay={() => infoWordId && playWord({ id: infoWordId, word: vocabById[infoWordId]?.word })}
       />
-    </SafeAreaView>
+    </ThemedSafeArea>
   );
 }
 

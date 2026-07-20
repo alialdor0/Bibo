@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, Alert, Modal, Animated, Easing } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert, Modal, Animated, Easing } from 'react-native';
 import { useApp } from '../context/AppContext';
+import ThemedSafeArea from '../components/Themed';
 import { t, STORE_ITEMS, GIFT_REWARDS, WEEKLY_GIFT_REWARDS, COSMETIC_ITEMS, COSMETIC_SLOTS, BOOK_COVERS, COVER_STICKERS } from '../data';
 import { PageHeader, GemsBadge, StationeryBar } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
@@ -298,7 +299,7 @@ export default function Store({ onBack }) {
   };
 
   return (
-    <SafeAreaView style={s.safe}>
+    <ThemedSafeArea style={s.safe}>
       <PageHeader
         title={T('store')}
         onBack={onBack}
@@ -592,7 +593,7 @@ export default function Store({ onBack }) {
         onOpened={handleWeeklyGiftReward}
         onClose={() => setWeeklyGiftModal(false)}
       />
-    </SafeAreaView>
+    </ThemedSafeArea>
   );
 }
 
@@ -656,7 +657,7 @@ const s = StyleSheet.create({
   cosmeticPriceRow:{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4 },
   cosmeticPriceTxt:{ color: '#FFB300', fontSize: 11, fontWeight: '800' },
   equippedBadge:   { backgroundColor: '#a5d6a7', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, marginTop: 4 },
-  equippedBadgeTxt:{ color: '#08080f', fontSize: 9, fontWeight: '800' },
+  equippedBadgeTxt:{ color: '#0a0a12', fontSize: 9, fontWeight: '800' },
 
   earnCard:        { backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', borderRadius: 14, padding: 16, marginTop: 8 },
   earnTitle:       { fontSize: 14, fontWeight: '700', color: '#fff', marginBottom: 12 },

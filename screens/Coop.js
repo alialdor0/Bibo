@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../context/AppContext';
+import ThemedSafeArea from '../components/Themed';
 import { t, TRACKS } from '../data';
 import { getEpisode, getTotalEpisodes } from '../data/episodes';
 import { buildTemplateVars, fillDeep } from '../utils/templateEngine';
@@ -28,7 +29,7 @@ function TutorialScreen({ lang, onDone }) {
   ];
   const p = PAGES[page];
   return (
-    <SafeAreaView style={s.safe}>
+    <ThemedSafeArea style={s.safe}>
       <PageHeader
         title={lang === 'ar' ? 'كيف يعمل' : 'How it works'}
         right={<TouchableOpacity onPress={onDone} style={s.skipBtn}><Text style={s.skipTxt}>{lang === 'ar' ? 'تخطّي' : 'Skip'}</Text></TouchableOpacity>}
@@ -53,7 +54,7 @@ function TutorialScreen({ lang, onDone }) {
           </TouchableOpacity>
         </View>
       </View>
-    </SafeAreaView>
+    </ThemedSafeArea>
   );
 }
 
@@ -207,21 +208,21 @@ function CoopGame({ trackId, lang, user, onEnd, addGems }) {
   // ── مفيش حلقات لهذا المسار لسه ──
   if (!episode) {
     return (
-      <SafeAreaView style={s.safe}>
+      <ThemedSafeArea style={s.safe}>
         <View style={s.doneWrap}>
           <BiboCharacter state="sleep" size={80} message={lang === 'ar' ? 'حلقات هذا المسار قيد الإعداد... تابعنا قريبًا 📖' : "This track's episodes aren't ready yet... check back soon 📖"} />
           <TouchableOpacity style={s.doneBtn} onPress={onEnd}>
             <Text style={s.doneBtnTxt}>{lang === 'ar' ? 'الرجوع للرئيسية' : 'Back to Home'}</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </ThemedSafeArea>
     );
   }
 
   // ── خلصتوا كل حلقات الموسم ──
   if (seasonOver) {
     return (
-      <SafeAreaView style={s.safe}>
+      <ThemedSafeArea style={s.safe}>
         <ScrollView contentContainerStyle={s.doneWrap}>
           <BiboCharacter state="celebrate" size={80} message={lang === 'ar' ? 'أكملنا الموسم بأكمله معًا! 🏆' : 'We finished the whole season together! 🏆'} />
           <Text style={s.doneTitle}>{lang === 'ar' ? 'الموسم اكتمل!' : 'Season Complete!'}</Text>
@@ -232,14 +233,14 @@ function CoopGame({ trackId, lang, user, onEnd, addGems }) {
             <Text style={s.doneBtnTxt}>{lang === 'ar' ? 'الرجوع للرئيسية' : 'Back to Home'}</Text>
           </TouchableOpacity>
         </ScrollView>
-      </SafeAreaView>
+      </ThemedSafeArea>
     );
   }
 
   // ── الحلقة الحالية خلصت — عرض ملخّص وخيار المتابعة للحلقة الجاية ──
   if (episodeOver) {
     return (
-      <SafeAreaView style={s.safe}>
+      <ThemedSafeArea style={s.safe}>
         <ScrollView contentContainerStyle={s.doneWrap}>
           <BiboCharacter state="celebrate" size={80} message={lang === 'ar' ? 'حلقة رائعة! 🎉' : 'Great episode! 🎉'} />
           <Text style={s.doneTitle}>
@@ -273,13 +274,13 @@ function CoopGame({ trackId, lang, user, onEnd, addGems }) {
             <Text style={s.laterBtnTxt}>{lang === 'ar' ? 'أكمل لاحقًا' : 'Continue later'}</Text>
           </TouchableOpacity>
         </ScrollView>
-      </SafeAreaView>
+      </ThemedSafeArea>
     );
   }
 
   // ── شاشة اللعب ──
   return (
-    <SafeAreaView style={s.safe}>
+    <ThemedSafeArea style={s.safe}>
       <View style={s.gameHeader}>
         <TouchableOpacity style={s.leaveBtn} onPress={handleLeave}>
           <Text style={s.leaveTxt}>{lang === 'ar' ? 'مغادرة' : 'Leave'}</Text>
@@ -370,7 +371,7 @@ function CoopGame({ trackId, lang, user, onEnd, addGems }) {
           </View>
         ) : null}
       </ScrollView>
-    </SafeAreaView>
+    </ThemedSafeArea>
   );
 }
 
@@ -387,7 +388,7 @@ export default function Coop({ onBack }) {
   const totalEpisodes = getTotalEpisodes(trackId);
 
   return (
-    <SafeAreaView style={s.safe}>
+    <ThemedSafeArea style={s.safe}>
       <PageHeader title={lang === 'ar' ? 'التعاون مع بيبو' : 'Co-op with Bibo'} onBack={onBack} backLabel={T('back')} right={<GemsBadge gems={gems} />} />
       <ScrollView contentContainerStyle={s.pageContent}>
         <View style={[s.explainCard, { borderColor: track.color + '44' }]}>
@@ -431,7 +432,7 @@ export default function Coop({ onBack }) {
           <Text style={s.startBtnTxt}>{lang === 'ar' ? 'ابدأ مع بيبو' : 'Start with Bibo'}</Text>
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+    </ThemedSafeArea>
   );
 }
 

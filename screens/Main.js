@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Switch, SafeAreaView, Alert, Animated, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Switch, Alert, Animated, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../context/AppContext';
+import ThemedSafeArea from '../components/Themed';
 import { t, STORE_ITEMS, GIFT_REWARDS, WEEKLY_CHALLENGES, TRACKS, GENDERS, COUNTRIES, CITIES, JOBS, getPrefix, ACHIEVEMENTS } from '../data';
 import { BiboMsg, PageHeader, GemsBadge, StationeryBar } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
@@ -30,7 +31,7 @@ const DAILY_TIPS = {
 };
 
 function HomeTab({ onNav }) {
-  const { user, track, lang, gems, stationery, library, companion, getEpisodeState, getWordBankWords, canClaimDailyGift, unlockedAchievements, pendingBadge, dismissPendingBadge } = useApp();
+  const { user, track, lang, gems, stationery, library, companion, getEpisodeState, getWordBankWords, canClaimDailyGift, unlockedAchievements, pendingBadge, dismissPendingBadge, theme } = useApp();
   const T = (k) => t(k, lang);
   const u = user || { fullName: 'Ali', levelTitle: { en: 'Novice Writer', color: '#8B4513' } };
   const tr = track || { icon: '🕵️', name: 'Spy & Mystery', color: '#C0C0C0' };
@@ -87,7 +88,7 @@ function HomeTab({ onNav }) {
 
   return (
     <>
-    <SafeAreaView style={s.root}>
+    <ThemedSafeArea style={s.root}>
       <View style={s.header}>
         <View style={s.headerLeft}>
           <View
@@ -253,11 +254,12 @@ function HomeTab({ onNav }) {
       </View>
 
       <BottomNav active="home" onNav={onNav} T={T} />
-    </SafeAreaView>
+    </ThemedSafeArea>
 
     <Modal visible={!!pendingBadge} transparent animationType="fade" onRequestClose={dismissPendingBadge}>
       <View style={s.badgeModalBg}>
-        <View style={s.badgeModalCard}>
+        <View style={[s.badgeModalCard, { backgroundColor: theme.surface }]}>
+        <Themed>
           <Text style={s.badgeModalTitle}>{lang === 'ar' ? 'إنجاز جديد! 🎉' : 'New achievement! 🎉'}</Text>
           <Text style={s.badgeModalIcon}>{pendingBadge?.icon}</Text>
           <Text style={s.badgeModalName}>{pendingBadge ? (lang === 'ar' ? pendingBadge.nameAr : pendingBadge.name) : ''}</Text>
@@ -265,6 +267,7 @@ function HomeTab({ onNav }) {
           <TouchableOpacity style={s.badgeModalBtn} onPress={dismissPendingBadge} accessible={true} accessibilityRole="button">
             <Text style={s.badgeModalBtnTxt}>{lang === 'ar' ? 'رائع!' : 'Awesome!'}</Text>
           </TouchableOpacity>
+        </Themed>
         </View>
       </View>
     </Modal>
@@ -335,7 +338,7 @@ function ChallengeTab({ onNav }) {
   const urgent = getWordBankWords().filter(w => w.episodesLeft <= 0);
 
   return (
-    <SafeAreaView style={s.root}>
+    <ThemedSafeArea style={s.root}>
       <View style={s.header}>
         <Text style={s.pageTitle}>🏆 {T('challenge')}</Text>
         <GemsBadge gems={gems} />
@@ -387,7 +390,7 @@ function ChallengeTab({ onNav }) {
       </ScrollView>
 
       <BottomNav active="challenge" onNav={onNav} T={T} />
-    </SafeAreaView>
+    </ThemedSafeArea>
   );
 }
 
@@ -398,7 +401,7 @@ function ProfileTab({ onBack, onNav }) {
   if (!user) {
     // حماية بسيطة: من المفترض ألا يصل المستخدم لهذه الشاشة إلا بعد تسجيل الدخول، ولكن لو حدث أمر غير متوقع نعرض رسالة بدلًا من بيانات وهمية
     return (
-      <SafeAreaView style={s.safe}>
+      <ThemedSafeArea style={s.safe}>
         <PageHeader title={T('profile')} onBack={onBack} backLabel={T('back')} />
         <View style={[s.pageContent, { alignItems: 'center', paddingTop: 60 }]}>
           <BiboCharacter state="thinking" size={90} />
@@ -406,7 +409,7 @@ function ProfileTab({ onBack, onNav }) {
             {lang === 'ar' ? 'لم نتمكن من العثور على بيانات حسابك. يرجى تسجيل الدخول من جديد.' : "We couldn't find your account data. Try signing in again."}
           </Text>
         </View>
-      </SafeAreaView>
+      </ThemedSafeArea>
     );
   }
 
@@ -433,7 +436,7 @@ function ProfileTab({ onBack, onNav }) {
     : `Hi ${user.fullName?.split(' ')[0] || ''}! Proud of you 🎉`;
 
   return (
-    <SafeAreaView style={s.safe}>
+    <ThemedSafeArea style={s.safe}>
       <PageHeader title={T('profile')} onBack={onBack} backLabel={T('back')} right={<GemsBadge gems={gems} />} />
       <ScrollView contentContainerStyle={s.pageContent}>
         <View style={s.profileCard}>
@@ -537,18 +540,21 @@ function ProfileTab({ onBack, onNav }) {
           ))}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </ThemedSafeArea>
   );
 }
 
 function SettingsTab({ onBack }) {
-  const { lang, setLang, logout, voiceOn, setVoiceOn, sfxOn, setSfxOn, hapticsOn, setHapticsOn, learningMode, setLearningMode, reviewWordsCount, setReviewWordsCount, track, setTrack, user, setUser } = useApp();
+  const {
+    lang, setLang, logout, voiceOn, setVoiceOn, sfxOn, setSfxOn, hapticsOn, setHapticsOn,
+    learningMode, setLearningMode, reviewWordsCount, setReviewWordsCount, track, setTrack, user, setUser,
+    fontSizeSetting, setFontSizeSetting, darkMode, setDarkMode,
+    offlineMode, setOfflineMode, notificationsOn, setNotificationsOn,
+  } = useApp();
   const T = (k) => t(k, lang);
 
-  const [notif,     setNotif]     = useState(true);
-  const [dark,      setDark]      = useState(true);
-  const [offline,   setOffline]   = useState(false);
-  const [fontSize,  setFontSize]  = useState('M');
+  // إعدادات العرض (fontSize/darkMode/offline/notifications) بقت محفوظة فعليًا عبر AppContext
+  // بدل الحالة المحلية القديمة اللي كانت بترجع لقيمها الافتراضية كل ما المستخدم يسكّر الشاشة.
   const [showTrackPicker, setShowTrackPicker] = useState(false);
   const [showLevelTest,   setShowLevelTest]   = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -599,14 +605,14 @@ function SettingsTab({ onBack }) {
 
   return (
     <>
-    <SafeAreaView style={s.safe}>
+    <ThemedSafeArea style={s.safe}>
       <PageHeader title={T('settings')} onBack={onBack} backLabel={T('back')} />
       <ScrollView contentContainerStyle={s.pageContent}>
 
         <View style={s.settingSection}>
           <Text style={s.settingSectionTitle}>🌐 {T('language')}</Text>
           <View style={s.settingRow}>
-            <Text style={s.settingLabel}>{T('language')}</Text>
+            <Text style={[s.settingLabel]}>{T('language')}</Text>
             <View style={s.segmented}>
               {[['ar','العربية'],['en','English']].map(([code, label]) => (
                 <TouchableOpacity key={code}
@@ -630,7 +636,7 @@ function SettingsTab({ onBack }) {
             accessibilityLabel={T('editProfile')}
           >
             <Text style={{ fontSize: 18 }} importantForAccessibility="no">✏️</Text>
-            <Text style={s.settingLabel}>{T('editProfile')}</Text>
+            <Text style={[s.settingLabel]}>{T('editProfile')}</Text>
             <Text style={s.settingArrow} importantForAccessibility="no">›</Text>
           </TouchableOpacity>
 
@@ -642,7 +648,7 @@ function SettingsTab({ onBack }) {
             accessibilityLabel={T('changeTrack')}
           >
             <Text style={{ fontSize: 18 }} importantForAccessibility="no">🎭</Text>
-            <Text style={s.settingLabel}>{T('changeTrack')}{track ? ` (${track.icon} ${lang === 'ar' ? track.nameAr : track.name})` : ''}</Text>
+            <Text style={[s.settingLabel]}>{T('changeTrack')}{track ? ` (${track.icon} ${lang === 'ar' ? track.nameAr : track.name})` : ''}</Text>
             <Text style={s.settingArrow} importantForAccessibility="no">{showTrackPicker ? '⌄' : '›'}</Text>
           </TouchableOpacity>
 
@@ -670,7 +676,7 @@ function SettingsTab({ onBack }) {
             accessibilityLabel={T('retakeTest')}
           >
             <Text style={{ fontSize: 18 }} importantForAccessibility="no">📊</Text>
-            <Text style={s.settingLabel}>{T('retakeTest')}</Text>
+            <Text style={[s.settingLabel]}>{T('retakeTest')}</Text>
             <Text style={s.settingArrow} importantForAccessibility="no">›</Text>
           </TouchableOpacity>
 
@@ -700,7 +706,7 @@ function SettingsTab({ onBack }) {
             { label: 'Vibration',     val: hapticsOn, set: setHapticsOn },
           ].map(item => (
             <View key={item.label} style={s.settingRow}>
-              <Text style={s.settingLabel}>{item.label}</Text>
+              <Text style={[s.settingLabel]}>{item.label}</Text>
               <Switch value={item.val} onValueChange={item.set} trackColor={{ true: '#2E8B57', false: 'rgba(255,255,255,0.1)' }} thumbColor="#fff" />
             </View>
           ))}
@@ -718,7 +724,7 @@ function SettingsTab({ onBack }) {
             ))}
           </View>
           <View style={s.settingRow}>
-            <Text style={s.settingLabel}>{T('dailyReview')}</Text>
+            <Text style={[s.settingLabel]}>{T('dailyReview')}</Text>
             <View style={s.stepper}>
               <TouchableOpacity
                 style={s.stepperBtn}
@@ -742,37 +748,57 @@ function SettingsTab({ onBack }) {
             </View>
           </View>
           <View style={s.settingRow}>
-            <Text style={s.settingLabel}>{T('fontSize')}</Text>
+            <Text style={[s.settingLabel]}>{T('fontSize')}</Text>
             <View style={s.segmented}>
               {['S','M','L'].map(f => (
-                <TouchableOpacity key={f} style={[s.segBtn, fontSize === f ? s.segBtnActive : null]}
-                  onPress={() => setFontSize(f)} accessibilityRole="button">
-                  <Text style={[s.segBtnTxt, fontSize === f ? s.segBtnTxtActive : null]}>{f}</Text>
+                <TouchableOpacity key={f} style={[s.segBtn, fontSizeSetting === f ? s.segBtnActive : null]}
+                  onPress={() => setFontSizeSetting(f)} accessibilityRole="button"
+                  accessible={true} accessibilityLabel={f === 'S' ? (lang === 'ar' ? 'خط صغير' : 'Small') : f === 'M' ? (lang === 'ar' ? 'خط متوسط' : 'Medium') : (lang === 'ar' ? 'خط كبير' : 'Large')}>
+                  <Text style={[s.segBtnTxt, fontSizeSetting === f ? s.segBtnTxtActive : null]}>{f}</Text>
                 </TouchableOpacity>
               ))}
             </View>
           </View>
+          <Text style={s.settingHint}>
+            {lang === 'ar'
+              ? 'حجم الخط بينطبق على كل شاشات التطبيق فورًا.'
+              : 'Font size applies across the whole app immediately.'}
+          </Text>
         </View>
 
         <View style={s.settingSection}>
-          <Text style={s.settingSectionTitle}>🖥️ Display</Text>
-          {[
-            { label: T('darkMode'),      val: dark,    set: setDark    },
-            { label: T('offline'),       val: offline, set: setOffline },
-            { label: T('notifications'), val: notif,   set: setNotif   },
-          ].map(item => (
-            <View key={item.label} style={s.settingRow}>
-              <Text style={s.settingLabel}>{item.label}</Text>
-              <Switch value={item.val} onValueChange={item.set} trackColor={{ true: '#2E8B57', false: 'rgba(255,255,255,0.1)' }} thumbColor="#fff" />
-            </View>
-          ))}
+          <Text style={s.settingSectionTitle}>🖥️ {T('display')}</Text>
+          <View style={s.settingRow}>
+            <Text style={[s.settingLabel]}>{T('darkMode')}</Text>
+            <Switch value={darkMode} onValueChange={setDarkMode} trackColor={{ true: '#2E8B57', false: 'rgba(255,255,255,0.1)' }} thumbColor="#fff" />
+          </View>
+          <View style={s.settingRow}>
+            <Text style={[s.settingLabel]}>{T('offline')}</Text>
+            <Switch value={offlineMode} onValueChange={setOfflineMode} trackColor={{ true: '#2E8B57', false: 'rgba(255,255,255,0.1)' }} thumbColor="#fff" />
+          </View>
+          <Text style={s.settingHint}>
+            {lang === 'ar'
+              ? 'تفعيل وضعية Offline بيوقف طلب أو جدولة أي إشعارات تلقائيًا (التطبيق أصلًا شغال بدون إنترنت).'
+              : 'Offline mode stops any automatic notification scheduling (the app already works fully without internet).'}
+          </Text>
+          <View style={s.settingRow}>
+            <Text style={[s.settingLabel]}>{T('notifications')}</Text>
+            <Switch
+              value={notificationsOn}
+              onValueChange={(v) => {
+                if (v && offlineMode) setOfflineMode(false);
+                setNotificationsOn(v);
+              }}
+              trackColor={{ true: '#2E8B57', false: 'rgba(255,255,255,0.1)' }} thumbColor="#fff"
+            />
+          </View>
         </View>
 
       </ScrollView>
-    </SafeAreaView>
+    </ThemedSafeArea>
 
     <Modal visible={showLevelTest} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowLevelTest(false)}>
-      <SafeAreaView style={s.modalSafe}>
+      <ThemedSafeArea style={s.modalSafe}>
         <View style={s.modalHeader}>
           <Text style={s.modalTitle}>{T('retakeTest')}</Text>
           <TouchableOpacity onPress={() => setShowLevelTest(false)} accessible={true} accessibilityRole="button" accessibilityLabel={T('back')}>
@@ -791,11 +817,11 @@ function SettingsTab({ onBack }) {
             }}
           />
         </ScrollView>
-      </SafeAreaView>
+      </ThemedSafeArea>
     </Modal>
 
     <Modal visible={showEditProfile && !!editForm} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowEditProfile(false)}>
-      <SafeAreaView style={s.modalSafe}>
+      <ThemedSafeArea style={s.modalSafe}>
         <View style={s.modalHeader}>
           <Text style={s.modalTitle}>{T('editProfile')}</Text>
           <TouchableOpacity onPress={() => setShowEditProfile(false)} accessible={true} accessibilityRole="button" accessibilityLabel={T('back')}>
@@ -853,7 +879,7 @@ function SettingsTab({ onBack }) {
             </ScrollView>
           </KeyboardAvoidingView>
         ) : null}
-      </SafeAreaView>
+      </ThemedSafeArea>
     </Modal>
     </>
   );
@@ -913,7 +939,7 @@ const s = StyleSheet.create({
   badgeModalName:    { color: '#fff', fontSize: 18, fontWeight: '900', marginBottom: 6 },
   badgeModalDesc:    { color: 'rgba(255,255,255,0.5)', fontSize: 12, textAlign: 'center', marginBottom: 20 },
   badgeModalBtn:     { backgroundColor: '#FFB300', borderRadius: 14, paddingVertical: 12, paddingHorizontal: 32 },
-  badgeModalBtnTxt:  { color: '#08080f', fontSize: 14, fontWeight: '800' },
+  badgeModalBtnTxt:  { color: '#0a0a12', fontSize: 14, fontWeight: '800' },
   notifTxt:          { flex: 1, color: '#fff', fontSize: 13, fontWeight: '600' },
   notifArrow:        { color: 'rgba(255,255,255,0.4)', fontSize: 18 },
   floatingBiboWrap:  { position: 'absolute', bottom: 78, right: 16 },
@@ -938,7 +964,7 @@ const s = StyleSheet.create({
   weeklyProgTxt:     { color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 2 },
   weeklyRewardTxt:   { color: '#FFB300', fontSize: 12, fontWeight: '700' },
   weeklyClaimBtn:    { backgroundColor: '#FFB300', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },
-  weeklyClaimBtnTxt: { color: '#08080f', fontSize: 12, fontWeight: '800' },
+  weeklyClaimBtnTxt: { color: '#0a0a12', fontSize: 12, fontWeight: '800' },
   weeklyDoneBadge:   { backgroundColor: 'rgba(46,139,87,0.25)', borderRadius: 14, width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   weeklyDoneBadgeTxt:{ color: '#a5d6a7', fontSize: 14, fontWeight: '800' },
   weeklyBarTrack:    { height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.08)', overflow: 'hidden' },
@@ -968,6 +994,7 @@ const s = StyleSheet.create({
   settingRow:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)' },
   settingRowBtn:     { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)' },
   settingLabel:      { fontSize: 14, color: '#fff', flex: 1 },
+  settingHint:       { fontSize: 11, color: 'rgba(255,255,255,0.35)', paddingHorizontal: 12, paddingBottom: 10, lineHeight: 16 },
   settingArrow:      { color: 'rgba(255,255,255,0.25)', fontSize: 20 },
   trackPickerWrap:   { paddingHorizontal: 12, paddingBottom: 8, gap: 6 },
   trackPickerRow:    { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: 10 },

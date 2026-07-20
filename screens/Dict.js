@@ -1,7 +1,8 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, TextInput } from 'react-native';
 import * as Speech from 'expo-speech';
 import { useApp } from '../context/AppContext';
+import ThemedSafeArea from '../components/Themed';
 import { t, TRACKS } from '../data';
 import { PageHeader, GemsBadge } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
@@ -198,18 +199,18 @@ export default function Dict({ onBack, onNav }) {
     const pool = allWords.length >= 4 ? allWords : allWordsRaw;
     const sessionWords = shuffle(pool).slice(0, Math.min(reviewWordsCount, pool.length));
     return (
-      <SafeAreaView style={s.safe}>
+      <ThemedSafeArea style={s.safe}>
         <PageHeader title={lang === 'ar' ? 'مراجعة الكلمات' : 'Word Review'} onBack={() => setMode(null)} backLabel={T('back')} />
         <ScrollView contentContainerStyle={s.pageContent}>
           <ReviewExercise words={sessionWords.length >= 4 ? sessionWords : pool} onDone={() => setMode(null)} lang={lang} />
         </ScrollView>
-      </SafeAreaView>
+      </ThemedSafeArea>
     );
   }
 
   if (allWordsRaw.length === 0) {
     return (
-      <SafeAreaView style={s.safe}>
+      <ThemedSafeArea style={s.safe}>
         <PageHeader title={lang === 'ar' ? '📖 قاموسي' : '📖 My Dictionary'} onBack={onBack} backLabel={T('back')} right={<GemsBadge gems={gems} />} />
         <View style={s.emptyWrap}>
           <BiboCharacter
@@ -218,12 +219,12 @@ export default function Dict({ onBack, onNav }) {
             message={lang === 'ar' ? 'لا توجد كلمات بعد! كل كلمة تتعلمها في القصة ستظهر هنا 📖' : "No words yet! Every word you learn in the story will show up here 📖"}
           />
         </View>
-      </SafeAreaView>
+      </ThemedSafeArea>
     );
   }
 
   return (
-    <SafeAreaView style={s.safe}>
+    <ThemedSafeArea style={s.safe}>
       <PageHeader title={lang === 'ar' ? '📖 قاموسي' : '📖 My Dictionary'} onBack={onBack} backLabel={T('back')} right={<GemsBadge gems={gems} />} />
       <ScrollView contentContainerStyle={s.pageContent}>
         <View style={s.searchBox}>
@@ -357,7 +358,7 @@ export default function Dict({ onBack, onNav }) {
         isFavorite={infoWordFav}
         onToggleFavorite={() => infoWord && toggleFavorite(infoWord.trackId, infoWord.wordId)}
       />
-    </SafeAreaView>
+    </ThemedSafeArea>
   );
 }
 

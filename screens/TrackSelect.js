@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated, SafeAreaView } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated } from 'react-native';
 import { useApp } from '../context/AppContext';
+import ThemedSafeArea from '../components/Themed';
 import { t, TRACKS } from '../data';
 
 export default function TrackSelect({ onSelect }) {
@@ -31,7 +32,7 @@ export default function TrackSelect({ onSelect }) {
   };
 
   return (
-    <SafeAreaView style={s.safe}>
+    <ThemedSafeArea style={s.safe}>
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
         <Animated.View style={[s.header, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
           <Text style={s.appName}>Bibo</Text>
@@ -98,7 +99,7 @@ export default function TrackSelect({ onSelect }) {
           </Text>
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+    </ThemedSafeArea>
   );
 }
 

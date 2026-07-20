@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Animated, KeyboardAvoidingView, Platform, SafeAreaView, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Animated, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { useApp } from '../context/AppContext';
+import ThemedSafeArea from '../components/Themed';
 import { t, GENDERS, COUNTRIES, CITIES, JOBS, MONTHS, LEVEL_TITLES, getPrefix, getZodiac, itemLabel } from '../data';
 import WheelPicker from '../components/WheelPicker';
 import BiboCharacter from '../components/BiboCharacter';
@@ -184,7 +185,7 @@ export default function Onboarding({ onDone }) {
   };
 
   return (
-    <SafeAreaView style={s.safe}>
+    <ThemedSafeArea style={s.safe}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={s.scrollContent} keyboardShouldPersistTaps="handled">
           {Bird}
@@ -411,7 +412,7 @@ export default function Onboarding({ onDone }) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </ThemedSafeArea>
   );
 }
 

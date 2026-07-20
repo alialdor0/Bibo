@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { useApp } from '../context/AppContext';
+import ThemedSafeArea from '../components/Themed';
 import { t, COSMETIC_ITEMS } from '../data';
 import { PageHeader, GemsBadge } from '../components/BiboCard';
 import BiboCharacter, { STATE_META } from '../components/BiboCharacter';
@@ -34,7 +35,7 @@ export default function BiboProfile({ onBack }) {
   };
 
   return (
-    <SafeAreaView style={s.safe}>
+    <ThemedSafeArea style={s.safe}>
       <PageHeader title={lang === 'ar' ? 'بطاقة بيبو' : "Bibo's Card"} onBack={onBack} backLabel={T('back')} right={<GemsBadge gems={gems} />} />
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
 
@@ -104,7 +105,7 @@ export default function BiboProfile({ onBack }) {
           })}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </ThemedSafeArea>
   );
 }
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, SafeAreaView, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, StyleSheet, ActivityIndicator } from 'react-native';
 import { useApp } from '../context/AppContext';
+import ThemedSafeArea from '../components/Themed';
 import { t } from '../data';
 import BiboCharacter from '../components/BiboCharacter';
 import { biboSay } from '../data/biboPhrases';
@@ -59,7 +60,7 @@ export default function Login({ onLogin, onCodeRestored }) {
   };
 
   return (
-    <SafeAreaView style={s.safe}>
+    <ThemedSafeArea style={s.safe}>
       <View style={s.center}>
         <BiboCharacter state="welcome" message={welcomeMsg} size={88} style={{ marginBottom: 12 }} />
         <Text style={s.appName}>Bibo</Text>
@@ -180,7 +181,7 @@ export default function Login({ onLogin, onCodeRestored }) {
           ) : null}
         </View>
       </View>
-    </SafeAreaView>
+    </ThemedSafeArea>
   );
 }
 

@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet, SafeAreaView } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { useApp } from '../context/AppContext';
+import ThemedSafeArea from '../components/Themed';
 import { t, ACHIEVEMENTS } from '../data';
 import { PageHeader, GemsBadge } from '../components/BiboCard';
 
@@ -11,7 +12,7 @@ export default function Achievements({ onBack }) {
   const unlockedCount = unlockedAchievements.length;
 
   return (
-    <SafeAreaView style={s.safe}>
+    <ThemedSafeArea style={s.safe}>
       <PageHeader
         title={lang === 'ar' ? 'الإنجازات' : 'Achievements'}
         onBack={onBack}
@@ -50,7 +51,7 @@ export default function Achievements({ onBack }) {
           })}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </ThemedSafeArea>
   );
 }
 

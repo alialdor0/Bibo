@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { useApp } from '../context/AppContext';
+import ThemedSafeArea from '../components/Themed';
 import { t, BIBO_PACE } from '../data';
 import { PageHeader, GemsBadge } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
@@ -76,7 +77,7 @@ export default function Leaderboard({ onBack, onNav }) {
   const goChallenge = (mode) => onNav && onNav('rescue', { initialChallenge: mode });
 
   return (
-    <SafeAreaView style={s.safe}>
+    <ThemedSafeArea style={s.safe}>
       <PageHeader title={lang === 'ar' ? 'المنافسة مع بيبو' : 'Competition with Bibo'} onBack={onBack} backLabel={T('back')} right={<GemsBadge gems={gems} />} />
 
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
@@ -136,7 +137,7 @@ export default function Leaderboard({ onBack, onNav }) {
           </Text>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </ThemedSafeArea>
   );
 }
 

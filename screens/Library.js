@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { useApp } from '../context/AppContext';
+import ThemedSafeArea from '../components/Themed';
 import { t, COVER_STICKERS, BOOK_COVERS } from '../data';
 import { getEpisode } from '../data/episodes';
 import { buildTemplateVars, fillDeep } from '../utils/templateEngine';
@@ -127,7 +128,7 @@ function BookDetail({ book, lang, onBack, onGoToStore }) {
   };
 
   return (
-    <SafeAreaView style={s.safe}>
+    <ThemedSafeArea style={s.safe}>
       <View style={s.detailHeader}>
         <TouchableOpacity onPress={onBack} style={s.backBtn}>
           <Text style={s.backTxt}>{lang === 'ar' ? '‹ رجوع' : '‹ Back'}</Text>
@@ -300,7 +301,7 @@ function BookDetail({ book, lang, onBack, onGoToStore }) {
         trackId={book.trackId}
         onClose={() => { setShowCinema(false); stopAmbient(); }}
       />
-    </SafeAreaView>
+    </ThemedSafeArea>
   );
 }
 
@@ -321,7 +322,7 @@ export default function Library({ onNav }) {
   }
 
   return (
-    <SafeAreaView style={s.safe}>
+    <ThemedSafeArea style={s.safe}>
       <View style={s.header}>
         <Text style={s.pageTitle}>📖 {T('library')}</Text>
         <GemsBadge gems={gems} />
@@ -378,7 +379,7 @@ export default function Library({ onNav }) {
       )}
 
       <BottomNav active="library" onNav={onNav} T={T} />
-    </SafeAreaView>
+    </ThemedSafeArea>
   );
 }
 
@@ -399,7 +400,7 @@ const s = StyleSheet.create({
   readBadge:       { position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
   readBadgeTxt:    { color: '#fff', fontSize: 10, fontWeight: '700' },
   accBadge:        { position: 'absolute', top: 8, left: 8, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
-  accBadgeTxt:     { color: '#08080f', fontSize: 10, fontWeight: '800' },
+  accBadgeTxt:     { color: '#0a0a12', fontSize: 10, fontWeight: '800' },
   bookStickers:    { fontSize: 13, marginTop: 4 },
   detailHeader:    { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 4 },
   backBtn:         { paddingVertical: 8 },
@@ -443,7 +444,7 @@ const s = StyleSheet.create({
   actionsRow:      { flexDirection: 'row', gap: 10, marginBottom: 12 },
   actionBtn:       { flex: 1, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', borderRadius: 14, paddingVertical: 13, alignItems: 'center' },
   actionPrimary:   { backgroundColor: '#a5d6a7', borderColor: '#a5d6a7' },
-  actionPrimaryTxt:{ color: '#08080f', fontWeight: '800', fontSize: 13 },
+  actionPrimaryTxt:{ color: '#0a0a12', fontWeight: '800', fontSize: 13 },
   actionTxt:       { color: '#fff', fontWeight: '700', fontSize: 13 },
   shareBtn:        { backgroundColor: '#7b5fd4', borderRadius: 14, paddingVertical: 13, alignItems: 'center', marginBottom: 24 },
   shareBtnTxt:     { color: '#fff', fontWeight: '800', fontSize: 13 },

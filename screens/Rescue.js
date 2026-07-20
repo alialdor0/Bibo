@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated, Easing, SafeAreaView, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated, Easing, TextInput } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../context/AppContext';
+import ThemedSafeArea from '../components/Themed';
 import { t, COVER_STICKERS } from '../data';
 import { SEASONS } from '../data/episodes';
 import { buildTemplateVars, fillTemplate } from '../utils/templateEngine';
@@ -1106,7 +1107,7 @@ export default function Rescue({ onBack, initialChallenge }) {
   const endChallenge = () => setChallengeMode(null);
 
   if (challengeMode) return (
-    <SafeAreaView style={s.safe}>
+    <ThemedSafeArea style={s.safe}>
       <PageHeader
         title={
           challengeMode === 'duel' ? (lang === 'ar' ? 'مبارزة بالكلمات' : 'Word Duel') :
@@ -1123,21 +1124,21 @@ export default function Rescue({ onBack, initialChallenge }) {
          challengeMode === 'teach' ? <TeachBibo key={String(challengeKey)} words={learnedWords} onDone={endChallenge} lang={lang} addGems={addGems} /> :
          <SentenceDuel key={String(challengeKey)} onDone={endChallenge} lang={lang} addGems={addGems} />}
       </ScrollView>
-    </SafeAreaView>
+    </ThemedSafeArea>
   );
 
   if (screen === 'game') return (
-    <SafeAreaView style={s.safe}>
+    <ThemedSafeArea style={s.safe}>
       <PageHeader title={lang === 'ar' ? 'تمرين الإنقاذ' : 'Rescue Exercise'} onBack={() => setScreen('home')} backLabel={T('back')} />
       <ScrollView contentContainerStyle={s.pageContent}>
         <RescueGame words={gameWords} onDone={() => setScreen('home')} addGems={addGems} onRescue={rescueWord} onResult={recordWordResult} difficulty={difficulty} lang={lang} />
       </ScrollView>
-    </SafeAreaView>
+    </ThemedSafeArea>
   );
 
   if (allWords.length === 0) {
     return (
-      <SafeAreaView style={s.safe}>
+      <ThemedSafeArea style={s.safe}>
         <PageHeader title={lang === 'ar' ? 'إنقاذ الكلمات' : 'Word Rescue'} onBack={onBack} backLabel={T('back')} right={<GemsBadge gems={gems} />} />
         <View style={s.emptyWrap}>
           <BiboCharacter
@@ -1146,12 +1147,12 @@ export default function Rescue({ onBack, initialChallenge }) {
             message={lang === 'ar' ? 'لا توجد كلمات تحتاج إلى إنقاذ بعد! أكمل قصتك أولًا 🐦' : "No words to rescue yet! Keep going with your story first 🐦"}
           />
         </View>
-      </SafeAreaView>
+      </ThemedSafeArea>
     );
   }
 
   return (
-    <SafeAreaView style={s.safe}>
+    <ThemedSafeArea style={s.safe}>
       <PageHeader title={lang === 'ar' ? 'إنقاذ الكلمات' : 'Word Rescue'} onBack={onBack} backLabel={T('back')} right={<GemsBadge gems={gems} />} />
       <ScrollView contentContainerStyle={s.pageContent}>
         <BiboMsg text={
@@ -1255,7 +1256,7 @@ export default function Rescue({ onBack, initialChallenge }) {
         {later.length > 0 ? <Text style={s.listLabel}>{lang === 'ar' ? 'لاحقًا' : 'Later'}</Text> : null}
         {later.map(w => <WordCard key={String(w.id)} word={w} lang={lang} />)}
       </ScrollView>
-    </SafeAreaView>
+    </ThemedSafeArea>
   );
 }
 
