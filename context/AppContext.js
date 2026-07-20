@@ -32,6 +32,23 @@ const DEFAULT_STATIONERY = {
   pages:  { left: 30 },
 };
 
+/** مضاعف حجم الخط حسب اختيار المستخدم (S/M/L) — يُستخدم مع scaleFont() */
+const FONT_SCALES = { S: 0.88, M: 1, L: 1.18 };
+
+/** ألوان الوضع الليلي (الوضع الحالي والافتراضي للتطبيق) والوضع النهاري */
+const THEMES = {
+  dark: {
+    bg: '#08080f', card: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.1)',
+    text: '#fff', textDim: 'rgba(255,255,255,0.5)', textFaint: 'rgba(255,255,255,0.35)',
+    surface: '#12121c',
+  },
+  light: {
+    bg: '#f5f6fa', card: 'rgba(0,0,0,0.04)', border: 'rgba(0,0,0,0.08)',
+    text: '#1a1a1a', textDim: 'rgba(0,0,0,0.55)', textFaint: 'rgba(0,0,0,0.38)',
+    surface: '#ffffff',
+  },
+};
+
 export function AppProvider({ children }) {
   const [lang, setLang]   = useState('ar');
   const [user, setUser]   = useState(null);
@@ -56,6 +73,36 @@ export function AppProvider({ children }) {
   }, []);
   const [learningMode, setLearningMode] = useState('speak'); // choose | type | speak — نوع تمارين تعلّم الكلمة الجديدة بالحلقة
   const [reviewWordsCount, setReviewWordsCount] = useState(10); // عدد كلمات المراجعة اليومية بتمرين القاموس
+
+  // ── إعدادات العرض والإشعارات (حجم الخط / الوضع الليلي / وضعية Offline / الإشعارات) ──
+  const [fontSizeSetting, setFontSizeSetting] = useState('M'); // S | M | L
+  const [darkMode, setDarkModeState] = useState(true);
+  const [offlineMode, setOfflineModeState] = useState(false);
+  const [notificationsOn, setNotificationsOnState] = useState(true);
+
+  /** يبدّل الوضع الليلي/النهاري — القيمة تُقرأ عبر `theme` بالأسفل */
+  const setDarkMode = useCallback((v) => setDarkModeState(v), []);
+
+  /** يبدّل وضعية Offline: توقف مزامنة/جدولة أي شيء يحتاج اتصال (تذكيرات الإشعارات حاليًا) */
+  const setOfflineMode = useCallback((v) => {
+    setOfflineModeState(v);
+    if (v) cancelBiboReminders();
+  }, []);
+
+  /** يبدّل الإشعارات العامة: يطلب الإذن ويجدول عند التفعيل، ويلغي كل التذكيرات عند الإيقاف */
+  const setNotificationsOn = useCallback((v) => {
+    setNotificationsOnState(v);
+    if (!v) {
+      cancelBiboReminders();
+    }
+  }, []);
+
+  /** مضاعف حجم الخط الحالي (0.88 / 1 / 1.18) بحسب اختيار المستخدم */
+  const fontScale = FONT_SCALES[fontSizeSetting] || 1;
+  /** يحسب حجم خط مُكبّر/مُصغّر حسب إعداد المستخدم — تُستخدم بدل كتابة fontSize مباشرة بالشاشات */
+  const scaleFont = useCallback((base) => Math.round(base * fontScale), [fontScale]);
+  /** لوحة ألوان الوضع الحالي (ليلي/نهاري) — تُستخدم بدل الألوان الثابتة بالشاشات لدعم التبديل */
+  const theme = darkMode ? THEMES.dark : THEMES.light;
   const [library, setLibrary] = useState([]);
   const [bookCovers, setBookCovers] = useState({}); // { "trackId::episodeId": { color, stickers:[ids] } }
   const [ownedStickers, setOwnedStickers] = useState([]); // ["star","heart",...]
@@ -90,6 +137,10 @@ export function AppProvider({ children }) {
         hapticsOn: true,
         learningMode: 'speak',
         reviewWordsCount: 10,
+        fontSizeSetting: 'M',
+        darkMode: true,
+        offlineMode: false,
+        notificationsOn: true,
         library: [],
         bookCovers: {},
         ownedStickers: [],
@@ -123,6 +174,10 @@ export function AppProvider({ children }) {
       setHapticsEnabled(saved.hapticsOn !== false);
       setLearningMode(saved.learningMode || 'speak');
       setReviewWordsCount(saved.reviewWordsCount || 10);
+      setFontSizeSetting(saved.fontSizeSetting || 'M');
+      setDarkModeState(saved.darkMode !== false);
+      setOfflineModeState(!!saved.offlineMode);
+      setNotificationsOnState(saved.notificationsOn !== false);
       setLibrary(saved.library);
       setBookCovers(saved.bookCovers);
       setOwnedStickers(saved.ownedStickers);
@@ -173,8 +228,13 @@ export function AppProvider({ children }) {
 
   useEffect(() => {
     if (!hydrated) return;
+    // لو الإشعارات مقفولة (أو المستخدم مفعّل وضعية Offline)، ما نجدولش أي تذكيرات — ونلغي أي جدولة قديمة
+    if (!notificationsOn || offlineMode) {
+      cancelBiboReminders();
+      return;
+    }
     scheduleStreakReminders(lang, companion.streak, STREAK_BREAK_HOURS);
-  }, [lang, hydrated, companion.streak]);
+  }, [lang, hydrated, companion.streak, notificationsOn, offlineMode]);
 
   useEffect(() => { prepareAudioMode(); }, []);
 
@@ -189,6 +249,10 @@ export function AppProvider({ children }) {
   useEffect(() => { if (hydratedRef.current) saveJSON('hapticsOn', hapticsOn); }, [hapticsOn]);
   useEffect(() => { if (hydratedRef.current) saveJSON('learningMode', learningMode); }, [learningMode]);
   useEffect(() => { if (hydratedRef.current) saveJSON('reviewWordsCount', reviewWordsCount); }, [reviewWordsCount]);
+  useEffect(() => { if (hydratedRef.current) saveJSON('fontSizeSetting', fontSizeSetting); }, [fontSizeSetting]);
+  useEffect(() => { if (hydratedRef.current) saveJSON('darkMode', darkMode); }, [darkMode]);
+  useEffect(() => { if (hydratedRef.current) saveJSON('offlineMode', offlineMode); }, [offlineMode]);
+  useEffect(() => { if (hydratedRef.current) saveJSON('notificationsOn', notificationsOn); }, [notificationsOn]);
   useEffect(() => { if (hydratedRef.current) saveJSON('library', library); }, [library]);
   useEffect(() => { if (hydratedRef.current) saveJSON('bookCovers', bookCovers); }, [bookCovers]);
   useEffect(() => { if (hydratedRef.current) saveJSON('ownedStickers', ownedStickers); }, [ownedStickers]);
@@ -665,6 +729,10 @@ export function AppProvider({ children }) {
     stationery, useInk, useEraser, usePage, buyItem, claimGift, claimWeeklyGift, canClaimDailyGift, canClaimWeeklyGift,
     voiceOn, setVoiceOn, sfxOn, setSfxOn, hapticsOn, setHapticsOn,
     learningMode, setLearningMode, reviewWordsCount, setReviewWordsCount,
+    fontSizeSetting, setFontSizeSetting, fontScale, scaleFont,
+    darkMode, setDarkMode, theme,
+    offlineMode, setOfflineMode,
+    notificationsOn, setNotificationsOn,
     library, addLibraryEntry,
     bookCovers, ownedStickers, ownedCovers, buySticker, grantSticker, buyCover, setBookCover, toggleBookSticker,
     ownedCosmetics, equippedCosmetics, buyCosmetic, equipCosmetic,
