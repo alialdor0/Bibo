@@ -1,8 +1,11 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import BiboIcon from './BiboIcon';
+import { useApp } from '../context/AppContext';
+import { inkColor } from './Themed';
 
 export function BiboMsg({ text, color }) {
+  const { darkMode, fontScale } = useApp();
   return (
     <View
       style={[s.wrap, { borderColor: (color || '#2E8B57') + '44' }]}
@@ -10,23 +13,24 @@ export function BiboMsg({ text, color }) {
       accessibilityLabel={`Bibo: ${text}`}
     >
       <View
-        style={[s.bird, { borderColor: (color || '#2E8B57') + '66' }]}
+        style={[s.bird, { borderColor: (color || '#2E8B57') + '66', backgroundColor: inkColor('#0a150a', darkMode) }]}
         accessibilityElementsHidden={true}
         importantForAccessibility="no-hide-descendants"
       >
         <BiboIcon size={22} />
       </View>
       <View style={s.content}>
-        <Text style={[s.name, { color: color || '#2E8B57' }]}>Bibo</Text>
-        <Text style={s.text}>{text}</Text>
+        <Text style={[s.name, { color: color || '#2E8B57', fontSize: 11 * fontScale }]}>Bibo</Text>
+        <Text style={[s.text, { color: inkColor(s.text.color, darkMode), fontSize: 13 * fontScale }]}>{text}</Text>
       </View>
     </View>
   );
 }
 
 export function PageHeader({ title, onBack, backLabel, right }) {
+  const { theme, fontScale } = useApp();
   return (
-    <View style={s.header}>
+    <View style={[s.header, { borderBottomColor: theme.border }]}>
       {onBack ? (
         <TouchableOpacity
           style={s.backBtn}
@@ -35,39 +39,41 @@ export function PageHeader({ title, onBack, backLabel, right }) {
           accessibilityRole="button"
           accessibilityLabel={backLabel || 'Back'}
         >
-          <Text style={s.backTxt}>{'← ' + (backLabel || 'Back')}</Text>
+          <Text style={[s.backTxt, { color: theme.textDim, fontSize: 13 * fontScale }]}>{'← ' + (backLabel || 'Back')}</Text>
         </TouchableOpacity>
       ) : <View style={s.spacer} />}
-      <Text style={s.title}>{title}</Text>
+      <Text style={[s.title, { color: theme.text, fontSize: 16 * fontScale }]}>{title}</Text>
       {right || <View style={s.spacer} />}
     </View>
   );
 }
 
 export function GemsBadge({ gems }) {
+  const { fontScale } = useApp();
   return (
     <View
       style={s.gemsBadge}
       accessible={true}
       accessibilityLabel={`${gems} جوهرة`}
     >
-      <Text style={s.gemsIcon}>💎</Text>
-      <Text style={s.gemsVal}>{gems}</Text>
+      <Text style={[s.gemsIcon, { fontSize: 14 * fontScale }]}>💎</Text>
+      <Text style={[s.gemsVal, { fontSize: 13 * fontScale }]}>{gems}</Text>
     </View>
   );
 }
 
 export function StationeryBar({ stationery }) {
+  const { darkMode, fontScale } = useApp();
   const { pen, eraser, pages } = stationery;
   return (
-    <View style={s.statBar}>
+    <View style={[s.statBar, { backgroundColor: inkColor(s.statBar.backgroundColor, darkMode) }]}>
       <View
         style={s.statItem}
         accessible={true}
         accessibilityLabel={`القلم: ${Math.min(100, pen.inkLeft)}% حبر متبقي`}
       >
-        <Text style={s.statIcon}>🖊️</Text>
-        <View style={s.inkBarBg}>
+        <Text style={[s.statIcon, { fontSize: 14 * fontScale }]}>🖊️</Text>
+        <View style={[s.inkBarBg, { backgroundColor: inkColor(s.inkBarBg.backgroundColor, darkMode) }]}>
           <View style={[s.inkBarFill, { width: Math.min(100, pen.inkLeft) + '%' }]} />
         </View>
       </View>
@@ -76,16 +82,16 @@ export function StationeryBar({ stationery }) {
         accessible={true}
         accessibilityLabel={`الممحاة: ${eraser.uses} استخدام متبقي`}
       >
-        <Text style={s.statIcon}>🧹</Text>
-        <Text style={s.statVal}>{eraser.uses}</Text>
+        <Text style={[s.statIcon, { fontSize: 14 * fontScale }]}>🧹</Text>
+        <Text style={[s.statVal, { color: inkColor(s.statVal.color, darkMode), fontSize: 12 * fontScale }]}>{eraser.uses}</Text>
       </View>
       <View
         style={s.statItem}
         accessible={true}
         accessibilityLabel={`الأوراق: ${pages.left} ورقة متبقية`}
       >
-        <Text style={s.statIcon}>📄</Text>
-        <Text style={s.statVal}>{pages.left}</Text>
+        <Text style={[s.statIcon, { fontSize: 14 * fontScale }]}>📄</Text>
+        <Text style={[s.statVal, { color: inkColor(s.statVal.color, darkMode), fontSize: 12 * fontScale }]}>{pages.left}</Text>
       </View>
     </View>
   );

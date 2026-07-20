@@ -1,10 +1,13 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { useApp } from '../context/AppContext';
+import { Themed } from './Themed';
 
 const ITEM_H = 44;
 const VISIBLE = 5;
 
 export default function WheelPicker({ items, value, onChange, hint }) {
+  const { theme } = useApp();
   const scrollRef = useRef(null);
   const timer     = useRef(null);
 
@@ -34,12 +37,13 @@ export default function WheelPicker({ items, value, onChange, hint }) {
 
   return (
     <View style={s.wrap}>
+    <Themed>
       {hint ? <Text style={s.hint}>{hint}</Text> : null}
       <View style={[s.outer, { height: visH }]}>
         <View style={[s.line, { top: visH / 2 - 23 }]} />
         <View style={[s.line, { top: visH / 2 + 22 }]} />
-        <View style={s.fadeTop} pointerEvents="none" />
-        <View style={s.fadeBot} pointerEvents="none" />
+        <View style={[s.fadeTop, { backgroundColor: theme.bg, opacity: 0.92 }]} pointerEvents="none" />
+        <View style={[s.fadeBot, { backgroundColor: theme.bg, opacity: 0.92 }]} pointerEvents="none" />
         <ScrollView
           ref={scrollRef}
           showsVerticalScrollIndicator={false}
@@ -64,11 +68,13 @@ export default function WheelPicker({ items, value, onChange, hint }) {
           })}
         </ScrollView>
       </View>
+    </Themed>
     </View>
   );
 }
 
 export function AgePicker({ ages, value, onChange, hint }) {
+  const { theme } = useApp();
   const scrollRef = useRef(null);
   const timer     = useRef(null);
   const selIdx    = Math.max(0, ages.indexOf(value));
@@ -96,12 +102,13 @@ export function AgePicker({ ages, value, onChange, hint }) {
 
   return (
     <View style={s.wrap}>
+    <Themed>
       {hint ? <Text style={s.hint}>{hint}</Text> : null}
       <View style={[s.outer, { height: visH }]}>
         <View style={[s.line, { top: visH / 2 - 23 }]} />
         <View style={[s.line, { top: visH / 2 + 22 }]} />
-        <View style={s.fadeTop} pointerEvents="none" />
-        <View style={s.fadeBot} pointerEvents="none" />
+        <View style={[s.fadeTop, { backgroundColor: theme.bg, opacity: 0.92 }]} pointerEvents="none" />
+        <View style={[s.fadeBot, { backgroundColor: theme.bg, opacity: 0.92 }]} pointerEvents="none" />
         <ScrollView
           ref={scrollRef}
           showsVerticalScrollIndicator={false}
@@ -126,6 +133,7 @@ export function AgePicker({ ages, value, onChange, hint }) {
           })}
         </ScrollView>
       </View>
+    </Themed>
     </View>
   );
 }

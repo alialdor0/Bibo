@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { ASSESSMENT, getLevel } from '../data';
 import { playSfx } from '../utils/sfx';
+import { Themed } from './Themed';
 
 /**
  * اختبار تحديد المستوى — قابل لإعادة الاستخدام في:
@@ -41,6 +42,7 @@ export default function LevelTest({ lang, ctaLabel, onQuizFinished, onComplete }
     const q = ASSESSMENT[assess.qIdx];
     return (
       <View style={s.wrap}>
+      <Themed>
         <Text style={s.counter}>
           {lang === 'ar' ? `السؤال ${assess.qIdx + 1} من ${ASSESSMENT.length}` : `Question ${assess.qIdx + 1}/${ASSESSMENT.length}`}
         </Text>
@@ -69,12 +71,14 @@ export default function LevelTest({ lang, ctaLabel, onQuizFinished, onComplete }
             );
           })}
         </View>
+      </Themed>
       </View>
     );
   }
 
   return (
     <View style={[s.wrap, { alignItems: 'center' }]}>
+    <Themed>
       <Text style={{ fontSize: 48 }}>🏆</Text>
       <Text style={s.score}>{assess.score}/{ASSESSMENT.length}</Text>
       <View style={[s.badge, { borderColor: lvl.color }]}>
@@ -90,6 +94,7 @@ export default function LevelTest({ lang, ctaLabel, onQuizFinished, onComplete }
       >
         <Text style={s.ctaTxt}>{ctaLabel}</Text>
       </TouchableOpacity>
+    </Themed>
     </View>
   );
 }

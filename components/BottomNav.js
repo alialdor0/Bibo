@@ -1,7 +1,10 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useApp } from '../context/AppContext';
+import { inkColor } from './Themed';
 
 export default function BottomNav({ active, onNav, T }) {
+  const { darkMode, fontScale } = useApp();
   const items = [
     { id: 'home',      icon: '🏠', label: T('home')      },
     { id: 'library',   icon: '📖', label: T('library')   },
@@ -9,7 +12,10 @@ export default function BottomNav({ active, onNav, T }) {
     { id: 'profile',   icon: '👤', label: T('profile')   },
   ];
   return (
-    <View style={s.bottomNav}>
+    <View style={[s.bottomNav, {
+      backgroundColor: inkColor(s.bottomNav.backgroundColor, darkMode),
+      borderTopColor: inkColor(s.bottomNav.borderTopColor, darkMode),
+    }]}>
       {items.map(n => (
         <TouchableOpacity
           key={n.id}
@@ -18,8 +24,12 @@ export default function BottomNav({ active, onNav, T }) {
           accessibilityLabel={n.label}
           accessibilityState={{ selected: active === n.id }}
         >
-          <Text style={{ fontSize: 22, opacity: active === n.id ? 1 : 0.55 }}>{n.icon}</Text>
-          <Text style={[s.navLabel, active === n.id ? s.navLabelActive : null]}>{n.label}</Text>
+          <Text style={{ fontSize: 22 * fontScale, opacity: active === n.id ? 1 : 0.55 }}>{n.icon}</Text>
+          <Text style={[
+            s.navLabel,
+            { color: inkColor(s.navLabel.color, darkMode), fontSize: 10 * fontScale },
+            active === n.id ? s.navLabelActive : null,
+          ]}>{n.label}</Text>
         </TouchableOpacity>
       ))}
     </View>

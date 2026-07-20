@@ -1,5 +1,7 @@
 import React from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useApp } from '../context/AppContext';
+import { Themed, inkColor } from './Themed';
 
 function Row({ label, value }) {
   if (!value) return null;
@@ -18,6 +20,7 @@ function Row({ label, value }) {
  * Props: visible, word (كائن vocabulary كامل), lang, onClose, onPlay, isFavorite, onToggleFavorite
  */
 export default function WordInfoModal({ visible, word, lang, onClose, onPlay, isFavorite, onToggleFavorite }) {
+  const { theme } = useApp();
   if (!word) return null;
   const isAr = lang === 'ar';
   const displayWord = word.word || word.en;
@@ -28,7 +31,8 @@ export default function WordInfoModal({ visible, word, lang, onClose, onPlay, is
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={s.backdrop}>
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
-        <View style={s.card}>
+        <View style={[s.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <Themed>
           <TouchableOpacity style={s.closeBtn} onPress={onClose} accessibilityRole="button" accessibilityLabel={isAr ? 'إغلاق' : 'Close'}>
             <Text style={s.closeTxt}>✕</Text>
           </TouchableOpacity>
@@ -72,6 +76,7 @@ export default function WordInfoModal({ visible, word, lang, onClose, onPlay, is
 
           <Row label={isAr ? 'نوع الكلمة' : 'Word type'} value={word.grammar || word.word_type} />
           <Row label={isAr ? 'المستوى' : 'Level'}        value={word.difficulty} />
+        </Themed>
         </View>
       </View>
     </Modal>

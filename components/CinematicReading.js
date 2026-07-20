@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, Modal, FlatList, Dimensions, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, FlatList, Dimensions, Animated } from 'react-native';
+import ThemedSafeArea from './Themed';
 import Avatar from './Avatar';
+import { playTrackAmbient } from '../utils/ambientMusic';
 
 var Speech = null;
 try { Speech = require('expo-speech'); } catch (e) {}
@@ -16,9 +18,10 @@ const { width: SCREEN_W } = Dimensions.get('window');
 /**
  * القراءة السينمائية — عرض القصة كاملة كتجربة ملء الشاشة، صفحة واحدة (سطر
  * واحد) في كل مرة بخط كبير وتنقّل بالسحب أفقيًا (زي عرض قصص حقيقي)، بدل
- * قائمة تمرير عادية. بتتفتح بعد إنهاء الحلقة كمكافأة/مراجعة.
+ * قائمة تمرير عادية. بتتفتح بعد إنهاء الحلقة كمكافأة/مراجعة، أو من المكتبة
+ * لإعادة القراءة. trackId اختياري لتشغيل موسيقى المسار الخلفية أثناء القراءة.
  */
-export default function CinematicReading({ visible, episode, lang, onClose }) {
+export default function CinematicReading({ visible, episode, lang, trackId, onClose }) {
   const [playingIdx, setPlayingIdx] = useState(null);
   const [pageIdx, setPageIdx] = useState(0);
   const listRef = useRef(null);
@@ -29,10 +32,12 @@ export default function CinematicReading({ visible, episode, lang, onClose }) {
       setPageIdx(0);
       fadeAnim.setValue(0);
       Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
+      if (trackId) playTrackAmbient(trackId);
     } else if (Speech) {
       Speech.stop();
     }
-  }, [visible]);
+    return () => { if (Speech) Speech.stop(); };
+  }, [visible, trackId]);
 
   if (!episode) return null;
 
@@ -69,7 +74,8 @@ export default function CinematicReading({ visible, episode, lang, onClose }) {
         <View style={[s.page, { width: SCREEN_W }]}>
           <View style={s.titleCard}>
             <Text style={s.filmIcon}>🎬</Text>
-            <Text style={s.title}>{isAr ? episode.title_arabic : episode.title}</Text>
+            <Text style={s.title}>{episode.title}</Text>
+            <Text style={s.titleAr}>{episode.title_arabic}</Text>
             <Text style={s.subtitle}>{full.hero}{full.city ? ' · ' + full.city : ''}</Text>
             {full.partner ? (
               <View style={s.castRow}>
@@ -117,7 +123,7 @@ export default function CinematicReading({ visible, episode, lang, onClose }) {
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={s.safe}>
+      <ThemedSafeArea style={s.safe}>
         <View style={s.header}>
           <TouchableOpacity onPress={onClose} style={s.closeBtn} accessible={true} accessibilityRole="button" accessibilityLabel={isAr ? 'إغلاق' : 'Close'}>
             <Text style={s.closeTxt}>✕</Text>
@@ -168,7 +174,7 @@ export default function CinematicReading({ visible, episode, lang, onClose }) {
             <Text style={s.navBtnTxt}>{isAr ? 'التالي →' : 'Next →'}</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </ThemedSafeArea>
     </Modal>
   );
 }
@@ -189,6 +195,7 @@ const s = StyleSheet.create({
   titleCard:    { alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderRadius: 18, padding: 28, width: '100%' },
   filmIcon:     { fontSize: 40, marginBottom: 10 },
   title:        { color: '#fff', fontSize: 22, fontWeight: '800', textAlign: 'center' },
+  titleAr:      { color: 'rgba(255,255,255,0.55)', fontSize: 15, textAlign: 'center', marginTop: 4 },
   subtitle:     { color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 6 },
   castRow:      { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14 },
   castTxt:      { color: 'rgba(255,255,255,0.6)', fontSize: 12 },
