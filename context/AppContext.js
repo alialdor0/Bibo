@@ -8,6 +8,7 @@ import { prepareAudioMode } from '../utils/sounds';
 import { playSfx, setSfxEnabled } from '../utils/sfx';
 import { setAmbientEnabled } from '../utils/ambientMusic';
 import { setHapticsEnabled } from '../utils/haptics';
+import { migrateLibraryToBooks, migrateBookCovers } from '../utils/libraryMigration';
 
 /** بيرجع مفتاح الأسبوع الحالي بصيغة ISO (مثلاً "2026-W28") — يُستخدم لتصفير التحديات الأسبوعية تلقائيًا */
 function getWeekKey(date = new Date()) {
@@ -178,8 +179,8 @@ export function AppProvider({ children }) {
       setDarkModeState(saved.darkMode !== false);
       setOfflineModeState(!!saved.offlineMode);
       setNotificationsOnState(saved.notificationsOn !== false);
-      setLibrary(saved.library);
-      setBookCovers(saved.bookCovers);
+      setLibrary(migrateLibraryToBooks(saved.library));
+      setBookCovers(migrateBookCovers(saved.bookCovers));
       setOwnedStickers(saved.ownedStickers);
       setOwnedCovers(saved.ownedCovers || DEFAULT_OWNED_COVERS);
       setOwnedCosmetics(saved.ownedCosmetics);
@@ -438,11 +439,14 @@ export function AppProvider({ children }) {
     const wordsRescued = Object.values(wordBank).reduce(
       (n, trackWords) => n + Object.values(trackWords).reduce((m, w) => m + (w.rescuedCount || 0), 0), 0
     );
-    const perfectEpisode = library.some(b => b.accuracy === 100) ? 1 : 0;
+    // "حلقة مثالية" و"عدد الحلقات المكتملة" بقوا محسوبين من فصول كل الكتب
+    // (مش من الكتب نفسها، بعد ما بقى كل مسار كتاب واحد بدل كتاب لكل حلقة)
+    const allChapters = library.flatMap(b => b.chapters || []);
+    const perfectEpisode = allChapters.some(ch => ch.accuracy === 100) ? 1 : 0;
     const levelIdx = LEVEL_TITLES.findIndex(l => l.en === user?.levelTitle?.en);
     return {
       words_learned: wordsLearned,
-      episodes_completed: library.length,
+      episodes_completed: allChapters.length,
       streak: companion?.streak || 0,
       words_rescued: wordsRescued,
       gems_earned: totalGemsEarned,
@@ -567,13 +571,51 @@ export function AppProvider({ children }) {
     return true;
   }, [gems]);
 
+  /**
+   * يضيف حلقة مكتملة كـ"فصل" جديد لكتاب مسارها بالمكتبة (أو ينشئ كتاب المسار
+   * لو دي أول حلقة فيه). لو الحلقة دي كانت مكتملة قبل كده، بنحدّث بيانات
+   * الفصل ونزوّد عداد "مرات القراءة" بدل ما نكرره.
+   */
   const addLibraryEntry = useCallback((entry) => {
-    const isNewEpisode = !library.some(b => b.trackId === entry.trackId && b.episodeId === entry.episodeId);
+    const existingBook = library.find(b => b.trackId === entry.trackId);
+    const isNewEpisode = !existingBook || !existingBook.chapters.some(c => c.episodeId === entry.episodeId);
+    const chapterData = {
+      episodeId: entry.episodeId,
+      title: entry.title,
+      titleAr: entry.titleAr,
+      lines: entry.lines, // بدون سطر عربي — القراءة السينمائية بقت إنجليزي بس
+      words: entry.words,
+      completedAt: entry.completedAt,
+      timeSpentSec: entry.timeSpentSec,
+      correctAnswers: entry.correctAnswers,
+      totalAnswers: entry.totalAnswers,
+      accuracy: entry.accuracy,
+      gemsEarned: entry.gemsEarned,
+    };
     setLibrary(prev => {
-      const idx = prev.findIndex(b => b.trackId === entry.trackId && b.episodeId === entry.episodeId);
-      if (idx === -1) return [...prev, entry];
+      const idx = prev.findIndex(b => b.trackId === entry.trackId);
+      if (idx === -1) {
+        return [...prev, {
+          trackId: entry.trackId,
+          trackName: entry.trackName,
+          trackNameAr: entry.trackNameAr,
+          icon: entry.icon,
+          color: entry.color,
+          chapters: [{ ...chapterData, readCount: 1 }],
+        }];
+      }
       const copy = [...prev];
-      copy[idx] = { ...copy[idx], ...entry, readCount: (copy[idx].readCount || 1) + 1 };
+      const book = copy[idx];
+      const chIdx = book.chapters.findIndex(c => c.episodeId === entry.episodeId);
+      let chapters;
+      if (chIdx === -1) {
+        chapters = [...book.chapters, { ...chapterData, readCount: 1 }]
+          .sort((a, b) => (a.episodeId || 0) - (b.episodeId || 0));
+      } else {
+        chapters = [...book.chapters];
+        chapters[chIdx] = { ...chapters[chIdx], ...chapterData, readCount: (chapters[chIdx].readCount || 1) + 1 };
+      }
+      copy[idx] = { ...book, icon: entry.icon || book.icon, color: entry.color || book.color, chapters };
       return copy;
     });
     if (isNewEpisode) bumpWeekly('episodesDone');
@@ -593,7 +635,7 @@ export function AppProvider({ children }) {
     setEquippedCosmetics(prev => ({ ...prev, [slot]: prev[slot] === itemId ? null : itemId }));
   }, []);
 
-  const coverKey = (trackId, episodeId) => `${trackId}::${episodeId}`;
+  const coverKey = (trackId) => trackId; // كتاب واحد لكل مسار الآن، فالمفتاح بقى trackId بس
 
   /** يشتري ملصق تخصيص الغلاف بالجواهر (لو مش مملوك أصلًا). بيرجع true لو نجحت العملية */
   const buySticker = useCallback((stickerId, price) => {
@@ -621,14 +663,14 @@ export function AppProvider({ children }) {
   }, [gems, ownedCovers]);
 
   /** بيغيّر غلاف كتاب معيّن بالمكتبة (لازم يكون الغلاف مملوكًا أصلًا) */
-  const setBookCover = useCallback((trackId, episodeId, coverId) => {
-    const key = coverKey(trackId, episodeId);
+  const setBookCover = useCallback((trackId, coverId) => {
+    const key = coverKey(trackId);
     setBookCovers(prev => ({ ...prev, [key]: { ...(prev[key] || {}), coverId } }));
   }, []);
 
   /** بيضيف/بيشيل ملصق من غلاف كتاب معيّن (بحد أقصى 3 ملصقات على نفس الغلاف) */
-  const toggleBookSticker = useCallback((trackId, episodeId, stickerId) => {
-    const key = coverKey(trackId, episodeId);
+  const toggleBookSticker = useCallback((trackId, stickerId) => {
+    const key = coverKey(trackId);
     setBookCovers(prev => {
       const current = prev[key] || {};
       const stickers = current.stickers || [];
@@ -666,8 +708,8 @@ export function AppProvider({ children }) {
     setTrack(snap.track || null);
     setGems(typeof snap.gems === 'number' ? snap.gems : 50);
     setStationery(snap.stationery || DEFAULT_STATIONERY);
-    setLibrary(snap.library || []);
-    setBookCovers(snap.bookCovers || {});
+    setLibrary(migrateLibraryToBooks(snap.library || []));
+    setBookCovers(migrateBookCovers(snap.bookCovers || {}));
     setOwnedStickers(snap.ownedStickers || []);
     setOwnedCovers(snap.ownedCovers || DEFAULT_OWNED_COVERS);
     setOwnedCosmetics(snap.ownedCosmetics || []);
