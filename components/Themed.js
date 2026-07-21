@@ -86,8 +86,14 @@ function walk(children, darkMode, fontScale) {
 /** يلف أي شجرة JSX ويطبّق عليها حجم الخط والوضع الليلي/النهاري الحاليين */
 export function Themed({ children }) {
   const { darkMode, fontScale } = useApp();
-  if (darkMode && fontScale === 1) return children; // ولا تغيير مطلوب — نرجّع زي ما هي بدون أي overhead
-  return walk(children, darkMode, fontScale);
+  // دايمًا بنمرّ عبر walk() (اللي بيستخدم React.Children.map الآمن) حتى لو
+  // مفيش تغيير مطلوب — إرجاع children الخام مباشرة من غير معالجة ممكن يسبب
+  // مشاكل reconciliation لو كانت أكتر من عنصر (زي عنوان + محتوى) من غير مفاتيح.
+  const result = walk(children, darkMode, fontScale);
+  // React.Children.map(undefined, ...) بيرجّع undefined، ورجوع undefined من
+  // مكوّن React خطأ مؤكد دايمًا ("Nothing was returned from render") — نضمن
+  // إننا منرجّعش undefined أبدًا مهما كانت قيمة children.
+  return result === undefined ? null : result;
 }
 
 /**
