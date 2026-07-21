@@ -1,10 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useApp } from '../context/AppContext';
 import ThemedSafeArea from '../components/Themed';
 import { t, COVER_STICKERS, BOOK_COVERS } from '../data';
-import { getEpisode } from '../data/episodes';
-import { buildTemplateVars, fillDeep } from '../utils/templateEngine';
 import { GemsBadge } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
 import BottomNav from '../components/BottomNav';
@@ -14,28 +13,42 @@ import { exportBookPDF, shareBookAchievement } from '../utils/libraryExport';
 
 function BookCard({ book, lang, custom, onPress }) {
   const title = lang === 'ar' ? book.trackNameAr : book.trackName;
-  const hasAccuracy = typeof book.accuracy === 'number' && book.totalAnswers > 0;
+  const { accuracy, total: answersTotal } = aggregateAccuracy(book);
+  const hasAccuracy = typeof accuracy === 'number' && answersTotal > 0;
   const selectedCover = BOOK_COVERS.find(c => c.id === custom?.coverId);
   const color = selectedCover ? selectedCover.colors[0] : (book.color || '#2E8B57');
   const stickers = custom?.stickers || [];
   const stickerEmojis = stickers.map(id => COVER_STICKERS.find(st => st.id === id)).filter(st => st && st.type === 'emoji').map(st => st.emoji);
+  const wordCount = aggregateWords(book).length;
+  const chapterCount = (book.chapters || []).length;
+  const readCount = maxReadCount(book);
   return (
-    <TouchableOpacity style={[s.book, { borderColor: color + '55', backgroundColor: color + '14' }]} onPress={onPress}>
-      {hasAccuracy ? (
-        <View style={[s.accBadge, { backgroundColor: accuracyColor(book.accuracy) }]}>
-          <Text style={s.accBadgeTxt}>{book.accuracy}%</Text>
-        </View>
-      ) : null}
-      <Text style={s.bookIcon}>{book.icon}</Text>
-      <Text style={s.bookTitle} numberOfLines={2}>{title}</Text>
-      <Text style={s.bookMeta}>{(book.words || []).length} {lang === 'ar' ? 'كلمة' : 'words'}</Text>
-      {stickerEmojis.length ? (
-        <Text style={s.bookStickers}>{stickerEmojis.join(' ')}</Text>
-      ) : null}
-      {book.readCount > 1 ? (
-        <View style={s.readBadge}><Text style={s.readBadgeTxt}>×{book.readCount}</Text></View>
-      ) : null}
-    </TouchableOpacity>
+    <LinearGradient
+      colors={hasAccuracy ? masteryGradient(accuracy) : [color + '55', color + '30']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={s.bookGradientBorder}
+    >
+      <TouchableOpacity style={[s.book, { backgroundColor: color + '14' }]} onPress={onPress}>
+        {hasAccuracy ? (
+          <View style={[s.accBadge, { backgroundColor: accuracyColor(accuracy) }]}>
+            <Text style={s.accBadgeTxt}>{accuracy}%</Text>
+          </View>
+        ) : null}
+        <Text style={s.bookIcon}>{book.icon}</Text>
+        <Text style={s.bookTitle} numberOfLines={2}>{title}</Text>
+        <Text style={s.bookMeta}>
+          {chapterCount} {lang === 'ar' ? (chapterCount === 1 ? 'فصل' : 'فصول') : chapterCount === 1 ? 'chapter' : 'chapters'}
+          {' · '}{wordCount} {lang === 'ar' ? 'كلمة' : 'words'}
+        </Text>
+        {stickerEmojis.length ? (
+          <Text style={s.bookStickers}>{stickerEmojis.join(' ')}</Text>
+        ) : null}
+        {readCount > 1 ? (
+          <View style={s.readBadge}><Text style={s.readBadgeTxt}>×{readCount}</Text></View>
+        ) : null}
+      </TouchableOpacity>
+    </LinearGradient>
   );
 }
 
@@ -63,6 +76,30 @@ function formatDuration(sec, lang) {
   return `${m}m ${s}s`;
 }
 
+/** كل الكلمات الفريدة المتجمّعة من كل فصول الكتاب (بدون تكرار) */
+function aggregateWords(book) {
+  const seen = new Map();
+  for (const ch of book.chapters || []) {
+    for (const w of ch.words || []) {
+      if (w && !seen.has(w.id)) seen.set(w.id, w);
+    }
+  }
+  return Array.from(seen.values());
+}
+/** نسبة الدقة الإجمالية عبر كل فصول الكتاب (null لو مفيش بيانات إجابات) */
+function aggregateAccuracy(book) {
+  let correct = 0, total = 0;
+  for (const ch of book.chapters || []) {
+    correct += ch.correctAnswers || 0;
+    total += ch.totalAnswers || 0;
+  }
+  return total > 0 ? { accuracy: Math.round((correct / total) * 100), total } : { accuracy: null, total: 0 };
+}
+const aggregateGems = (book) => (book.chapters || []).reduce((n, ch) => n + (ch.gemsEarned || 0), 0);
+const aggregateTimeSpent = (book) => (book.chapters || []).reduce((n, ch) => n + (ch.timeSpentSec || 0), 0);
+const latestCompletedAt = (book) => (book.chapters || []).reduce((max, ch) => Math.max(max, ch.completedAt || 0), 0);
+const maxReadCount = (book) => (book.chapters || []).reduce((max, ch) => Math.max(max, ch.readCount || 1), 1);
+
 /** لون تقييم الدقة: أخضر ممتاز / أصفر متوسط / برتقالي محتاج تحسين */
 function accuracyColor(acc) {
   if (acc >= 85) return '#a5d6a7';
@@ -70,25 +107,31 @@ function accuracyColor(acc) {
   return '#ff8a65';
 }
 
+/** تدرج لوني لإطار غلاف الكتاب حسب مستوى الإتقان (الدقة) — كل مستوى بلونين متدرجين */
+function masteryGradient(acc) {
+  if (acc == null) return ['rgba(255,255,255,0.18)', 'rgba(255,255,255,0.08)'];
+  if (acc >= 85) return ['#2E8B57', '#a5d6a7']; // إتقان عالي: تدرّج أخضر
+  if (acc >= 60) return ['#c9a227', '#ffd54f']; // إتقان متوسط: تدرّج ذهبي
+  return ['#a1341f', '#ff8a65'];                // يحتاج مراجعة: تدرّج برتقالي/أحمر
+}
+
 function BookDetail({ book, lang, onBack, onGoToStore }) {
-  const { gems, bookCovers, ownedStickers, ownedCovers, setBookCover, toggleBookSticker, user } = useApp();
+  const { bookCovers, ownedStickers, ownedCovers, setBookCover, toggleBookSticker } = useApp();
   const [exporting, setExporting] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [showCinema, setShowCinema] = useState(false);
   const [customStep, setCustomStep] = useState('cover'); // 'cover' | 'sticker' — نظام مراحل بدل الازدحام
   const title = lang === 'ar' ? book.trackNameAr : book.trackName;
-  const date = new Date(book.completedAt).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US');
-  const duration = formatDuration(book.timeSpentSec, lang);
-  const hasAccuracy = typeof book.accuracy === 'number' && book.totalAnswers > 0;
+  const chapters = book.chapters || [];
+  const date = new Date(latestCompletedAt(book)).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US');
+  const duration = formatDuration(aggregateTimeSpent(book), lang);
+  const words = useMemo(() => aggregateWords(book), [book]);
+  const { accuracy, total: answersTotal } = aggregateAccuracy(book);
+  const hasAccuracy = typeof accuracy === 'number' && answersTotal > 0;
+  const gemsEarned = aggregateGems(book);
 
-  // نجيب بيانات الحلقة الحقيقية بنفس رقمها (book.episodeId) — بدل ما "إعادة القراءة" تودّينا
-  // لأي حلقة تانية (كانت المشكلة: كانت بتفتح آخر حلقة مفتوحة بدل الحلقة اللي فعلاً خلّصتها)
-  const vars = useMemo(() => buildTemplateVars(user), [user]);
-  const rawEpisode = getEpisode(book.trackId, book.episodeId);
-  const episodeForReading = useMemo(() => (rawEpisode ? fillDeep(rawEpisode, vars) : null), [rawEpisode, vars]);
-
-  const coverKey = `${book.trackId}::${book.episodeId}`;
-  const custom = bookCovers[coverKey] || {};
+  // غلاف/ملصقات الكتاب بقوا لكل مسار (trackId) مش لكل حلقة — كتاب واحد، غلاف واحد
+  const custom = bookCovers[book.trackId] || {};
   const selectedCover = BOOK_COVERS.find(c => c.id === custom.coverId);
   const coverColors = selectedCover ? selectedCover.colors : [book.color || '#2E8B57', book.color || '#2E8B57'];
   const coverColor = coverColors[0];
@@ -101,6 +144,7 @@ function BookDetail({ book, lang, onBack, onGoToStore }) {
     setExporting(false);
     if (!ok) {
       Alert.alert(
+
         lang === 'ar' ? 'التصدير غير متاح' : 'Export unavailable',
         lang === 'ar' ? 'يتطلب هذا بناءً أصليًا (expo-print) ليعمل، وهو غير متاح في هذه البيئة.' : 'Requires a native build (expo-print) — not available in this environment.'
       );
@@ -120,11 +164,11 @@ function BookDetail({ book, lang, onBack, onGoToStore }) {
   };
 
   const handleStickerTap = (sticker) => {
-    toggleBookSticker(book.trackId, book.episodeId, sticker.id);
+    toggleBookSticker(book.trackId, sticker.id);
   };
 
   const handleCoverSelect = (cover) => {
-    setBookCover(book.trackId, book.episodeId, cover.id);
+    setBookCover(book.trackId, cover.id);
   };
 
   return (
@@ -148,13 +192,13 @@ function BookDetail({ book, lang, onBack, onGoToStore }) {
           ) : null}
           <Text style={[s.coverTitle, { color: coverColors[0] }]}>{title}</Text>
           <Text style={s.coverSub}>
-            {(lang === 'ar' ? 'اكتملت في ' : 'Completed on ') + date} · {(book.words || []).length} {lang === 'ar' ? 'كلمة' : 'words'} · +{book.gemsEarned || 0} 💎
+            {chapters.length} {lang === 'ar' ? (chapters.length === 1 ? 'فصل' : 'فصول') : chapters.length === 1 ? 'chapter' : 'chapters'} · {(lang === 'ar' ? 'آخر تحديث ' : 'Updated ') + date} · {words.length} {lang === 'ar' ? 'كلمة' : 'words'} · +{gemsEarned} 💎
           </Text>
         </View>
 
         {(duration || hasAccuracy) ? (
           <View style={s.statsCard}>
-            <Text style={s.statsTitle}>{lang === 'ar' ? 'إحصائيات الحلقة' : 'Episode stats'}</Text>
+            <Text style={s.statsTitle}>{lang === 'ar' ? 'إحصائيات الكتاب' : 'Book stats'}</Text>
             <View style={s.statsRow}>
               {duration ? (
                 <View style={s.statBox}>
@@ -166,20 +210,37 @@ function BookDetail({ book, lang, onBack, onGoToStore }) {
               {hasAccuracy ? (
                 <View style={s.statBox}>
                   <Text style={s.statIcon}>🎯</Text>
-                  <Text style={[s.statVal, { color: accuracyColor(book.accuracy) }]}>{book.accuracy}%</Text>
+                  <Text style={[s.statVal, { color: accuracyColor(accuracy) }]}>{accuracy}%</Text>
                   <Text style={s.statLbl}>{lang === 'ar' ? 'دقة الإجابات' : 'Answer accuracy'}</Text>
                 </View>
               ) : null}
               {hasAccuracy ? (
                 <View style={s.statBox}>
                   <Text style={s.statIcon}>✅</Text>
-                  <Text style={s.statVal}>{book.correctAnswers}/{book.totalAnswers}</Text>
-                  <Text style={s.statLbl}>{lang === 'ar' ? 'إجابات صحيحة' : 'Correct answers'}</Text>
+                  <Text style={s.statVal}>{answersTotal}</Text>
+                  <Text style={s.statLbl}>{lang === 'ar' ? 'سؤال مُجاب' : 'Questions answered'}</Text>
                 </View>
               ) : null}
             </View>
           </View>
         ) : null}
+
+        <Text style={s.sectionTitle}>{lang === 'ar' ? 'فصول الكتاب' : 'Chapters'}</Text>
+        <View style={s.chaptersCard}>
+          {chapters.map((ch, i) => (
+            <View key={String(ch.episodeId)} style={[s.chapterRow, i === chapters.length - 1 ? { borderBottomWidth: 0 } : null]}>
+              <View style={s.chapterNumBadge}><Text style={s.chapterNumBadgeTxt}>{i + 1}</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.chapterTitle} numberOfLines={1}>{lang === 'ar' ? ch.titleAr : ch.title}</Text>
+                <Text style={s.chapterMeta}>
+                  {(ch.words || []).length} {lang === 'ar' ? 'كلمة' : 'words'}
+                  {typeof ch.accuracy === 'number' ? ` · ${ch.accuracy}% ${lang === 'ar' ? 'دقة' : 'accuracy'}` : ''}
+                  {ch.readCount > 1 ? ` · ×${ch.readCount}` : ''}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
 
         <View style={s.customCard}>
           <Text style={s.statsTitle}>🎨 {lang === 'ar' ? 'تخصيص الغلاف' : 'Customize cover'}</Text>
@@ -282,8 +343,8 @@ function BookDetail({ book, lang, onBack, onGoToStore }) {
         </TouchableOpacity>
 
         <Text style={s.sectionTitle}>{lang === 'ar' ? 'الكلمات التي تعلمتها' : 'Words you learned'}</Text>
-        {(book.words || []).map((w, i) => (
-          <View key={String(i)} style={s.wordRow}>
+        {words.map((w, i) => (
+          <View key={String(w.id || i)} style={s.wordRow}>
             <Text style={s.wordEmoji}>{w.emoji || '📖'}</Text>
             <View style={{ flex: 1 }}>
               <Text style={s.wordEn}>{w.word}</Text>
@@ -296,7 +357,9 @@ function BookDetail({ book, lang, onBack, onGoToStore }) {
 
       <CinematicReading
         visible={showCinema}
-        episode={episodeForReading}
+        chapters={chapters}
+        bookTitle={book.trackName}
+        bookTitleAr={book.trackNameAr}
         lang={lang}
         trackId={book.trackId}
         onClose={() => { setShowCinema(false); stopAmbient(); }}
@@ -365,12 +428,12 @@ export default function Library({ onNav }) {
               subtitle={lang === 'ar' ? 'كلماتك المتقنة' : 'Your mastered words'}
               onPress={() => onNav('dict')}
             />
-            {library.map((book, i) => (
+            {library.map((book) => (
               <BookCard
-                key={String(i)}
+                key={book.trackId}
                 book={book}
                 lang={lang}
-                custom={bookCovers[`${book.trackId}::${book.episodeId}`]}
+                custom={bookCovers[book.trackId]}
                 onPress={() => setSelected(book)}
               />
             ))}
@@ -392,8 +455,9 @@ const s = StyleSheet.create({
   emptyBtnTxt:     { color: '#fff', fontWeight: '800', fontSize: 14 },
   shelf:           { padding: 18, paddingBottom: 90 },
   grid:            { flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' },
-  book:            { width: '47%', borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 4, alignItems: 'center' },
-  shelfLinkBook:   { borderStyle: 'dashed', borderWidth: 1.5 },
+  bookGradientBorder: { width: '47%', borderRadius: 17, padding: 2, marginBottom: 4 },
+  book:            { borderRadius: 15, padding: 14, alignItems: 'center' },
+  shelfLinkBook:   { width: '47%', marginBottom: 4, borderStyle: 'dashed', borderWidth: 1.5 },
   bookIcon:        { fontSize: 34, marginBottom: 6 },
   bookTitle:       { color: '#fff', fontWeight: '800', fontSize: 13, textAlign: 'center', marginBottom: 4 },
   bookMeta:        { color: 'rgba(255,255,255,0.45)', fontSize: 11 },
@@ -421,6 +485,12 @@ const s = StyleSheet.create({
   statVal:         { color: '#fff', fontWeight: '800', fontSize: 14 },
   statLbl:         { color: 'rgba(255,255,255,0.45)', fontSize: 10, marginTop: 2, textAlign: 'center' },
   customCard:      { backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 14, marginBottom: 18 },
+  chaptersCard:    { backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, marginBottom: 18, overflow: 'hidden' },
+  chapterRow:      { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
+  chapterNumBadge: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(46,139,87,0.2)', alignItems: 'center', justifyContent: 'center' },
+  chapterNumBadgeTxt: { color: '#a5d6a7', fontWeight: '800', fontSize: 12 },
+  chapterTitle:    { color: '#fff', fontWeight: '700', fontSize: 14 },
+  chapterMeta:     { color: 'rgba(255,255,255,0.45)', fontSize: 11.5, marginTop: 2 },
   customLbl:       { color: 'rgba(255,255,255,0.5)', fontSize: 11, marginBottom: 8, fontWeight: '700' },
   customStepsRow:  { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
   customStepBtn:   { flex: 1, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', borderRadius: 10, paddingVertical: 9, alignItems: 'center' },

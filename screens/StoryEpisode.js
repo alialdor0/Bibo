@@ -40,6 +40,78 @@ function buildChoices(word, vocabulary, direction) {
   return shuffle([correctVal, ...distractors]);
 }
 
+/** أشرطة موجة صوتية نابضة — بتظهر جنب زر الاستماع 🔊 وقت تشغيل الصوت فعليًا */
+function WaveformBars({ active }) {
+  const anims = useRef([0, 1, 2].map(() => new Animated.Value(0.35))).current;
+
+  useEffect(() => {
+    let loop;
+    if (active) {
+      const seqs = anims.map((v, i) =>
+        Animated.loop(
+          Animated.sequence([
+            Animated.delay(i * 110),
+            Animated.timing(v, { toValue: 1, duration: 260, useNativeDriver: false }),
+            Animated.timing(v, { toValue: 0.35, duration: 260, useNativeDriver: false }),
+          ])
+        )
+      );
+      loop = Animated.parallel(seqs);
+      loop.start();
+    } else {
+      anims.forEach(v => v.setValue(0.35));
+    }
+    return () => { if (loop) loop.stop(); };
+  }, [active]);
+
+  if (!active) return null;
+  return (
+    <View style={waveS.wrap} accessibilityElementsHidden={true} importantForAccessibility="no-hide-descendants">
+      {anims.map((v, i) => (
+        <Animated.View
+          key={i}
+          style={[
+            waveS.bar,
+            { transform: [{ scaleY: v }] },
+          ]}
+        />
+      ))}
+    </View>
+  );
+}
+
+/** ظهور تدريجي متتابع — كل عنصر بياخد فارق 70ms عن اللي قبله عشان يحس المستخدم إنها "بتنزل" واحدة واحدة */
+function StaggerFade({ index, delayStep = 70, children, style }) {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    anim.setValue(0);
+    Animated.timing(anim, {
+      toValue: 1,
+      duration: 260,
+      delay: index * delayStep,
+      useNativeDriver: true,
+    }).start();
+  }, [index]);
+  return (
+    <Animated.View
+      style={[
+        style,
+        {
+          opacity: anim,
+          transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
+        },
+      ]}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+const waveS = StyleSheet.create({
+  wrap: { flexDirection: 'row', alignItems: 'center', gap: 3, marginLeft: 6, height: 18 },
+  bar:  { width: 3, height: 18, borderRadius: 2, backgroundColor: '#2E8B57' },
+});
+
 export default function StoryEpisode({ onLeave }) {
   const { lang, track, user, addGems, addLibraryEntry, getEpisodeState, completeEpisode, addWordToBank, isWordExcludedByLevel, addExcludedWordToBank, canClaimDailyGift, claimGift, learningMode } = useApp();
   const T = (k) => t(k, lang);
@@ -69,6 +141,10 @@ export default function StoryEpisode({ onLeave }) {
   const [phase, setPhase] = useState('context'); // context | choice | blank | arrange | done
   const [chosen, setChosen] = useState(null);
   const [typed, setTyped] = useState('');
+  // تمرين الإملاء عبر الصوت — الكلمة اللي بيتسمّعها المستخدم من غير ما يشوفها،
+  // ولازم يكتبها صح. بتتحدد مرة واحدة لكل سطر (آخر كلمة جديدة بيه).
+  const dictationWordRef = useRef(null);
+  const [dictationRevealed, setDictationRevealed] = useState(false);
   const [feedback, setFeedback] = useState(null); // { type, msg }
   const [awaitingContinue, setAwaitingContinue] = useState(false); // بعد إجابة غلط: التغذية الراجعة تفضل ظاهرة لحد ما المستخدم يضغط "متابعة" بنفسه (مهم لمستخدمي قارئ الشاشة اللي محتاجين وقت أطول)
   const [arrangePicked, setArrangePicked] = useState([]);
@@ -86,6 +162,10 @@ export default function StoryEpisode({ onLeave }) {
   const [arrangeOpts, setArrangeOpts] = useState([]);
   const startTimeRef = useRef(null); // وقت بداية الحلقة الفعلي (لحساب مدة الإنجاز)
   const answerStatsRef = useRef({ correct: 0, total: 0 }); // إحصائية دقة الإجابات
+  // طول سلسلة الإجابات الصحيحة المتتالية بالحلقة الحالية — بيتصفّر أول إجابة غلط،
+  // وبيُستخدم لتكبير شدة قفزة بيبو الاحتفالية (intensity) تدريجيًا
+  const [correctStreak, setCorrectStreak] = useState(0);
+  const bounceIntensity = 1 + Math.min(correctStreak, 6) * 0.18;
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const phaseFadeAnim = useRef(new Animated.Value(1)).current;
 
@@ -124,6 +204,14 @@ export default function StoryEpisode({ onLeave }) {
   const lines = episode?.lines || [];
   const line = lines[lineIdx];
   const word = line?.words?.[wordIdx];
+
+  // نسبة التقدم بالحلقة كلها (لشريط التقدم أعلى الشاشة) — مبنية على عدد الكلمات
+  // اللي خلصانها لحد دلوقتي من إجمالي كلمات كل أسطر الحلقة
+  const totalEpisodeWords = lines.reduce((n, l) => n + (l.words?.length || 0), 0);
+  const wordsDoneBeforeLine = lines.slice(0, lineIdx).reduce((n, l) => n + (l.words?.length || 0), 0);
+  const episodeProgress = totalEpisodeWords > 0
+    ? Math.min(1, (wordsDoneBeforeLine + wordIdx) / totalEpisodeWords)
+    : 0;
   const bibo = episode?.bibo_messages || {};
 
   const progressKey = `episode_progress_${trackId}_${episodeNum}`;
@@ -161,7 +249,12 @@ export default function StoryEpisode({ onLeave }) {
   // بيسجّل كل إجابة (صح/غلط) عشان نحسب نسبة الدقة لكل حلقة
   const recordAnswer = (ok) => {
     answerStatsRef.current.total += 1;
-    if (ok) answerStatsRef.current.correct += 1;
+    if (ok) {
+      answerStatsRef.current.correct += 1;
+      setCorrectStreak(n => n + 1);
+    } else {
+      setCorrectStreak(0);
+    }
   };
 
   // يبني خطة اتجاهات متساوية (نص إنجليزي↔عربي، نص عربي↔إنجليزي) لكل كلمات السطر الحالي
@@ -183,6 +276,14 @@ export default function StoryEpisode({ onLeave }) {
       if (learningMode === 'speak') speakWord(word.word); // نمط "استماع": ننطق الكلمة تلقائيًا كل ما تظهر
     }
   }, [word, phase, wordIdx, learningMode]);
+
+  // تمرين الإملاء الصوتي: نسمّع الكلمة تلقائيًا أول ما ندخل المرحلة (المستخدم برضو يقدر يعيد الاستماع بالزر)
+  useEffect(() => {
+    if (phase === 'dictation' && dictationWordRef.current) {
+      const t = setTimeout(() => playWord(dictationWordRef.current), 350);
+      return () => clearTimeout(t);
+    }
+  }, [phase]);
 
   // ── كلمة يُفترض أن المستخدم يعرفها مسبقًا حسب نتيجة اختبار مستواه: تُستبعد من
   // التمرين تلقائيًا، وتُضاف مباشرة للقاموس (بدون اختبار)، وننتقل للكلمة التالية ──
@@ -223,6 +324,7 @@ export default function StoryEpisode({ onLeave }) {
     setEliminatedChoice(null);
     setArrangeHintIdx(null);
     setAwaitingContinue(false);
+    setDictationRevealed(false);
   }, [lineIdx, wordIdx, phase]);
 
   // كل ما نتحرك لسطر جديد، سجل استخدام التلميح يترجع من الأول (لمكافأة "بدون تلميح")
@@ -253,9 +355,13 @@ export default function StoryEpisode({ onLeave }) {
   const awardGems = (n) => { addGems(n); setGemsThisEpisode(g => g + n); };
 
   // بيستخدم بيانات المفردة الكاملة (audio_url الحقيقي) مش نسخة السطر المختصرة
+  const [wordPlaying, setWordPlaying] = useState(false);
   const playWord = (w) => {
     const full = vocabById[w.id] || w;
-    speakWord(full.word, full.audio_url);
+    setWordPlaying(true);
+    speakWord(full.word, full.audio_url, () => setWordPlaying(false));
+    // أمان: لو onDone ما اتنادتش لأي سبب (خطأ غير متوقع)، نوقف الأنيميشن بعد مهلة معقولة
+    setTimeout(() => setWordPlaying(false), 4000);
   };
 
   const openWordInfo = (id) => setInfoWordId(id);
@@ -297,11 +403,17 @@ export default function StoryEpisode({ onLeave }) {
       const wrongOpts = choices.filter(o => o !== correctVal);
       setEliminatedChoice(wrongOpts[Math.floor(Math.random() * wrongOpts.length)]);
     }
+    if (phase === 'dictation') setDictationRevealed(true);
   };
 
   const hintText = () => {
     if (phase === 'choice') return lang === 'ar' ? 'أزلت لك إجابة خاطئة 👀' : 'I removed a wrong answer for you 👀';
     if (phase === 'blank')  return (lang === 'ar' ? 'نطقها: ' : 'It sounds like: ') + word.pron;
+    if (phase === 'dictation') {
+      const w = dictationWordRef.current;
+      if (!w) return '';
+      return (lang === 'ar' ? `بتبدأ بحرف "${w.word[0]}"` : `It starts with "${w.word[0]}"`);
+    }
     if (phase === 'arrange') {
       return arrangeHintIdx !== null
         ? (lang === 'ar' ? 'الكلمة المضيئة هي التالية — دوسها! 👆' : 'The glowing word is next — tap it! 👆')
@@ -317,13 +429,42 @@ export default function StoryEpisode({ onLeave }) {
   const advanceAfterWord = () => {
     const nextWordIdx = wordIdx + 1;
     if (nextWordIdx >= (line.words || []).length) {
-      if (line.arrange_words_exercise) { setPhase('arrange'); }
-      else finishLine();
+      // بعد آخر كلمة بالسطر: تمرين إملاء صوتي على آخر كلمة جديدة فيه (لو موجودة)، قبل الترتيب أو إنهاء السطر
+      if ((line.words || []).length > 0) {
+        dictationWordRef.current = line.words[line.words.length - 1];
+        setDictationRevealed(false);
+        setTyped('');
+        setPhase('dictation');
+      } else if (line.arrange_words_exercise) {
+        setPhase('arrange');
+      } else {
+        finishLine();
+      }
     } else {
       setWordIdx(nextWordIdx);
       setPhase(firstPhaseForWord());
       setChosen(null); setTyped('');
     }
+  };
+
+  /** بعد نجاح تمرين الإملاء: ننتقل للترتيب لو موجود، وإلا ننهي السطر */
+  const afterDictation = () => {
+    if (line.arrange_words_exercise) setPhase('arrange');
+    else finishLine();
+  };
+
+  const checkDictation = () => {
+    if (awaitingContinue) return;
+    const target = dictationWordRef.current;
+    if (!target) { afterDictation(); return; }
+    const ok = typed.trim().toLowerCase() === target.word.toLowerCase();
+    recordAnswer(ok);
+    flash(ok, ok ? 'correct_answer' : 'wrong_answer', ok ? 'correct' : 'wrong');
+    if (ok) {
+      awardGems(2); // تمرين الإملاء أصعب من الاختيار العادي، فمكافأته أعلى شوية
+      setTimeout(afterDictation, 800);
+    }
+    // لو غلط: هيفضل التغذية الراجعة ظاهرة لحد ما يضغط "متابعة"
   };
 
   const finishLine = () => {
@@ -372,14 +513,17 @@ export default function StoryEpisode({ onLeave }) {
     addLibraryEntry({
       trackId,
       episodeId: episodeNum,
-      trackName: episode.title,
-      trackNameAr: episode.title_arabic,
+      trackName: track?.name || episode.title,
+      trackNameAr: track?.nameAr || episode.title_arabic,
+      title: episode.title,
+      titleAr: episode.title_arabic,
       icon: track?.icon || '📖',
       color: track?.color || '#2E8B57',
       completedAt: Date.now(),
       words: allWords,
       gemsEarned: gemsThisEpisode,
-      lines: (episode.full_episode?.text || lines.map(l => l.text)).map((txt, i) => ({ text: txt, ar: lines[i]?.arabic || '' })),
+      // حذفنا السطر العربي من بيانات القراءة السينمائية (نص إنجليزي بس من هنا فصاعدًا)
+      lines: (episode.full_episode?.text || lines.map(l => l.text)).map((txt) => ({ text: txt })),
       timeSpentSec,
       correctAnswers: correct,
       totalAnswers: total,
@@ -475,7 +619,7 @@ export default function StoryEpisode({ onLeave }) {
     const ok = built.length === target.length && built.every((w, i) => w === target[i]);
     recordAnswer(ok);
     flash(ok, ok ? 'correct_answer' : 'wrong_answer', ok ? 'correct' : 'wrong');
-    if (ok) { awardGems(3); setTimeout(() => finishLine(), 800); }
+    if (ok) { awardGems(3); speakWord(line.text); setTimeout(() => finishLine(), 800); }
     else { playSfx('eraser'); setTimeout(() => setArrangePicked([]), 500); }
   };
 
@@ -633,7 +777,7 @@ export default function StoryEpisode({ onLeave }) {
       <Text style={s.newWordsLabel}>{lang === 'ar' ? 'كلمات جديدة في هذا السطر' : 'New words in this line'}</Text>
       <View style={s.chipsRow}>
         {(line.words || []).map((w, i) => (
-          <View key={String(w.id) + i} style={s.chipWrap}>
+          <StaggerFade key={String(w.id) + i} index={i} style={s.chipWrap}>
             <TouchableOpacity style={s.chip} onPress={() => playWord(w)}>
               <Text style={s.chipEmoji}>{w.emoji}</Text>
               <Text style={s.chipWord}>{w.word}</Text>
@@ -642,7 +786,7 @@ export default function StoryEpisode({ onLeave }) {
             <TouchableOpacity style={s.infoBtn} onPress={() => openWordInfo(w.id)} accessibilityRole="button" accessibilityLabel={lang === 'ar' ? 'معلومات الكلمة' : 'Word info'}>
               <Text style={s.infoBtnTxt}>ℹ️</Text>
             </TouchableOpacity>
-          </View>
+          </StaggerFade>
         ))}
       </View>
       <TouchableOpacity style={s.startBtn2} onPress={() => { setPhase(firstPhaseForWord()); setWordIdx(0); }}>
@@ -664,7 +808,12 @@ export default function StoryEpisode({ onLeave }) {
             <Text style={s.wordArBig}>{word.ar}</Text>
           )}
           <View style={s.wordCardBtns}>
-            <TouchableOpacity onPress={() => playWord(word)} style={s.speakBtn}><Text style={s.speakTxt}>🔊</Text></TouchableOpacity>
+            {toArabic ? (
+              <>
+                <TouchableOpacity onPress={() => playWord(word)} style={s.speakBtn}><Text style={s.speakTxt}>🔊</Text></TouchableOpacity>
+                <WaveformBars active={wordPlaying} />
+              </>
+            ) : null}
             <TouchableOpacity onPress={() => openWordInfo(word.id)} style={s.speakBtn}><Text style={s.speakTxt}>ℹ️</Text></TouchableOpacity>
           </View>
         </View>
@@ -716,6 +865,45 @@ export default function StoryEpisode({ onLeave }) {
             editable={!awaitingContinue}
           />
           <TouchableOpacity style={[s.checkBtn, awaitingContinue ? { opacity: 0.4 } : null]} onPress={checkBlank} disabled={awaitingContinue}>
+            <Text style={s.checkBtnTxt}>✓</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  const renderDictation = () => {
+    const target = dictationWordRef.current;
+    if (!target) return null;
+    return (
+      <View>
+        <Text style={s.qLabel}>{lang === 'ar' ? 'استمع واكتب الكلمة اللي سمعتها' : 'Listen and type the word you heard'}</Text>
+        <View style={s.dictationListenWrap}>
+          <TouchableOpacity
+            style={s.dictationListenBtn}
+            onPress={() => playWord(target)}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'ar' ? 'استمع للكلمة' : 'Listen to the word'}
+          >
+            <Text style={s.dictationListenIcon}>🔊</Text>
+          </TouchableOpacity>
+          <WaveformBars active={wordPlaying} />
+        </View>
+        {dictationRevealed ? <Text style={s.blankHint}>💡 {hintText()}</Text> : null}
+        <View style={s.inputRow}>
+          <TextInput
+            style={[s.input, s.forceLTR]}
+            value={typed}
+            onChangeText={(v) => { setTyped(v); playSfx('writing'); }}
+            onSubmitEditing={checkDictation}
+            placeholder="___"
+            placeholderTextColor="rgba(255,255,255,0.25)"
+            autoCapitalize="none"
+            returnKeyType="done"
+            editable={!awaitingContinue}
+          />
+          <TouchableOpacity style={[s.checkBtn, awaitingContinue ? { opacity: 0.4 } : null]} onPress={checkDictation} disabled={awaitingContinue}>
             <Text style={s.checkBtnTxt}>✓</Text>
           </TouchableOpacity>
         </View>
@@ -785,22 +973,32 @@ export default function StoryEpisode({ onLeave }) {
         <TouchableOpacity style={s.leaveBtn} onPress={confirmLeave}><Text style={s.leaveTxt}>← {T('leave')}</Text></TouchableOpacity>
         <Text style={s.headerInfo}>{lang === 'ar' ? 'حلقة' : 'Ep'} {episodeNum} · {lineIdx + 1}/{lines.length}</Text>
       </View>
+      <View
+        style={s.progressBarTrack}
+        accessible={true}
+        accessibilityRole="progressbar"
+        accessibilityLabel={lang === 'ar' ? 'التقدّم بالحلقة' : 'Episode progress'}
+        accessibilityValue={{ min: 0, max: 100, now: Math.round(episodeProgress * 100) }}
+      >
+        <View style={[s.progressBarFill, { width: `${Math.round(episodeProgress * 100)}%` }]} />
+      </View>
       <ScrollView contentContainerStyle={s.body}>
         <BiboCharacter
           layout="row"
           size={52}
           style={{ marginBottom: 14 }}
           state={feedback?.type === 'correct' ? 'celebrate' : feedback?.type === 'wrong' ? 'encourage' : phase === 'arrange' ? 'thinking' : 'attention'}
+          intensity={feedback?.type === 'correct' ? bounceIntensity : 1}
           message={
             feedback ? feedback.msg :
             hintVisible ? hintText() :
-            ['choice', 'blank', 'arrange'].includes(phase) ? (lang === 'ar' ? 'هل تحتاج مساعدة؟ اضغط عليّ 💡' : 'Need help? Tap me 💡') :
+            ['choice', 'blank', 'dictation', 'arrange'].includes(phase) ? (lang === 'ar' ? 'هل تحتاج مساعدة؟ اضغط عليّ 💡' : 'Need help? Tap me 💡') :
             undefined
           }
-          onPress={['choice', 'blank', 'arrange'].includes(phase) ? requestHint : undefined}
+          onPress={['choice', 'blank', 'dictation', 'arrange'].includes(phase) ? requestHint : undefined}
           hintBadge={
             phase === 'arrange' ? !!(line?.word_order && arrangePicked.length < line.word_order.length - 1) :
-            ['choice', 'blank'].includes(phase) ? !hintVisible :
+            ['choice', 'blank', 'dictation'].includes(phase) ? !hintVisible :
             false
           }
         />
@@ -808,19 +1006,23 @@ export default function StoryEpisode({ onLeave }) {
           {phase === 'context' ? renderContext() :
            phase === 'choice' ? renderChoice() :
            phase === 'blank' ? renderBlank() :
+           phase === 'dictation' ? renderDictation() :
            phase === 'arrange' ? renderArrange() : null}
           <Animated.View pointerEvents="none" style={[s.correctFlashOverlay, flashStyle]} />
         </Animated.View>
 
-        {feedback?.type === 'wrong' && (phase === 'choice' || phase === 'blank') ? (
+        {feedback?.type === 'wrong' && (phase === 'choice' || phase === 'blank' || phase === 'dictation') ? (() => {
+          const fbWord = phase === 'dictation' ? dictationWordRef.current : word;
+          if (!fbWord) return null;
+          return (
           <View style={s.wordFeedbackPanel}>
             <Text style={s.wordFeedbackTitle}>{lang === 'ar' ? 'الكلمة الصحيحة' : 'Correct word'}</Text>
             <View style={s.wordFeedbackRow}>
-              <Text style={s.wordFeedbackEmoji}>{word.emoji}</Text>
+              <Text style={s.wordFeedbackEmoji}>{fbWord.emoji}</Text>
               <View style={{ flex: 1 }}>
-                <Text style={s.wordFeedbackEn}>{word.word} <Text style={s.wordFeedbackPron}>({word.pron})</Text></Text>
-                <Text style={s.wordFeedbackAr}>{word.ar}</Text>
-                {word.grammar ? <Text style={s.wordFeedbackGrammar}>{word.grammar}</Text> : null}
+                <Text style={s.wordFeedbackEn}>{fbWord.word} <Text style={s.wordFeedbackPron}>({fbWord.pron})</Text></Text>
+                <Text style={s.wordFeedbackAr}>{fbWord.ar}</Text>
+                {fbWord.grammar ? <Text style={s.wordFeedbackGrammar}>{fbWord.grammar}</Text> : null}
               </View>
             </View>
             <TouchableOpacity
@@ -833,7 +1035,8 @@ export default function StoryEpisode({ onLeave }) {
               <Text style={s.wordFeedbackContinueTxt}>{lang === 'ar' ? 'متابعة ←' : 'Continue ←'}</Text>
             </TouchableOpacity>
           </View>
-        ) : null}
+          );
+        })() : null}
       </ScrollView>
 
       <WordInfoModal
@@ -852,6 +1055,8 @@ const s = StyleSheet.create({
   center:          { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   header:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10 },
   leaveBtn:        { paddingVertical: 6 },
+  progressBarTrack:{ height: 5, marginHorizontal: 16, marginBottom: 10, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.08)', overflow: 'hidden' },
+  progressBarFill: { height: '100%', borderRadius: 3, backgroundColor: '#2E8B57' },
   leaveTxt:        { color: '#a5d6a7', fontSize: 14, fontWeight: '600' },
   headerInfo:      { color: 'rgba(255,255,255,0.5)', fontSize: 12 },
   body:            { padding: 18, paddingBottom: 50 },
@@ -916,6 +1121,9 @@ const s = StyleSheet.create({
 
   blankSentence:   { color: '#fff', fontSize: 16, lineHeight: 24, textAlign: 'center', marginBottom: 10 },
   blankHint:       { color: 'rgba(255,255,255,0.4)', fontSize: 12, textAlign: 'center', marginBottom: 14, fontStyle: 'italic' },
+  dictationListenWrap: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 18, gap: 4 },
+  dictationListenBtn:  { width: 76, height: 76, borderRadius: 38, backgroundColor: 'rgba(46,139,87,0.15)', borderWidth: 2, borderColor: '#2E8B57', alignItems: 'center', justifyContent: 'center' },
+  dictationListenIcon: { fontSize: 32 },
   inputRow:        { flexDirection: 'row', gap: 10 },
   input:           { flex: 1, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: '#fff', fontSize: 15 },
   checkBtn:        { backgroundColor: '#2E8B57', borderRadius: 12, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },

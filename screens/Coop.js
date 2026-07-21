@@ -16,7 +16,7 @@ import { playSfx } from '../utils/sfx';
 function TutorialScreen({ lang, onDone }) {
   const [page, setPage] = useState(0);
   const PAGES = [
-    { icon: '🤝', title: lang === 'ar' ? 'التعاون مع بيبو' : 'Co-op with Bibo',
+    { icon: '🤝', title: lang === 'ar' ? 'تدرّب مع بيبو' : 'Practice with Bibo',
       body: lang === 'ar' ? 'تعيشان معًا حلقات قصتك الحقيقية نفسها، ابتداءً من الحلقة الأولى.' : 'You and Bibo go through your real story episodes together, starting from Episode 1.' },
     { icon: '👤', title: lang === 'ar' ? 'دورك' : 'Your role',
       body: lang === 'ar' ? 'في نصف الجمل، تكتب أنت الكلمة المهمة، وهي نفس الكلمات التي تتعلمها في الحلقة.' : 'On half the lines, you type the key word — the same vocabulary from the episode.' },
@@ -389,7 +389,7 @@ export default function Coop({ onBack }) {
 
   return (
     <ThemedSafeArea style={s.safe}>
-      <PageHeader title={lang === 'ar' ? 'التعاون مع بيبو' : 'Co-op with Bibo'} onBack={onBack} backLabel={T('back')} right={<GemsBadge gems={gems} />} />
+      <PageHeader title={lang === 'ar' ? 'تدرّب مع بيبو' : 'Practice with Bibo'} onBack={onBack} backLabel={T('back')} right={<GemsBadge gems={gems} />} />
       <ScrollView contentContainerStyle={s.pageContent}>
         <View style={[s.explainCard, { borderColor: track.color + '44' }]}>
           <BiboCharacter state="welcome" size={64} style={{ marginBottom: 12 }} />

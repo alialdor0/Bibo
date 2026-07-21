@@ -14,7 +14,8 @@ export default function BiboProfile({ onBack }) {
   const T = (k) => t(k, lang);
   const [previewState, setPreviewState] = useState('welcome');
 
-  const episodesDone   = library.length;
+  // عدد الحلقات المكتملة = مجموع فصول كل الكتب (بعد ما بقى كل مسار كتاب واحد بدل كتاب لكل حلقة)
+  const episodesDone   = library.reduce((n, book) => n + (book.chapters?.length || 0), 0);
   const wordsTogether  = useMemo(() => getWordBankWords().filter(w => w.status === 'learned').length, [getWordBankWords]);
   const streak         = companion?.streak || 0;
 

@@ -78,7 +78,7 @@ export default function Leaderboard({ onBack, onNav }) {
 
   return (
     <ThemedSafeArea style={s.safe}>
-      <PageHeader title={lang === 'ar' ? 'المنافسة مع بيبو' : 'Competition with Bibo'} onBack={onBack} backLabel={T('back')} right={<GemsBadge gems={gems} />} />
+      <PageHeader title={lang === 'ar' ? 'سباقك مع بيبو' : 'Your race with Bibo'} onBack={onBack} backLabel={T('back')} right={<GemsBadge gems={gems} />} />
 
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
         <BiboCharacter state={biboState} message={biboMsg} size={80} style={{ marginBottom: 18, alignSelf: 'center' }} />

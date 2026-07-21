@@ -38,8 +38,8 @@ function HomeTab({ onNav }) {
 
   useEffect(() => { if (pendingBadge) playSfx('badgeUnlock'); }, [pendingBadge]);
 
-  const wordsLearned = new Set((library || []).flatMap(b => (b.words || []).map(w => w.word))).size;
-  const episodesDone = (library || []).length;
+  const wordsLearned = new Set((library || []).flatMap(b => (b.chapters || []).flatMap(ch => (ch.words || []).map(w => w.word)))).size;
+  const episodesDone = (library || []).reduce((n, b) => n + (b.chapters?.length || 0), 0);
   const streak = companion?.streak || 1;
 
   const usesNewEngine = hasEpisodes(tr.id);
@@ -51,7 +51,9 @@ function HomeTab({ onNav }) {
   const epTitle = rawCurrentEp ? fillTemplate(lang === 'ar' ? rawCurrentEp.title_arabic : rawCurrentEp.title, vars) : null;
   const seasonComplete = usesNewEngine && !rawCurrentEp && currentEpNum > totalEps;
 
-  const currentBook = (library || []).find(b => b.trackId === tr.id && b.episodeId === (usesNewEngine ? currentEpNum : 1));
+  const currentTrackBook = (library || []).find(b => b.trackId === tr.id);
+  const targetEpNum = usesNewEngine ? currentEpNum : 1;
+  const currentBook = currentTrackBook?.chapters?.some(ch => ch.episodeId === targetEpNum) ? currentTrackBook : null;
 
   // نسبة تقدم حقيقية داخل الحلقة الحالية (مبنية على آخر سطر محفوظ)، بدل رقم ثابت
   const [savedLineIdx, setSavedLineIdx] = useState(0);
@@ -376,14 +378,14 @@ function ChallengeTab({ onNav }) {
 
         <ChallengeCard
           icon="🏅"
-          title={lang === 'ar' ? 'المنافسة مع بيبو' : 'Competition with Bibo'}
+          title={lang === 'ar' ? 'سباقك مع بيبو' : 'Your race with Bibo'}
           subtitle={lang === 'ar' ? 'مبارزات وتحديات ممتعة مع بيبو نفسه' : 'Fun duels and challenges against Bibo himself'}
           onPress={() => onNav('leaderboard')}
         />
 
         <ChallengeCard
           icon="🤝"
-          title={lang === 'ar' ? 'التعاون مع بيبو' : 'Co-op with Bibo'}
+          title={lang === 'ar' ? 'تدرّب مع بيبو' : 'Practice with Bibo'}
           subtitle={lang === 'ar' ? 'اكتب قصة سوا مع بيبو واربحا معًا' : 'Write a story together with Bibo and earn together'}
           onPress={() => onNav('coop')}
         />
@@ -417,7 +419,8 @@ function ProfileTab({ onBack, onNav }) {
   const wordEntries   = getWordBankWords();
   const wordsLearned  = wordEntries.filter(w => w.status === 'learned').length;
   const wordsReview   = wordEntries.filter(w => w.status === 'review').length;
-  const episodesDone  = library.length;
+  // عدد الحلقات المكتملة = مجموع فصول كل الكتب (بعد ما بقى كل مسار كتاب واحد بدل كتاب لكل حلقة)
+  const episodesDone  = library.reduce((n, book) => n + (book.chapters?.length || 0), 0);
   const streak        = companion?.streak || 0;
   const levelColor    = user.levelTitle?.color || '#2E8B57';
   const levelLabel    = lang === 'ar' ? (user.levelTitle?.ar || '') : (user.levelTitle?.en || '');
