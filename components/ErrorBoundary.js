@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import { reportError } from '../utils/crashReporting';
 
 const BIBO_SLEEP = require('../assets/bibo/sleep.png');
 
@@ -25,10 +26,10 @@ export default class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, info) {
-    // مكان مناسب لاحقًا لإرسال الخطأ لخدمة تتبع أخطاء (Sentry مثلاً)
     if (typeof console !== 'undefined' && console.error) {
       console.error('BiboLingo ErrorBoundary caught:', error, info?.componentStack);
     }
+    reportError(error, { componentStack: info?.componentStack });
   }
 
   componentDidUpdate(prevProps) {

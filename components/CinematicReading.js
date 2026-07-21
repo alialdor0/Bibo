@@ -16,12 +16,17 @@ function speakLine(text, onDone) {
 const { width: SCREEN_W } = Dimensions.get('window');
 
 /**
- * القراءة السينمائية — عرض القصة كاملة كتجربة ملء الشاشة، صفحة واحدة (سطر
- * واحد) في كل مرة بخط كبير وتنقّل بالسحب أفقيًا (زي عرض قصص حقيقي)، بدل
- * قائمة تمرير عادية. بتتفتح بعد إنهاء الحلقة كمكافأة/مراجعة، أو من المكتبة
- * لإعادة القراءة. trackId اختياري لتشغيل موسيقى المسار الخلفية أثناء القراءة.
+ * القراءة السينمائية — عرض القصة كتجربة ملء الشاشة، صفحة واحدة (سطر واحد) في
+ * كل مرة بخط كبير وتنقّل بالسحب أفقيًا (زي عرض قصص حقيقي)، بدل قائمة تمرير
+ * عادية. بتتفتح بعد إنهاء الحلقة كمكافأة/مراجعة (episode)، أو من المكتبة
+ * لقراءة كتاب المسار كله تراكميًا من أول فصل لآخر فصل خلّصه المستخدم (chapters).
+ *
+ * Props:
+ *  - episode: بيانات حلقة واحدة كاملة (للمراجعة فور إنهاء الحلقة)
+ *  - chapters: مصفوفة فصول [{episodeId, title, titleAr, lines:[{text}]}] (لقراءة الكتاب كله من المكتبة)
+ *  - bookTitle / bookTitleAr: عنوان الكتاب/المسار (يُستخدم مع chapters فقط)
  */
-export default function CinematicReading({ visible, episode, lang, trackId, onClose }) {
+export default function CinematicReading({ visible, episode, chapters, bookTitle, bookTitleAr, lang, trackId, onClose }) {
   const [playingIdx, setPlayingIdx] = useState(null);
   const [pageIdx, setPageIdx] = useState(0);
   const listRef = useRef(null);
@@ -39,19 +44,31 @@ export default function CinematicReading({ visible, episode, lang, trackId, onCl
     return () => { if (Speech) Speech.stop(); };
   }, [visible, trackId]);
 
-  if (!episode) return null;
+  const isMultiChapter = Array.isArray(chapters) && chapters.length > 0;
+  if (!episode && !isMultiChapter) return null;
 
   const isAr = lang === 'ar';
-  const full = episode.full_episode || {};
-  const lines = episode.lines || [];
-  const texts = full.text || lines.map(l => l.text);
 
-  // الصفحات: مقدمة (٠) + سطر لكل صفحة + خاتمة (النهاية)
-  const pages = [
-    { type: 'intro' },
-    ...texts.map((txt, i) => ({ type: 'line', text: txt, arabic: lines[i]?.arabic, idx: i })),
-    { type: 'end' },
-  ];
+  // ── بناء الصفحات: إما من فصول الكتاب المتراكم، أو من حلقة واحدة (السلوك القديم) ──
+  let pages = [];
+  let lineCount = 0;
+  if (isMultiChapter) {
+    pages.push({ type: 'bookIntro' });
+    chapters.forEach((ch, chIdx) => {
+      pages.push({ type: 'chapterIntro', title: ch.title, titleAr: ch.titleAr, chapterNum: chIdx + 1, totalChapters: chapters.length });
+      (ch.lines || []).forEach((l) => {
+        pages.push({ type: 'line', text: l.text, idx: lineCount });
+        lineCount += 1;
+      });
+    });
+  } else {
+    const full = episode.full_episode || {};
+    const lines = episode.lines || [];
+    const texts = full.text || lines.map(l => l.text);
+    pages.push({ type: 'intro', full, title: episode.title, titleAr: episode.title_arabic });
+    texts.forEach((txt, i) => { pages.push({ type: 'line', text: txt, idx: i }); lineCount += 1; });
+  }
+  pages.push({ type: 'end' });
 
   const play = (idx, text) => {
     setPlayingIdx(idx);
@@ -69,18 +86,41 @@ export default function CinematicReading({ visible, episode, lang, trackId, onCl
   };
 
   const renderPage = ({ item, index }) => {
+    if (item.type === 'bookIntro') {
+      return (
+        <View style={[s.page, { width: SCREEN_W }]}>
+          <View style={s.titleCard}>
+            <Text style={s.filmIcon}>📚</Text>
+            <Text style={s.title}>{isAr ? bookTitleAr : bookTitle}</Text>
+            <Text style={s.subtitle}>{chapters.length} {isAr ? 'فصلًا' : chapters.length === 1 ? 'chapter' : 'chapters'}</Text>
+            <Text style={s.swipeHint}>{isAr ? 'اسحب للبدء →' : 'Swipe to begin →'}</Text>
+          </View>
+        </View>
+      );
+    }
+    if (item.type === 'chapterIntro') {
+      return (
+        <View style={[s.page, { width: SCREEN_W }]}>
+          <View style={s.titleCard}>
+            <Text style={s.filmIcon}>🎬</Text>
+            <Text style={s.chapterNumTxt}>{isAr ? `الفصل ${item.chapterNum}` : `Chapter ${item.chapterNum}`} · {item.chapterNum}/{item.totalChapters}</Text>
+            <Text style={s.title}>{isAr ? item.titleAr : item.title}</Text>
+          </View>
+        </View>
+      );
+    }
     if (item.type === 'intro') {
       return (
         <View style={[s.page, { width: SCREEN_W }]}>
           <View style={s.titleCard}>
             <Text style={s.filmIcon}>🎬</Text>
-            <Text style={s.title}>{episode.title}</Text>
-            <Text style={s.titleAr}>{episode.title_arabic}</Text>
-            <Text style={s.subtitle}>{full.hero}{full.city ? ' · ' + full.city : ''}</Text>
-            {full.partner ? (
+            <Text style={s.title}>{item.title}</Text>
+            <Text style={s.titleAr}>{item.titleAr}</Text>
+            <Text style={s.subtitle}>{item.full.hero}{item.full.city ? ' · ' + item.full.city : ''}</Text>
+            {item.full.partner ? (
               <View style={s.castRow}>
-                <Avatar name={full.partner} size={32} />
-                <Text style={s.castTxt}>{isAr ? 'وبطولة' : 'Also starring'} {full.partner}</Text>
+                <Avatar name={item.full.partner} size={32} />
+                <Text style={s.castTxt}>{isAr ? 'وبطولة' : 'Also starring'} {item.full.partner}</Text>
               </View>
             ) : null}
             <Text style={s.swipeHint}>{isAr ? 'اسحب للبدء →' : 'Swipe to begin →'}</Text>
@@ -101,12 +141,12 @@ export default function CinematicReading({ visible, episode, lang, trackId, onCl
         </View>
       );
     }
+    // سطر نص عادي — إنجليزي بس (بدون ترجمة عربية بالقراءة السينمائية)
     return (
       <View style={[s.page, { width: SCREEN_W }]}>
         <View style={s.pageCard}>
-          <Text style={s.pageNumTxt}>{item.idx + 1} / {texts.length}</Text>
+          <Text style={s.pageNumTxt}>{item.idx + 1} / {lineCount}</Text>
           <Text style={s.pageEn}>{item.text}</Text>
-          <Text style={s.pageAr}>{item.arabic}</Text>
           <TouchableOpacity
             style={s.pagePlayBtn}
             onPress={() => play(item.idx, item.text)}
@@ -132,11 +172,17 @@ export default function CinematicReading({ visible, episode, lang, trackId, onCl
           <View style={{ width: 30 }} />
         </View>
 
-        <View style={s.progressRow}>
-          {pages.map((_, i) => (
-            <View key={String(i)} style={[s.progressDot, i === pageIdx ? s.progressDotActive : null]} />
-          ))}
-        </View>
+        {isMultiChapter ? (
+          <View style={s.progressBarTrack}>
+            <View style={[s.progressBarFill, { width: `${Math.round(((pageIdx + 1) / pages.length) * 100)}%` }]} />
+          </View>
+        ) : (
+          <View style={s.progressRow}>
+            {pages.map((_, i) => (
+              <View key={String(i)} style={[s.progressDot, i === pageIdx ? s.progressDotActive : null]} />
+            ))}
+          </View>
+        )}
 
         <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
           <FlatList
@@ -189,6 +235,9 @@ const s = StyleSheet.create({
   progressRow:  { flexDirection: 'row', gap: 4, paddingHorizontal: 16, marginBottom: 8 },
   progressDot:  { flex: 1, height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.1)' },
   progressDotActive: { backgroundColor: '#2E8B57' },
+  progressBarTrack: { height: 4, marginHorizontal: 16, marginBottom: 8, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.1)', overflow: 'hidden' },
+  progressBarFill:  { height: '100%', borderRadius: 2, backgroundColor: '#2E8B57' },
+  chapterNumTxt: { color: '#2E8B57', fontSize: 13, fontWeight: '700', marginBottom: 10 },
 
   page:         { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 },
 
@@ -204,7 +253,6 @@ const s = StyleSheet.create({
   pageCard:     { alignItems: 'center', width: '100%' },
   pageNumTxt:   { color: 'rgba(255,255,255,0.3)', fontSize: 12, fontWeight: '700', marginBottom: 22 },
   pageEn:       { color: '#fff', fontSize: 22, lineHeight: 34, textAlign: 'center', fontWeight: '600' },
-  pageAr:       { color: 'rgba(255,255,255,0.5)', fontSize: 15, lineHeight: 26, marginTop: 16, textAlign: 'center' },
   pagePlayBtn:  { marginTop: 30, backgroundColor: 'rgba(46,139,87,0.15)', borderWidth: 1, borderColor: 'rgba(46,139,87,0.4)', borderRadius: 20, paddingHorizontal: 20, paddingVertical: 10 },
   pagePlayTxt:  { color: '#a5d6a7', fontSize: 13, fontWeight: '700' },
 

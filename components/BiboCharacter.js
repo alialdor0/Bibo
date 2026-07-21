@@ -42,7 +42,7 @@ export const STATE_META = {
  *  - onPress:  دالة اختيارية — لو موجودة، بيبو يبقى قابل للمس (مفيد لطلب تلميح)
  *  - hintBadge:شارة صغيرة نابضة "💡" فوق بيبو لما يكون عنده تلميح متاح
  */
-export default function BiboCharacter({ state = 'welcome', message, size = 64, layout = 'column', style, onPress, hintBadge = false, showCosmetics = true, silent = false }) {
+export default function BiboCharacter({ state = 'welcome', message, size = 64, layout = 'column', style, onPress, hintBadge = false, showCosmetics = true, silent = false, intensity = 1 }) {
   const anim   = useRef(new Animated.Value(0)).current;
   const bubble = useRef(new Animated.Value(0)).current;
   const pulse  = useRef(new Animated.Value(0)).current;
@@ -139,10 +139,12 @@ export default function BiboCharacter({ state = 'welcome', message, size = 64, l
     Animated.timing(bubble, { toValue: message ? 1 : 0, duration: 220, useNativeDriver: true }).start();
   }, [message]);
 
+  // شدة القفزة بتكبر مع طول سلسلة الإجابات الصحيحة (intensity بييجي من الشاشة اللي بتستخدم بيبو)
+  const clampedIntensity = Math.max(1, Math.min(intensity || 1, 2.2));
   let transform = [];
   let opacity = 1;
   if (state === 'celebrate') {
-    transform = [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [0, -12] }) }];
+    transform = [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [0, -12 * clampedIntensity] }) }];
   } else if (state === 'attention') {
     transform = [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] }) }];
   } else if (state === 'encourage') {
@@ -161,26 +163,42 @@ export default function BiboCharacter({ state = 'welcome', message, size = 64, l
   const a11yLabel = 'بيبو - ' + meta.labelAr + (message ? ': ' + message : '') + (onPress ? (hintBadge ? ' - تلميح متاح، دوس للمساعدة' : ' - دوس للمساعدة') : '');
 
   const CircleInner = (
-    <Animated.View
-      style={[
-        styles.circle,
-        { width: size, height: size, borderRadius: size / 2, borderColor: ringColor, borderWidth: ringItem ? 3 : 2, opacity, transform },
-      ]}
-    >
-      {USE_IMAGES && IMAGES[state] ? (
-        <Image source={IMAGES[state]} style={{ width: size * 0.7, height: size * 0.7 }} resizeMode="contain" />
-      ) : (
-        <Text style={{ fontSize: size * 0.42 }}>{meta.emoji}</Text>
-      )}
-      {state === 'sleep' ? <Text style={styles.zzz}>💤</Text> : null}
-      {hatItem ? <Text style={[styles.hatEmoji, { fontSize: size * 0.36, top: -size * 0.16 }]}>{hatItem.emoji}</Text> : null}
-      {glassesItem ? <Text style={[styles.glassesEmoji, { fontSize: size * 0.26, top: size * 0.28 }]}>{glassesItem.emoji}</Text> : null}
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       {hintBadge ? (
-        <Animated.View style={[styles.hintBadge, { opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }), transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.15] }) }] }]}>
-          <Text style={styles.hintBadgeTxt}>💡</Text>
-        </Animated.View>
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.glow,
+            {
+              width: size * 1.7, height: size * 1.7, borderRadius: size * 0.85,
+              backgroundColor: meta.color,
+              opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.12, 0.3] }),
+              transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.08] }) }],
+            },
+          ]}
+        />
       ) : null}
-    </Animated.View>
+      <Animated.View
+        style={[
+          styles.circle,
+          { width: size, height: size, borderRadius: size / 2, borderColor: ringColor, borderWidth: ringItem ? 3 : 2, opacity, transform },
+        ]}
+      >
+        {USE_IMAGES && IMAGES[state] ? (
+          <Image source={IMAGES[state]} style={{ width: size * 0.7, height: size * 0.7 }} resizeMode="contain" />
+        ) : (
+          <Text style={{ fontSize: size * 0.42 }}>{meta.emoji}</Text>
+        )}
+        {state === 'sleep' ? <Text style={styles.zzz}>💤</Text> : null}
+        {hatItem ? <Text style={[styles.hatEmoji, { fontSize: size * 0.36, top: -size * 0.16 }]}>{hatItem.emoji}</Text> : null}
+        {glassesItem ? <Text style={[styles.glassesEmoji, { fontSize: size * 0.26, top: size * 0.28 }]}>{glassesItem.emoji}</Text> : null}
+        {hintBadge ? (
+          <Animated.View style={[styles.hintBadge, { opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }), transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.15] }) }] }]}>
+            <Text style={styles.hintBadgeTxt}>💡</Text>
+          </Animated.View>
+        ) : null}
+      </Animated.View>
+    </View>
   );
 
   const Circle = onPress ? (
@@ -223,6 +241,7 @@ const styles = StyleSheet.create({
   colWrap:   { alignItems: 'center' },
   rowWrap:   { flexDirection: 'row', alignItems: 'center', gap: 10 },
   circle:    { backgroundColor: '#0a150a', borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  glow:      { position: 'absolute' },
   zzz:       { position: 'absolute', top: -8, right: -6, fontSize: 14 },
   hatEmoji:      { position: 'absolute', alignSelf: 'center', textShadowColor: 'rgba(0,0,0,0.4)', textShadowRadius: 3 },
   glassesEmoji:  { position: 'absolute', alignSelf: 'center' },
