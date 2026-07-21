@@ -12,34 +12,60 @@ function escapeHtml(str) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// ── دوال تجميع صغيرة (نفس منطق screens/Library.js، بس مستقلة هنا عشان الملف
+// ده يفضل شغال لوحده من غير اعتماديات متقاطعة) ──
+function aggWords(book) {
+  const seen = new Map();
+  for (const ch of book.chapters || []) {
+    for (const w of ch.words || []) { if (w && !seen.has(w.id)) seen.set(w.id, w); }
+  }
+  return Array.from(seen.values());
+}
+function aggAccuracy(book) {
+  let correct = 0, total = 0;
+  for (const ch of book.chapters || []) { correct += ch.correctAnswers || 0; total += ch.totalAnswers || 0; }
+  return total > 0 ? Math.round((correct / total) * 100) : null;
+}
+const aggGems = (book) => (book.chapters || []).reduce((n, ch) => n + (ch.gemsEarned || 0), 0);
+const latestCompletedAt = (book) => (book.chapters || []).reduce((max, ch) => Math.max(max, ch.completedAt || 0), Date.now());
+
 function buildHTML(book, lang, coverColors, stickerObjs) {
   const isAr = lang === 'ar';
   const dir = isAr ? 'rtl' : 'ltr';
   const title = isAr ? book.trackNameAr : book.trackName;
-  const date = new Date(book.completedAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-US');
+  const date = new Date(latestCompletedAt(book)).toLocaleDateString(isAr ? 'ar-EG' : 'en-US');
   const c1 = (coverColors && coverColors[0]) || book.color || '#2E8B57';
   const c2 = (coverColors && coverColors[1]) || c1;
-  const hasAccuracy = typeof book.accuracy === 'number' && book.totalAnswers > 0;
+  const words = aggWords(book);
+  const accuracy = aggAccuracy(book);
+  const gemsEarned = aggGems(book);
+  const hasAccuracy = typeof accuracy === 'number';
+  const chapters = book.chapters || [];
 
   const stickerLine = (stickerObjs && stickerObjs.length)
     ? stickerObjs.map(st => st.type === 'text' ? escapeHtml(isAr ? st.textAr : st.text) : escapeHtml(st.emoji)).join('&nbsp;&nbsp;')
     : '';
 
-  const wordsRows = (book.words || []).map((w, i) => `
+  const wordsRows = words.map((w, i) => `
     <tr class="${i % 2 === 0 ? 'even' : 'odd'}">
       <td class="emoji">${escapeHtml(w.emoji || '📖')}</td>
       <td class="word">${escapeHtml(w.word)}<span class="phonetic">${w.phonetic ? ' ' + escapeHtml(w.phonetic) : ''}</span></td>
       <td class="ar">${escapeHtml(w.ar || '')}</td>
     </tr>`).join('');
 
-  const storyRows = (book.lines || []).map((l, i) => `
+  // القصة منظّمة بفصول (كل فصل = حلقة اتخلصت) — بدون ترجمة عربية لكل سطر (حُذفت من القراءة السينمائية)
+  const storyChapters = chapters.map((ch, chIdx) => {
+    const lineRows = (ch.lines || []).map((l, i) => `
     <div class="line">
       <div class="line-num">${i + 1}</div>
-      <div class="line-body">
-        <p class="line-en">${escapeHtml(l.text)}</p>
-        <p class="line-ar">${escapeHtml(l.ar)}</p>
-      </div>
+      <div class="line-body"><p class="line-en">${escapeHtml(l.text)}</p></div>
     </div>`).join('');
+    return `
+    <div class="chapter">
+      <h3>${isAr ? `الفصل ${chIdx + 1}: ` : `Chapter ${chIdx + 1}: `}${escapeHtml(isAr ? ch.titleAr : ch.title)}</h3>
+      ${lineRows}
+    </div>`;
+  }).join('');
 
   return `<!DOCTYPE html>
   <html dir="${dir}">
@@ -82,7 +108,7 @@ function buildHTML(book, lang, coverColors, stickerObjs) {
                    font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; margin-top: 2px; }
       .line-body { flex: 1; }
       .line-en { font-size: 13.5px; margin: 0 0 3px; line-height: 1.5; }
-      .line-ar { font-size: 12.5px; color: #666; margin: 0; line-height: 1.5; }
+      .chapter h3 { font-size: 14px; color: ${c1}; margin: 26px 0 12px; font-weight: 800; }
 
       .footer { text-align: center; margin-top: 44px; padding-top: 16px; border-top: 1px solid #eee; color: #b0b0b0; font-size: 10.5px; letter-spacing: 0.5px; }
     </style>
@@ -93,11 +119,11 @@ function buildHTML(book, lang, coverColors, stickerObjs) {
       <div class="icon">${escapeHtml(book.icon || '📖')}</div>
       ${stickerLine ? `<div class="stickers">${stickerLine}</div>` : ''}
       <h1>${escapeHtml(title)}</h1>
-      <div class="sub">${isAr ? 'اكتملت في' : 'Completed on'} ${date}</div>
+      <div class="sub">${isAr ? 'اكتملت في' : 'Completed on'} ${date} · ${chapters.length} ${isAr ? 'فصلًا' : chapters.length === 1 ? 'chapter' : 'chapters'}</div>
       <div class="badge-row">
-        <div class="badge"><div class="v">${(book.words || []).length}</div><div class="l">${isAr ? 'كلمة' : 'words'}</div></div>
-        <div class="badge"><div class="v">+${book.gemsEarned || 0}</div><div class="l">${isAr ? 'جواهر' : 'gems'}</div></div>
-        ${hasAccuracy ? `<div class="badge"><div class="v">${book.accuracy}%</div><div class="l">${isAr ? 'دقة' : 'accuracy'}</div></div>` : ''}
+        <div class="badge"><div class="v">${words.length}</div><div class="l">${isAr ? 'كلمة' : 'words'}</div></div>
+        <div class="badge"><div class="v">+${gemsEarned}</div><div class="l">${isAr ? 'جواهر' : 'gems'}</div></div>
+        ${hasAccuracy ? `<div class="badge"><div class="v">${accuracy}%</div><div class="l">${isAr ? 'دقة' : 'accuracy'}</div></div>` : ''}
       </div>
     </div>
 
@@ -105,7 +131,7 @@ function buildHTML(book, lang, coverColors, stickerObjs) {
     <table>${wordsRows}</table>
 
     <h2>${isAr ? 'القصة كاملة' : 'The full story'}</h2>
-    ${storyRows}
+    ${storyChapters}
 
     <div class="footer">Bibo Lingo — ${isAr ? 'رحلتك في تعلم الإنجليزية' : 'Your English learning journey'}</div>
   </body>
@@ -136,9 +162,12 @@ function buildAchievementHTML(book, lang, coverColor, stickerObjs) {
   const isAr = lang === 'ar';
   const dir = isAr ? 'rtl' : 'ltr';
   const title = isAr ? book.trackNameAr : book.trackName;
-  const date = new Date(book.completedAt).toLocaleDateString(isAr ? 'ar-EG' : 'en-US');
+  const date = new Date(latestCompletedAt(book)).toLocaleDateString(isAr ? 'ar-EG' : 'en-US');
   const color = coverColor || book.color || '#2E8B57';
-  const hasAccuracy = typeof book.accuracy === 'number' && book.totalAnswers > 0;
+  const words = aggWords(book);
+  const accuracy = aggAccuracy(book);
+  const gemsEarned = aggGems(book);
+  const hasAccuracy = typeof accuracy === 'number';
   const stickerLine = (stickerObjs && stickerObjs.length)
     ? stickerObjs.map(st => st.type === 'text' ? escapeHtml(isAr ? st.textAr : st.text) : escapeHtml(st.emoji)).join('&nbsp;&nbsp;')
     : '';
@@ -172,9 +201,9 @@ function buildAchievementHTML(book, lang, coverColor, stickerObjs) {
       <h1>${escapeHtml(title)}</h1>
       <div class="sub">${isAr ? 'اكتملت في' : 'Completed on'} ${date}</div>
       <div class="stats">
-        <div class="stat"><div class="v">${(book.words || []).length}</div><div class="l">${isAr ? 'كلمة' : 'words'}</div></div>
-        <div class="stat"><div class="v">+${book.gemsEarned || 0} 💎</div><div class="l">${isAr ? 'جواهر' : 'gems'}</div></div>
-        ${hasAccuracy ? `<div class="stat"><div class="v">${book.accuracy}%</div><div class="l">${isAr ? 'دقة' : 'accuracy'}</div></div>` : ''}
+        <div class="stat"><div class="v">${words.length}</div><div class="l">${isAr ? 'كلمة' : 'words'}</div></div>
+        <div class="stat"><div class="v">+${gemsEarned} 💎</div><div class="l">${isAr ? 'جواهر' : 'gems'}</div></div>
+        ${hasAccuracy ? `<div class="stat"><div class="v">${accuracy}%</div><div class="l">${isAr ? 'دقة' : 'accuracy'}</div></div>` : ''}
       </div>
       <div class="footer">${isAr ? 'رحلتي في تعلم الإنجليزية مع بيبو' : 'My English learning journey with Bibo'}</div>
     </div>
