@@ -55,11 +55,11 @@ export const i18n = {
     eraserLeft:    'ممحاة متبقية',
     pagesLeft:     'صفحات متبقية',
     openGift:      'افتح هديتك',
-    giftDesc:      'دوس على الصندوق واحصل على مكافأة مفاجئة',
+    giftDesc:      'اضغط على الصندوق واحصل على مكافأة مفاجئة',
     language:      'اللغة',
     display:       'العرض',
     darkMode:      'الوضع الليلي',
-    offline:       'وضع أوف لاين',
+    offline:       'الوضع غير المتصل',
     notifications: 'الإشعارات',
     sound:         'الصوت',
     inputMode:     'نمط الإدخال',
@@ -276,10 +276,10 @@ export const ZODIAC_SIGNS = [
 
 // ── المسارات ──
 export const TRACKS = [
-  { id:'spy',     icon:'🕵️', name:'Spy & Mystery',  nameAr:'التجسس والغموض',  color:'#C0C0C0', bg:'rgba(192,192,192,0.08)', desc:'A secret mission awaits.',        preview:'"Today, I received a strange message."', cinematic:'Dark corridors · Hidden files',  sounds:['📻 Radio static','👣 Footsteps','🔫 Tension click','🚨 Alert siren'] },
-  { id:'love',    icon:'❤️', name:'Love Story',      nameAr:'قصة حب',          color:'#c0392b', bg:'rgba(139,0,0,0.10)',     desc:'Your heart leads the story.',     preview:'"She looked at me. I could not speak."',  cinematic:'Sunset walks · Love letters',   sounds:['💌 Message chime','💓 Heartbeat','🎹 Piano key','🕊️ Dove wings'] },
-  { id:'family',  icon:'👨‍👩‍👧', name:'Family',         nameAr:'الأسرة',          color:'#8B4513', bg:'rgba(139,69,19,0.10)',   desc:'Family bonds are stronger.',      preview:'"My mother called. Her voice was warm."',  cinematic:'Family dinners · Home warmth',  sounds:['😄 Children laughing','🚪 Door opening','🍽️ Kitchen','📞 Phone'] },
-  { id:'crime',   icon:'⚖️', name:'Crime & Justice', nameAr:'الجريمة والعدالة',color:'#4a90d9', bg:'rgba(27,58,107,0.12)',   desc:'The truth is hidden.',             preview:'"The judge looked at the file."',           cinematic:'Courtroom · Investigation',     sounds:['⚖️ Gavel','🔗 Handcuffs','🚔 Police siren','📁 File stamp'] },
+  { id:'spy',     icon:'🕵️', name:'Spy & Mystery',  nameAr:'التجسس والغموض',  color:'#2C8C99', bg:'rgba(44,140,153,0.10)', desc:'A secret mission awaits.',        preview:'"Today, I received a strange message."', cinematic:'Dark corridors · Hidden files',  sounds:['📻 Radio static','👣 Footsteps','🔫 Tension click','🚨 Alert siren'] },
+  { id:'love',    icon:'❤️', name:'Love Story',      nameAr:'قصة حب',          color:'#D6336C', bg:'rgba(214,51,108,0.10)',     desc:'Your heart leads the story.',     preview:'"She looked at me. I could not speak."',  cinematic:'Sunset walks · Love letters',   sounds:['💌 Message chime','💓 Heartbeat','🎹 Piano key','🕊️ Dove wings'] },
+  { id:'family',  icon:'👨‍👩‍👧', name:'Family',         nameAr:'الأسرة',          color:'#B5651D', bg:'rgba(181,101,29,0.10)',   desc:'Family bonds are stronger.',      preview:'"My mother called. Her voice was warm."',  cinematic:'Family dinners · Home warmth',  sounds:['😄 Children laughing','🚪 Door opening','🍽️ Kitchen','📞 Phone'] },
+  { id:'crime',   icon:'⚖️', name:'Crime & Justice', nameAr:'الجريمة والعدالة',color:'#3B5BA5', bg:'rgba(59,91,165,0.12)',   desc:'The truth is hidden.',             preview:'"The judge looked at the file."',           cinematic:'Courtroom · Investigation',     sounds:['⚖️ Gavel','🔗 Handcuffs','🚔 Police siren','📁 File stamp'] },
   { id:'medical', icon:'🏥', name:'Medical',          nameAr:'الطب والإنقاذ',   color:'#2E8B57', bg:'rgba(46,139,87,0.10)',   desc:'Every second counts.',             preview:'"The doctor entered quickly."',             cinematic:'Emergency · Life-saving',       sounds:['🚑 Ambulance','💓 Heart monitor','⚡ Defibrillator','🩺 Stethoscope'] },
 ];
 
@@ -402,11 +402,11 @@ export const COVER_STICKERS = [
   { id: 'rocket',   type: 'emoji', emoji: '🚀', price: 20, name: 'Rocket',   nameAr: 'صاروخ' },
   { id: 'crown',    type: 'emoji', emoji: '👑', price: 25, name: 'Crown',    nameAr: 'تاج' },
   { id: 'trophy',   type: 'emoji', emoji: '🏆', price: 25, name: 'Trophy',   nameAr: 'كأس' },
-  // ملصقات نصية — عبارات جميلة تُطبع على الغلاف بدل الإيموجي
-  { id: 'txt_hero',     type: 'text', text: 'Story Hero',  textAr: 'بطل القصة',    price: 20, name: 'Story Hero',    nameAr: 'بطل القصة' },
-  { id: 'txt_reader',   type: 'text', text: 'Avid Reader', textAr: 'قارئ نهم',     price: 20, name: 'Avid Reader',   nameAr: 'قارئ نهم' },
-  { id: 'txt_master',   type: 'text', text: 'Word Master', textAr: 'سيّد الكلمات', price: 30, name: 'Word Master',   nameAr: 'سيّد الكلمات' },
-  { id: 'txt_complete', type: 'text', text: 'Completed!',  textAr: 'مكتملة!',      price: 15, name: 'Completed',     nameAr: 'مكتملة' },
+  // ملصقات نصية — عبارات إنجليزية تُطبع على الغلاف بدل الإيموجي (بالإنجليزية دائمًا، بغضّ النظر عن لغة الواجهة)
+  { id: 'txt_hero',     type: 'text', text: 'Story Hero',  price: 20, name: 'Story Hero',    nameAr: 'بطل القصة' },
+  { id: 'txt_reader',   type: 'text', text: 'Avid Reader', price: 20, name: 'Avid Reader',   nameAr: 'قارئ نهم' },
+  { id: 'txt_master',   type: 'text', text: 'Word Master', price: 30, name: 'Word Master',   nameAr: 'سيّد الكلمات' },
+  { id: 'txt_complete', type: 'text', text: 'Completed!',  price: 15, name: 'Completed',     nameAr: 'مكتملة' },
 ];
 
 // ── دوال مساعدة ──
