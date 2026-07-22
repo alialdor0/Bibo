@@ -55,12 +55,12 @@ export default function BiboProfile({ onBack }) {
         <View style={s.statsStrip}>
           <View style={s.statItem}>
             <Text style={s.statVal}>{episodesDone}</Text>
-            <Text style={s.statLbl}>{lang === 'ar' ? 'حلقة سوا' : 'Episodes'}</Text>
+            <Text style={s.statLbl}>{lang === 'ar' ? 'حلقة معًا' : 'Episodes'}</Text>
           </View>
           <View style={s.statDivider} />
           <View style={s.statItem}>
             <Text style={s.statVal}>{wordsTogether}</Text>
-            <Text style={s.statLbl}>{lang === 'ar' ? 'كلمة سوا' : 'Words'}</Text>
+            <Text style={s.statLbl}>{lang === 'ar' ? 'كلمة معًا' : 'Words'}</Text>
           </View>
           <View style={s.statDivider} />
           <View style={s.statItem}>

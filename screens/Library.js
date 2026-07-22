@@ -184,7 +184,7 @@ function BookDetail({ book, lang, onBack, onGoToStore }) {
           {appliedStickerObjs.length ? (
             <View style={s.coverStickersRow}>
               {appliedStickerObjs.map(st => st.type === 'text' ? (
-                <View key={st.id} style={s.coverTextSticker}><Text style={s.coverTextStickerTxt}>{lang === 'ar' ? st.textAr : st.text}</Text></View>
+                <View key={st.id} style={s.coverTextSticker}><Text style={s.coverTextStickerTxt}>{st.text}</Text></View>
               ) : (
                 <Text key={st.id} style={s.coverStickers}>{st.emoji}</Text>
               ))}
@@ -310,7 +310,7 @@ function BookDetail({ book, lang, onBack, onGoToStore }) {
                       accessibilityState={{ selected: applied }}
                     >
                       {st.type === 'text' ? (
-                        <Text style={s.stickerTextBoxTxt} numberOfLines={1}>{lang === 'ar' ? st.textAr : st.text}</Text>
+                        <Text style={s.stickerTextBoxTxt} numberOfLines={1}>{st.text}</Text>
                       ) : (
                         <Text style={s.stickerEmoji}>{st.emoji}</Text>
                       )}
@@ -319,7 +319,7 @@ function BookDetail({ book, lang, onBack, onGoToStore }) {
                   );
                 })}
                 {COVER_STICKERS.filter(st => ownedStickers.includes(st.id)).length === 0 ? (
-                  <Text style={s.noStickersTxt}>{lang === 'ar' ? 'لسه معندكش ملصقات — تقدر تشتريها من المتجر.' : "You don't own any stickers yet — buy some from the Store."}</Text>
+                  <Text style={s.noStickersTxt}>{lang === 'ar' ? 'لا تملك ملصقات بعد — يمكنك شراؤها من المتجر.' : "You don't own any stickers yet — buy some from the Store."}</Text>
                 ) : null}
               </View>
               <TouchableOpacity onPress={onGoToStore} accessible={true} accessibilityRole="button" style={s.moreLink}>
@@ -341,18 +341,6 @@ function BookDetail({ book, lang, onBack, onGoToStore }) {
         <TouchableOpacity style={s.shareBtn} onPress={handleShare} disabled={sharing}>
           {sharing ? <ActivityIndicator color="#fff" /> : <Text style={s.shareBtnTxt}>🎉 {lang === 'ar' ? 'مشاركة الإنجاز' : 'Share achievement'}</Text>}
         </TouchableOpacity>
-
-        <Text style={s.sectionTitle}>{lang === 'ar' ? 'الكلمات التي تعلمتها' : 'Words you learned'}</Text>
-        {words.map((w, i) => (
-          <View key={String(w.id || i)} style={s.wordRow}>
-            <Text style={s.wordEmoji}>{w.emoji || '📖'}</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={s.wordEn}>{w.word}</Text>
-              <Text style={s.wordPhon}>{w.phonetic}</Text>
-            </View>
-            <Text style={s.wordAr}>{w.ar}</Text>
-          </View>
-        ))}
       </ScrollView>
 
       <CinematicReading

@@ -92,7 +92,7 @@ export function GiftBox({ visible, lang, rewards, title, onOpened, onClose }) {
           <Text style={s.modalDesc}>
             {phase === 'burst'
               ? (lang === 'ar' ? 'مبروك! 🎊' : 'Congrats! 🎊')
-              : (lang === 'ar' ? 'دوس على الصندوق لتفتحه' : 'Tap the box to open it')}
+              : (lang === 'ar' ? 'اضغط على الصندوق لفتحه' : 'Tap the box to open it')}
           </Text>
 
           <View style={s.giftStage}>
@@ -278,7 +278,7 @@ export default function Store({ onBack }) {
     }
     Alert.alert(
       lang === 'ar' ? 'شراء تجميد الحماسة؟' : 'Buy a Streak Freeze?',
-      lang === 'ar' ? `سيتم خصم ${STREAK_FREEZE_PRICE} جوهرة. هيحمي سلسلتك تلقائيًا أول مرة تفوّت فيها يوم.` : `${STREAK_FREEZE_PRICE} gems will be deducted. It auto-protects your streak the next time you miss a day.`,
+      lang === 'ar' ? `سيتم خصم ${STREAK_FREEZE_PRICE} جوهرة. سيحمي سلسلتك تلقائيًا أول مرة تفوّت فيها يومًا.` : `${STREAK_FREEZE_PRICE} gems will be deducted. It auto-protects your streak the next time you miss a day.`,
       [
         { text: lang === 'ar' ? 'إلغاء' : 'Cancel', style: 'cancel' },
         { text: lang === 'ar' ? 'شراء' : 'Buy', onPress: () => {
@@ -336,13 +336,13 @@ export default function Store({ onBack }) {
           disabled={!dailyReady}
           accessible={true}
           accessibilityRole="button"
-          accessibilityLabel={dailyReady ? T('openGift') : (lang === 'ar' ? 'الهدية اليومية اتفتحت، ارجع بكرة' : 'Daily gift already opened, come back tomorrow')}
+          accessibilityLabel={dailyReady ? T('openGift') : (lang === 'ar' ? 'الهدية اليومية فُتحت، عُد غدًا' : 'Daily gift already opened, come back tomorrow')}
         >
           <View style={s.giftLeft}>
             <Text style={s.giftIcon}>🎁</Text>
             <View>
-              <Text style={s.giftTitle}>{dailyReady ? T('openGift') : (lang === 'ar' ? 'هديتك اليومية اتفتحت ✓' : "Today's gift opened ✓")}</Text>
-              <Text style={s.giftDesc}>{dailyReady ? T('giftDesc') : (lang === 'ar' ? 'ارجع بكرة لهدية جديدة' : 'Come back tomorrow for a new one')}</Text>
+              <Text style={s.giftTitle}>{dailyReady ? T('openGift') : (lang === 'ar' ? 'هديتك اليومية فُتحت ✓' : "Today's gift opened ✓")}</Text>
+              <Text style={s.giftDesc}>{dailyReady ? T('giftDesc') : (lang === 'ar' ? 'عُد غدًا لهدية جديدة' : 'Come back tomorrow for a new one')}</Text>
             </View>
           </View>
           <Text style={s.giftArrow}>{dailyReady ? '→' : '✓'}</Text>
@@ -355,13 +355,13 @@ export default function Store({ onBack }) {
           disabled={!weeklyReady}
           accessible={true}
           accessibilityRole="button"
-          accessibilityLabel={weeklyReady ? (lang === 'ar' ? 'افتح هديتك الأسبوعية الكبيرة' : 'Open your big weekly gift') : (lang === 'ar' ? 'الهدية الأسبوعية اتفتحت، ارجع الأسبوع الجاي' : 'Weekly gift already opened, come back next week')}
+          accessibilityLabel={weeklyReady ? (lang === 'ar' ? 'افتح هديتك الأسبوعية الكبيرة' : 'Open your big weekly gift') : (lang === 'ar' ? 'الهدية الأسبوعية فُتحت، عُد الأسبوع القادم' : 'Weekly gift already opened, come back next week')}
         >
           <View style={s.giftLeft}>
             <Text style={s.giftIcon}>🎊</Text>
             <View>
-              <Text style={s.giftTitle}>{weeklyReady ? (lang === 'ar' ? 'هدية الأسبوع الكبيرة' : 'Big weekly gift') : (lang === 'ar' ? 'هدية الأسبوع اتفتحت ✓' : 'Weekly gift opened ✓')}</Text>
-              <Text style={s.giftDesc}>{weeklyReady ? (lang === 'ar' ? 'مكافأة أكبر تفتحها مرة كل أسبوع' : 'A bigger reward, once a week') : (lang === 'ar' ? 'ارجع الأسبوع الجاي' : 'Come back next week')}</Text>
+              <Text style={s.giftTitle}>{weeklyReady ? (lang === 'ar' ? 'هدية الأسبوع الكبيرة' : 'Big weekly gift') : (lang === 'ar' ? 'هدية الأسبوع فُتحت ✓' : 'Weekly gift opened ✓')}</Text>
+              <Text style={s.giftDesc}>{weeklyReady ? (lang === 'ar' ? 'مكافأة أكبر تفتحها مرة كل أسبوع' : 'A bigger reward, once a week') : (lang === 'ar' ? 'عُد الأسبوع القادم' : 'Come back next week')}</Text>
             </View>
           </View>
           <Text style={s.giftArrow}>{weeklyReady ? '→' : '✓'}</Text>
@@ -414,7 +414,7 @@ export default function Store({ onBack }) {
             <View style={s.biboPreviewWrap}>
               <BiboCharacter state="welcome" size={100} />
               <Text style={s.biboPreviewHint}>
-                {lang === 'ar' ? 'دوس على أي عنصر تمتلكه لتلبسه أو تخلعه' : 'Tap an owned item to equip or unequip it'}
+                {lang === 'ar' ? 'اضغط على أي عنصر تمتلكه لارتدائه أو خلعه' : 'Tap an owned item to equip or unequip it'}
               </Text>
             </View>
 
@@ -442,7 +442,7 @@ export default function Store({ onBack }) {
                           {equipped ? (
                             <View style={s.equippedBadge}><Text style={s.equippedBadgeTxt}>{lang === 'ar' ? 'مُجهّز' : 'Equipped'}</Text></View>
                           ) : owned ? (
-                            <Text style={s.cosmeticOwnedTxt}>{lang === 'ar' ? 'دوس للّبس' : 'Tap to wear'}</Text>
+                            <Text style={s.cosmeticOwnedTxt}>{lang === 'ar' ? 'اضغط للارتداء' : 'Tap to wear'}</Text>
                           ) : (
                             <View style={s.cosmeticPriceRow}>
                               <Text style={s.buyBtnGem}>💎</Text>
@@ -503,7 +503,7 @@ export default function Store({ onBack }) {
                     accessibilityLabel={(lang === 'ar' ? st.nameAr : st.name) + (owned ? (lang === 'ar' ? '، مملوك' : ', owned') : (lang === 'ar' ? `، السعر ${st.price} جوهرة` : `, price ${st.price} gems`))}
                   >
                     {st.type === 'text' ? (
-                      <View style={s.stickerTextPreview}><Text style={s.stickerTextPreviewTxt}>{lang === 'ar' ? st.textAr : st.text}</Text></View>
+                      <View style={s.stickerTextPreview}><Text style={s.stickerTextPreviewTxt}>{st.text}</Text></View>
                     ) : (
                       <Text style={{ fontSize: 30 }}>{st.emoji}</Text>
                     )}

@@ -450,7 +450,7 @@ function ClumsyBibo({ words, onDone, lang, addGems }) {
             </>
           ) : !biboWrong && !userPick ? (
             <TouchableOpacity style={clumsy.confirmBtn} onPress={confirmBibo}>
-              <Text style={clumsy.confirmBtnTxt}>{lang === 'ar' ? '👍 بيبو صح، تابع' : '👍 Bibo is right, continue'}</Text>
+              <Text style={clumsy.confirmBtnTxt}>{lang === 'ar' ? '👍 بيبو مُصيب، تابع' : '👍 Bibo is right, continue'}</Text>
             </TouchableOpacity>
           ) : null}
         </>
@@ -513,7 +513,7 @@ function TeachBibo({ words, onDone, lang, addGems }) {
             ? (lang === 'ar' ? 'همم... نسيت هذه الكلمة، ساعدني! 🤔' : "Hmmm... I forgot this word, help me! 🤔")
             : phase === 'correct'
             ? (lang === 'ar' ? 'آها! فهمت، شكرًا! ✨' : 'Aha! Got it, thanks! ✨')
-            : (lang === 'ar' ? `أوبس! الكلمة الصح هي "${cur.word}"` : `Oops! The right word was "${cur.word}"`)
+            : (lang === 'ar' ? `الكلمة الصحيحة هي "${cur.word}"` : `Oops! The right word was "${cur.word}"`)
         }
       />
       <Text style={{ fontSize: 38, marginTop: 10 }}>{cur.emoji}</Text>
@@ -1157,8 +1157,8 @@ export default function Rescue({ onBack, initialChallenge }) {
       <ScrollView contentContainerStyle={s.pageContent}>
         <BiboMsg text={
           urgent.length > 0
-            ? (lang === 'ar' ? `عندك ${urgent.length} كلمة معرّضة للخطر! أنقذها الآن!` : 'You have ' + urgent.length + ' word(s) at risk! Rescue them now!')
-            : (lang === 'ar' ? 'عمل رائع! ما فيه كلمات معرّضة للخطر حاليًا. استمر بالمراجعة للحفاظ على تقدّمك 🌟' : 'Great job! No words at risk right now. Keep reviewing to stay sharp 🌟')
+            ? (lang === 'ar' ? `لديك ${urgent.length} كلمة معرّضة للخطر! أنقذها الآن!` : 'You have ' + urgent.length + ' word(s) at risk! Rescue them now!')
+            : (lang === 'ar' ? 'عمل رائع! لا توجد كلمات معرّضة للخطر حاليًا. استمر بالمراجعة للحفاظ على تقدّمك 🌟' : 'Great job! No words at risk right now. Keep reviewing to stay sharp 🌟')
         } color={urgent.length > 0 ? '#c0392b' : '#2E8B57'} />
 
         <View style={s.statsRow}>
@@ -1180,7 +1180,7 @@ export default function Rescue({ onBack, initialChallenge }) {
 
         <Text style={s.diffLabel}>{lang === 'ar' ? 'مستوى الصعوبة' : 'Difficulty'}</Text>
         <Text style={s.diffSubLabel}>
-          {lang === 'ar' ? 'كل مستوى بيغيّر الوقت ونوع التمارين مع بعض' : 'Each level changes both the time and the exercise mix'}
+          {lang === 'ar' ? 'لكل مستوى وقت ونوع تمارين مختلف' : 'Each level changes both the time and the exercise mix'}
         </Text>
         <View style={s.diffRow}>
           {DIFFICULTIES.map(d => (
@@ -1230,7 +1230,7 @@ export default function Rescue({ onBack, initialChallenge }) {
           { key: 'duel',         label: lang === 'ar' ? 'مبارزة بالكلمات' : 'Word Duel',     icon: '⚔️', sub: lang === 'ar' ? 'تحدٍّ سريع بالوقت — أنت مقابل بيبو' : 'A fast timed challenge — you vs Bibo', gated: learnedWords.length < 4 },
           { key: 'sentenceDuel', label: lang === 'ar' ? 'مبارزة بالجمل' : 'Sentence Duel',   icon: '📝', sub: lang === 'ar' ? 'رتّب جملة كاملة قبل بيبو!' : 'Arrange a full sentence before Bibo!', gated: false },
           { key: 'clumsy',       label: lang === 'ar' ? 'بيبو المشاكس' : 'Clumsy Bibo',       icon: '🤪', sub: lang === 'ar' ? 'بيبو يحاول الإجابة... صحّح له إن أخطأ!' : 'Bibo tries to answer... correct him if he errs!', gated: learnedWords.length < 4 },
-          { key: 'teach',        label: lang === 'ar' ? 'علّم بيبو' : 'Teach Bibo',           icon: '❓', sub: lang === 'ar' ? 'بيبو نسي كلمة... ساعده يتذكّرها!' : 'Bibo forgot a word... help him remember it!', gated: learnedWords.length < 4 },
+          { key: 'teach',        label: lang === 'ar' ? 'علّم بيبو' : 'Teach Bibo',           icon: '❓', sub: lang === 'ar' ? 'بيبو نسي كلمة... ساعده على تذكّرها!' : 'Bibo forgot a word... help him remember it!', gated: learnedWords.length < 4 },
         ].map(ch => (
           <TouchableOpacity
             key={ch.key}

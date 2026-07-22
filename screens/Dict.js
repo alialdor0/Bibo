@@ -7,6 +7,7 @@ import { t, TRACKS } from '../data';
 import { PageHeader, GemsBadge } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
 import WordInfoModal from '../components/WordInfoModal';
+import { playSfx } from '../utils/sfx';
 
 /** يصنّف نوع الكلمة النحوي التفصيلي إلى 3 فئات بسيطة: اسم / فعل / صفة */
 function classifyGrammar(g) {
@@ -106,6 +107,7 @@ function ReviewExercise({ words, onDone, lang }) {
   const [chosen, setChosen] = useState(null);
   const [score,  setScore]  = useState(0);
   const [done,   setDone]   = useState(false);
+  const [feedback, setFeedback] = useState(null); // 'correct' | 'wrong' | null — بيتحكم في حالة بيبو
   const cur  = q[idx];
   const opts = useRef(null);
   if (!opts.current || opts.current._for !== cur.id) {
@@ -114,11 +116,20 @@ function ReviewExercise({ words, onDone, lang }) {
   }
   const answer = (w) => {
     setChosen(w.id);
-    if (w.id === cur.id) setScore(s => s + 1);
-    setTimeout(() => { setChosen(null); idx + 1 >= q.length ? setDone(true) : setIdx(i => i + 1); }, 700);
+    const ok = w.id === cur.id;
+    if (ok) setScore(s => s + 1);
+    setFeedback(ok ? 'correct' : 'wrong');
+    playSfx(ok ? 'correct' : 'wrong'); // بيشمل الاهتزاز (haptics) تلقائيًا كمان
+    setTimeout(() => {
+      setChosen(null);
+      setFeedback(null);
+      if (idx + 1 >= q.length) { setDone(true); playSfx('win'); }
+      else setIdx(i => i + 1);
+    }, 700);
   };
   if (done) return (
     <View style={ex.doneCard}>
+      <BiboCharacter state="celebrate" size={64} style={{ marginBottom: 8 }} />
       <Text style={{ fontSize: 44 }}>🎉</Text>
       <Text style={ex.doneScore}>{score}/{q.length}</Text>
       <TouchableOpacity style={ex.doneBtn} onPress={onDone}><Text style={ex.doneBtnTxt}>{lang === 'ar' ? 'تم ←' : 'Done →'}</Text></TouchableOpacity>
@@ -126,9 +137,15 @@ function ReviewExercise({ words, onDone, lang }) {
   );
   return (
     <View style={ex.card}>
+      <BiboCharacter
+        layout="row"
+        size={48}
+        style={{ marginBottom: 10 }}
+        state={feedback === 'correct' ? 'celebrate' : feedback === 'wrong' ? 'encourage' : 'attention'}
+      />
       <Text style={ex.label}>{lang === 'ar' ? `مراجعة (${idx + 1}/${q.length})` : `Review (${idx + 1}/${q.length})`}</Text>
       <Text style={{ fontSize: 48, marginBottom: 8 }}>{cur.emoji}</Text>
-      <TouchableOpacity onPress={() => speakEn(cur.en)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }} accessibilityRole="button" accessibilityLabel="Play pronunciation">
+      <TouchableOpacity onPress={() => { playSfx('pageTurn'); speakEn(cur.en); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }} accessibilityRole="button" accessibilityLabel="Play pronunciation">
         <Text style={ex.bigWord}>{cur.en}</Text>
         <Text style={{ fontSize: 20 }}>🔊</Text>
       </TouchableOpacity>

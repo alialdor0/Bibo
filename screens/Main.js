@@ -19,8 +19,8 @@ const DAILY_TIPS = {
   ar: [
     'نصيحة بيبو: راجع كلماتك كل يوم حتى لا تُنسى 📚',
     'نصيحة بيبو: عشر دقائق يوميًا أفضل من ساعة أسبوعيًا ⏱️',
-    'نصيحة بيبو: استمع للكلمة قبل أن تكتبها، هذا يثبّتها بذاكرتك 🔊',
-    'نصيحة بيبو: هدفك اليوم قريب — كمّل خطوة واحدة بس! 🎯',
+    'نصيحة بيبو: استمع للكلمة قبل كتابتها، فهذا يثبّتها في ذاكرتك 🔊',
+    'نصيحة بيبو: هدفك اليوم قريب — أكمل خطوة واحدة فقط! 🎯',
   ],
   en: [
     "Bibo's tip: Review your words daily so they don't fade 📚",
@@ -34,7 +34,7 @@ function HomeTab({ onNav }) {
   const { user, track, lang, gems, stationery, library, companion, getEpisodeState, getWordBankWords, canClaimDailyGift, unlockedAchievements, pendingBadge, dismissPendingBadge, theme } = useApp();
   const T = (k) => t(k, lang);
   const u = user || { fullName: 'Ali', levelTitle: { en: 'Novice Writer', color: '#8B4513' } };
-  const tr = track || { icon: '🕵️', name: 'Spy & Mystery', color: '#C0C0C0' };
+  const tr = track || { icon: '🕵️', name: 'Spy & Mystery', color: '#2C8C99' };
 
   useEffect(() => { if (pendingBadge) playSfx('badgeUnlock'); }, [pendingBadge]);
 
@@ -386,7 +386,7 @@ function ChallengeTab({ onNav }) {
         <ChallengeCard
           icon="🤝"
           title={lang === 'ar' ? 'تدرّب مع بيبو' : 'Practice with Bibo'}
-          subtitle={lang === 'ar' ? 'اكتب قصة سوا مع بيبو واربحا معًا' : 'Write a story together with Bibo and earn together'}
+          subtitle={lang === 'ar' ? 'اكتب قصة مع بيبو واربحا معًا' : 'Write a story together with Bibo and earn together'}
           onPress={() => onNav('coop')}
         />
       </ScrollView>
@@ -567,7 +567,7 @@ function SettingsTab({ onBack }) {
     if (newTrack.id === track?.id) return;
     Alert.alert(
       lang === 'ar' ? `التبديل إلى ${newTrack.name}؟` : `Switch to ${newTrack.name}?`,
-      lang === 'ar' ? 'تقدّمك بالمسار الحالي محفوظ وبتقدر ترجعله بأي وقت.' : 'Your progress in the current track stays saved, and you can switch back anytime.',
+      lang === 'ar' ? 'تقدّمك في المسار الحالي محفوظ، ويمكنك العودة إليه في أي وقت.' : 'Your progress in the current track stays saved, and you can switch back anytime.',
       [
         { text: lang === 'ar' ? 'إلغاء' : 'Cancel', style: 'cancel' },
         { text: lang === 'ar' ? 'تبديل' : 'Switch', onPress: () => setTrack(newTrack) },
@@ -764,7 +764,7 @@ function SettingsTab({ onBack }) {
           </View>
           <Text style={s.settingHint}>
             {lang === 'ar'
-              ? 'حجم الخط بينطبق على كل شاشات التطبيق فورًا.'
+              ? 'يُطبَّق حجم الخط فورًا على كل شاشات التطبيق.'
               : 'Font size applies across the whole app immediately.'}
           </Text>
         </View>
@@ -781,7 +781,7 @@ function SettingsTab({ onBack }) {
           </View>
           <Text style={s.settingHint}>
             {lang === 'ar'
-              ? 'تفعيل وضعية Offline بيوقف طلب أو جدولة أي إشعارات تلقائيًا (التطبيق أصلًا شغال بدون إنترنت).'
+              ? 'يوقف الوضع غير المتصل جدولة الإشعارات تلقائيًا (التطبيق يعمل أصلًا بلا إنترنت).'
               : 'Offline mode stops any automatic notification scheduling (the app already works fully without internet).'}
           </Text>
           <View style={s.settingRow}>

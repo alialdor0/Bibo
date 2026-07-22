@@ -71,7 +71,7 @@ export default function Leaderboard({ onBack, onNav }) {
 
   const biboState = overallLead ? 'celebrate' : weeklyWin ? 'encourage' : 'idea';
   const biboMsg = overallLead
-    ? (lang === 'ar' ? 'أنت أسرع مني! رهيب 🏆' : "You're faster than me! Amazing 🏆")
+    ? (lang === 'ar' ? 'أنت أسرع مني! أداء رائع 🏆' : "You're faster than me! Amazing 🏆")
     : (lang === 'ar' ? 'تحدٍّ ممتع... لنرَ من يصل أولًا! 🏁' : "Fun challenge... let's see who gets there first! 🏁");
 
   const goChallenge = (mode) => onNav && onNav('rescue', { initialChallenge: mode });

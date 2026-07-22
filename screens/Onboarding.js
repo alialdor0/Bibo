@@ -155,7 +155,7 @@ export default function Onboarding({ onDone }) {
     'attention';
 
   const bibMsg =
-    step === 0 ? (lang === 'ar' ? 'يلا نجهز شخصيتك!' : "Let's build your character!") :
+    step === 0 ? (lang === 'ar' ? 'هيا نجهّز شخصيتك!' : "Let's build your character!") :
     step === 8 ? (lang === 'ar' ? 'بطاقتك جاهزة! 🎉' : 'Your card is ready! 🎉') :
     undefined;
 
@@ -204,7 +204,7 @@ export default function Onboarding({ onDone }) {
                 <View style={s.divider} />
                 <Text style={s.desc}>{T('heroDesc')}</Text>
                 <View style={s.tracks}>
-                  {[['Spy','#aaa'],['Love','#8B0000'],['Family','#8B4513'],['Crime','#1B3A6B'],['Medical','#2E8B57']].map(tr => (
+                  {[['Spy','#2C8C99'],['Love','#D6336C'],['Family','#B5651D'],['Crime','#3B5BA5'],['Medical','#2E8B57']].map(tr => (
                     <View key={tr[0]} style={[s.chip, { borderColor: tr[1] }]}>
                       <Text style={[s.chipTxt, { color: tr[1] }]}>{tr[0]}</Text>
                     </View>
