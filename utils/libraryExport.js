@@ -43,7 +43,7 @@ function buildHTML(book, lang, coverColors, stickerObjs) {
   const chapters = book.chapters || [];
 
   const stickerLine = (stickerObjs && stickerObjs.length)
-    ? stickerObjs.map(st => st.type === 'text' ? escapeHtml(isAr ? st.textAr : st.text) : escapeHtml(st.emoji)).join('&nbsp;&nbsp;')
+    ? stickerObjs.map(st => st.type === 'text' ? escapeHtml(st.text) : escapeHtml(st.emoji)).join('&nbsp;&nbsp;')
     : '';
 
   const wordsRows = words.map((w, i) => `
@@ -169,7 +169,7 @@ function buildAchievementHTML(book, lang, coverColor, stickerObjs) {
   const gemsEarned = aggGems(book);
   const hasAccuracy = typeof accuracy === 'number';
   const stickerLine = (stickerObjs && stickerObjs.length)
-    ? stickerObjs.map(st => st.type === 'text' ? escapeHtml(isAr ? st.textAr : st.text) : escapeHtml(st.emoji)).join('&nbsp;&nbsp;')
+    ? stickerObjs.map(st => st.type === 'text' ? escapeHtml(st.text) : escapeHtml(st.emoji)).join('&nbsp;&nbsp;')
     : '';
 
   return `<!DOCTYPE html>
