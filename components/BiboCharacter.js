@@ -160,7 +160,7 @@ export default function BiboCharacter({ state = 'welcome', message, size = 64, l
     transform = [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [0, -8] }) }];
   }
 
-  const a11yLabel = 'بيبو - ' + meta.labelAr + (message ? ': ' + message : '') + (onPress ? (hintBadge ? ' - تلميح متاح، دوس للمساعدة' : ' - دوس للمساعدة') : '');
+  const a11yLabel = 'بيبو - ' + meta.labelAr + (message ? ': ' + message : '') + (onPress ? (hintBadge ? ' - تلميح متاح، اضغط للمساعدة' : ' - اضغط للمساعدة') : '');
 
   const CircleInner = (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>

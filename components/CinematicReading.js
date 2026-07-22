@@ -29,8 +29,18 @@ const { width: SCREEN_W } = Dimensions.get('window');
 export default function CinematicReading({ visible, episode, chapters, bookTitle, bookTitleAr, lang, trackId, onClose }) {
   const [playingIdx, setPlayingIdx] = useState(null);
   const [pageIdx, setPageIdx] = useState(0);
+  const [autoPlaying, setAutoPlaying] = useState(false);
+  const autoPlayRef = useRef(false); // نتحقق منه فورًا من غير انتظار إعادة الرندر
+  const programmaticScrollRef = useRef(false); // نميّز التنقل التلقائي عن سحب المستخدم اليدوي
   const listRef = useRef(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  const stopFullStoryPlayback = () => {
+    autoPlayRef.current = false;
+    setAutoPlaying(false);
+    if (Speech) Speech.stop();
+    setPlayingIdx(null);
+  };
 
   useEffect(() => {
     if (visible) {
@@ -38,10 +48,10 @@ export default function CinematicReading({ visible, episode, chapters, bookTitle
       fadeAnim.setValue(0);
       Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
       if (trackId) playTrackAmbient(trackId);
-    } else if (Speech) {
-      Speech.stop();
+    } else {
+      stopFullStoryPlayback();
     }
-    return () => { if (Speech) Speech.stop(); };
+    return () => { if (Speech) Speech.stop(); autoPlayRef.current = false; };
   }, [visible, trackId]);
 
   const isMultiChapter = Array.isArray(chapters) && chapters.length > 0;
@@ -71,18 +81,53 @@ export default function CinematicReading({ visible, episode, chapters, bookTitle
   pages.push({ type: 'end' });
 
   const play = (idx, text) => {
+    if (autoPlayRef.current) stopFullStoryPlayback(); // الاستماع لسطر واحد يدويًا يوقف التشغيل الكامل
     setPlayingIdx(idx);
     speakLine(text, () => setPlayingIdx(null));
   };
 
-  const goTo = (i) => {
+  const goTo = (i, programmatic = false) => {
     if (i < 0 || i >= pages.length) return;
+    if (programmatic) programmaticScrollRef.current = true;
     listRef.current?.scrollToIndex({ index: i, animated: true });
   };
 
   const onMomentumEnd = (e) => {
     const i = Math.round(e.nativeEvent.contentOffset.x / SCREEN_W);
     setPageIdx(i);
+    if (!programmaticScrollRef.current && autoPlayRef.current) {
+      stopFullStoryPlayback(); // المستخدم سحب الشاشة يدويًا أثناء التشغيل — نوقف التشغيل التلقائي
+    }
+    programmaticScrollRef.current = false;
+  };
+
+  /** يسمّع صفحات القصة (الأسطر فقط) بالتتابع، وينقل الصفحة المعروضة تلقائيًا مع كل سطر */
+  const playFromPageIndex = (idx) => {
+    if (!autoPlayRef.current) return;
+    if (idx >= pages.length) { stopFullStoryPlayback(); return; }
+    const page = pages[idx];
+    if (page.type !== 'line') {
+      goTo(idx, true);
+      setTimeout(() => playFromPageIndex(idx + 1), 600);
+      return;
+    }
+    goTo(idx, true);
+    setPlayingIdx(page.idx);
+    speakLine(page.text, () => {
+      if (autoPlayRef.current) playFromPageIndex(idx + 1);
+    });
+  };
+
+  /** زر "استماع للقصة كاملة" — يبدأ من الصفحة الحالية (أو أول سطر لو كنا في صفحة عنوان) */
+  const toggleFullStoryPlayback = () => {
+    if (autoPlaying) {
+      stopFullStoryPlayback();
+      return;
+    }
+    autoPlayRef.current = true;
+    setAutoPlaying(true);
+    const startIdx = pages[pageIdx] && pages[pageIdx].type === 'line' ? pageIdx : pages.findIndex(p => p.type === 'line');
+    playFromPageIndex(startIdx >= 0 ? startIdx : 0);
   };
 
   const renderPage = ({ item, index }) => {
@@ -169,7 +214,15 @@ export default function CinematicReading({ visible, episode, chapters, bookTitle
             <Text style={s.closeTxt}>✕</Text>
           </TouchableOpacity>
           <Text style={s.headerLabel}>{isAr ? 'قراءة سينمائية' : 'Cinematic Reading'}</Text>
-          <View style={{ width: 30 }} />
+          <TouchableOpacity
+            onPress={toggleFullStoryPlayback}
+            style={s.listenAllBtn}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel={autoPlaying ? (isAr ? 'إيقاف الاستماع' : 'Stop listening') : (isAr ? 'استماع للقصة كاملة' : 'Listen to full story')}
+          >
+            <Text style={s.listenAllBtnTxt}>{autoPlaying ? '⏸' : '🔊'}</Text>
+          </TouchableOpacity>
         </View>
 
         {isMultiChapter ? (
@@ -231,6 +284,8 @@ const s = StyleSheet.create({
   closeBtn:     { width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
   closeTxt:     { color: '#fff', fontSize: 13 },
   headerLabel:  { color: '#fff', fontWeight: '800', fontSize: 14 },
+  listenAllBtn:    { width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(46,139,87,0.18)', alignItems: 'center', justifyContent: 'center' },
+  listenAllBtnTxt: { fontSize: 14 },
 
   progressRow:  { flexDirection: 'row', gap: 4, paddingHorizontal: 16, marginBottom: 8 },
   progressDot:  { flex: 1, height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.1)' },

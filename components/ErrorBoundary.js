@@ -49,14 +49,14 @@ export default class ErrorBoundary extends React.Component {
       return (
         <View style={s.wrap}>
           <Image source={BIBO_SLEEP} style={s.bibo} importantForAccessibility="no" />
-          <Text style={s.title}>{isAr ? 'حصلت مشكلة بسيطة' : 'Something went wrong'}</Text>
+          <Text style={s.title}>{isAr ? 'حدثت مشكلة بسيطة' : 'Something went wrong'}</Text>
           <Text style={s.sub}>
             {isAr
-              ? 'بيبو بيرتب نفسه دلوقتي... جرّب تاني، البيانات بتاعتك محفوظة.'
+              ? 'بيبو يعيد ترتيب نفسه الآن... حاول مرة أخرى، بياناتك محفوظة.'
               : 'Bibo is tidying things up... give it another try, your data is safe.'}
           </Text>
           <TouchableOpacity style={s.btn} onPress={this.handleReset} accessibilityRole="button">
-            <Text style={s.btnTxt}>{isAr ? 'حاول تاني' : 'Try Again'}</Text>
+            <Text style={s.btnTxt}>{isAr ? 'حاول مرة أخرى' : 'Try Again'}</Text>
           </TouchableOpacity>
         </View>
       );
