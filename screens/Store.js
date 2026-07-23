@@ -1,9 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert, Modal, Animated, Easing } from 'react-native';
 import { useApp } from '../context/AppContext';
 import ThemedSafeArea from '../components/Themed';
 import { t, STORE_ITEMS, GIFT_REWARDS, WEEKLY_GIFT_REWARDS, COSMETIC_ITEMS, COSMETIC_SLOTS, BOOK_COVERS, COVER_STICKERS } from '../data';
-import { PageHeader, GemsBadge, StationeryBar } from '../components/BiboCard';
+import { PageHeader, GemsBadge, StationeryBar, BiboMsg } from '../components/BiboCard';
 import BiboCharacter from '../components/BiboCharacter';
 import { playSfx } from '../utils/sfx';
 
@@ -162,6 +162,9 @@ export default function Store({ onBack }) {
 
   const stationeryItems = STORE_ITEMS.filter(i => i.type === tab);
 
+  // صوت ترحيبي خفيف لما المستخدم يفتح المتجر — يعطي إحساس إن بيبو مستقبله هنا
+  useEffect(() => { playSfx('collect'); }, []);
+
   const handleBuy = (item) => {
     if (gems < item.price) {
       playSfx('wrong');
@@ -308,6 +311,11 @@ export default function Store({ onBack }) {
       />
 
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+
+        {/* حضور بيبو الدائم بالمتجر — يفضل ظاهر في كل التبويبات، مش بس تبويب الإطلالة */}
+        <BiboMsg
+          text={lang === 'ar' ? 'تسوّق لأدوات جديدة ولبسة مميزة لي! 🛍️' : 'Shop for new tools and a fresh look for me! 🛍️'}
+        />
 
         {/* شريط القرطاسية الحالية */}
         <View style={s.currentCard}>
@@ -500,14 +508,14 @@ export default function Store({ onBack }) {
                     onPress={() => handleStickerBuyTap(st)}
                     accessible={true}
                     accessibilityRole="button"
-                    accessibilityLabel={(lang === 'ar' ? st.nameAr : st.name) + (owned ? (lang === 'ar' ? '، مملوك' : ', owned') : (lang === 'ar' ? `، السعر ${st.price} جوهرة` : `, price ${st.price} gems`))}
+                    accessibilityLabel={st.name + (owned ? (lang === 'ar' ? '، مملوك' : ', owned') : (lang === 'ar' ? `، السعر ${st.price} جوهرة` : `, price ${st.price} gems`))}
                   >
                     {st.type === 'text' ? (
                       <View style={s.stickerTextPreview}><Text style={s.stickerTextPreviewTxt}>{st.text}</Text></View>
                     ) : (
                       <Text style={{ fontSize: 30 }}>{st.emoji}</Text>
                     )}
-                    <Text style={s.coverName} numberOfLines={1}>{lang === 'ar' ? st.nameAr : st.name}</Text>
+                    <Text style={s.coverName} numberOfLines={1}>{st.name}</Text>
                     {owned ? (
                       <Text style={s.cosmeticOwnedTxt}>{lang === 'ar' ? 'مملوك ✓' : 'Owned ✓'}</Text>
                     ) : (
