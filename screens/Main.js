@@ -704,9 +704,9 @@ function SettingsTab({ onBack }) {
         <View style={s.settingSection}>
           <Text style={s.settingSectionTitle}>🔊 {T('sound')}</Text>
           {[
-            { label: 'Sound Effects', val: sfxOn,  set: setSfxOn  },
-            { label: 'Bibo Voice',    val: voiceOn, set: setVoiceOn },
-            { label: 'Vibration',     val: hapticsOn, set: setHapticsOn },
+            { label: T('soundEffects'), val: sfxOn,  set: setSfxOn  },
+            { label: T('biboVoice'),    val: voiceOn, set: setVoiceOn },
+            { label: T('vibration'),    val: hapticsOn, set: setHapticsOn },
           ].map(item => (
             <View key={item.label} style={s.settingRow}>
               <Text style={[s.settingLabel]}>{item.label}</Text>
@@ -718,7 +718,7 @@ function SettingsTab({ onBack }) {
         <View style={s.settingSection}>
           <Text style={s.settingSectionTitle}>🎓 {T('inputMode')}</Text>
           <View style={s.segmented}>
-            {[['type','Type'],['speak','Speak'],['choose','Choose']].map(([mode, label]) => (
+            {[['type', T('modeType')], ['speak', T('modeSpeak')], ['choose', T('modeChoose')]].map(([mode, label]) => (
               <TouchableOpacity key={mode}
                 style={[s.segBtn, learningMode === mode ? s.segBtnActive : null]}
                 onPress={() => setLearningMode(mode)} accessibilityRole="button">
