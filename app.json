@@ -21,10 +21,7 @@
         "backgroundColor": "#08080f"
       },
       "package": "com.bibolingo.app",
-      "permissions": [
-        "NOTIFICATIONS",
-        "SCHEDULE_EXACT_ALARM"
-      ]
+      "permissions": ["NOTIFICATIONS", "SCHEDULE_EXACT_ALARM"]
     },
     "plugins": [
       [
@@ -32,11 +29,10 @@
         {
           "icon": "./assets/icon.png",
           "color": "#2E8B57",
-          "sounds": [
-            "./assets/sounds/notification.mp3"
-          ]
+          "sounds": ["./assets/sounds/notification.mp3"]
         }
-      ]
+      ],
+      "@sentry/react-native/expo"
     ],
     "extra": {
       "eas": {
