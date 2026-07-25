@@ -32,7 +32,13 @@
           "sounds": ["./assets/sounds/notification.mp3"]
         }
       ],
-      "@sentry/react-native/expo"
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "bibolingo",
+          "project": "bibolingo"
+        }
+      ]
     ],
     "extra": {
       "eas": {
