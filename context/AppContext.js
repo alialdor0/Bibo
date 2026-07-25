@@ -735,9 +735,10 @@ export function AppProvider({ children }) {
     if (user?.loginCode) {
       await saveAccountSnapshot(user.loginCode, buildAccountSnapshot());
     }
-    await removeKeys(['user', 'track', 'gems', 'stationery', 'library', 'episodeProgress', 'wordBank', 'excludedWords', 'bookCovers', 'ownedStickers', 'ownedCovers', 'ownedCosmetics', 'equippedCosmetics', 'weeklyProgress', 'totalGemsEarned', 'unlockedAchievements', 'favoriteWords', 'streakFreezes', 'streakBrokenAt', 'lastStreakBeforeBreak', 'lastGiftClaimedAt', 'lastWeeklyGiftClaimedAt']);
+    await removeKeys(['user', 'track', 'gems', 'stationery', 'library', 'episodeProgress', 'wordBank', 'excludedWords', 'bookCovers', 'ownedStickers', 'ownedCovers', 'ownedCosmetics', 'equippedCosmetics', 'weeklyProgress', 'totalGemsEarned', 'unlockedAchievements', 'favoriteWords', 'streakFreezes', 'streakBrokenAt', 'lastStreakBeforeBreak', 'lastGiftClaimedAt', 'lastWeeklyGiftClaimedAt', 'bibo:lastSeenAt', 'bibo:dayStreak']);
     await cancelBiboReminders();
     setUser(null);
+    setCompanion({ gapHours: 0, isComeback: false, streak: 1 });
     setTrack(null);
     setGems(50);
     setStationery(DEFAULT_STATIONERY);
