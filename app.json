@@ -31,13 +31,6 @@
           "color": "#2E8B57",
           "sounds": ["./assets/sounds/notification.mp3"]
         }
-      ],
-      [
-        "@sentry/react-native/expo",
-        {
-          "organization": "bibolingo",
-          "project": "bibolingo"
-        }
       ]
     ],
     "extra": {
