@@ -60,7 +60,7 @@ function HomeTab({ onNav }) {
   useEffect(() => {
     if (!usesNewEngine || !rawCurrentEp) return;
     let mounted = true;
-    AsyncStorage.getItem(`episode_progress_${tr.id}_${currentEpNum}`)
+    AsyncStorage.getItem(`episode_progress_${user?.loginCode || 'guest'}_${tr.id}_${currentEpNum}`)
       .then(raw => {
         if (!mounted || !raw) return;
         const data = JSON.parse(raw);
