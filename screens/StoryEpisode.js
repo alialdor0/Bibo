@@ -214,7 +214,7 @@ export default function StoryEpisode({ onLeave }) {
     : 0;
   const bibo = episode?.bibo_messages || {};
 
-  const progressKey = `episode_progress_${trackId}_${episodeNum}`;
+  const progressKey = `episode_progress_${user?.loginCode || 'guest'}_${trackId}_${episodeNum}`;
 
   // بيرجع السطر المحفوظ (لو موجود) أول ما تفتح الحلقة
   useEffect(() => {
@@ -416,8 +416,8 @@ export default function StoryEpisode({ onLeave }) {
     }
     if (phase === 'arrange') {
       return arrangeHintIdx !== null
-        ? (lang === 'ar' ? 'الكلمة المضيئة هي التالية — دوسها! 👆' : 'The glowing word is next — tap it! 👆')
-        : (lang === 'ar' ? 'حطّيت لك كلمة! تحتاج مساعدة زيادة؟ 🐦' : 'I placed a word for you! Need more help? 🐦');
+        ? (lang === 'ar' ? 'الكلمة المضيئة هي التالية — اضغط عليها! 👆' : 'The glowing word is next — tap it! 👆')
+        : (lang === 'ar' ? 'وضعت لك كلمة! هل تحتاج مساعدة إضافية؟ 🐦' : 'I placed a word for you! Need more help? 🐦');
     }
     return '';
   };
@@ -682,8 +682,8 @@ export default function StoryEpisode({ onLeave }) {
             >
               <Text style={{ fontSize: 24 }}>🎁</Text>
               <View style={{ flex: 1 }}>
-                <Text style={s.lessonGiftTitle}>{lang === 'ar' ? 'أحسنت! خد هديتك اليومية' : 'Well done! Grab your daily gift'}</Text>
-                <Text style={s.lessonGiftDesc}>{lang === 'ar' ? 'دوس هنا لتفتحها' : 'Tap here to open it'}</Text>
+                <Text style={s.lessonGiftTitle}>{lang === 'ar' ? 'أحسنت! خذ هديتك اليومية' : 'Well done! Grab your daily gift'}</Text>
+                <Text style={s.lessonGiftDesc}>{lang === 'ar' ? 'اضغط هنا لفتحها' : 'Tap here to open it'}</Text>
               </View>
             </TouchableOpacity>
           ) : null}
@@ -877,7 +877,7 @@ export default function StoryEpisode({ onLeave }) {
     if (!target) return null;
     return (
       <View>
-        <Text style={s.qLabel}>{lang === 'ar' ? 'استمع واكتب الكلمة اللي سمعتها' : 'Listen and type the word you heard'}</Text>
+        <Text style={s.qLabel}>{lang === 'ar' ? 'استمع واكتب الكلمة التي سمعتها' : 'Listen and type the word you heard'}</Text>
         <View style={s.dictationListenWrap}>
           <TouchableOpacity
             style={s.dictationListenBtn}
