@@ -68,7 +68,7 @@ function CoopGame({ trackId, lang, user, onEnd, addGems }) {
   const track = TRACKS.find(tr => tr.id === trackId) || TRACKS[0];
   const vars = useMemo(() => buildTemplateVars(user), [user]);
   const totalEpisodes = getTotalEpisodes(trackId);
-  const progressKey = `coop_progress_${trackId}`;
+  const progressKey = `coop_progress_${user?.loginCode || 'guest'}_${trackId}`;
 
   const [episodeNum, setEpisodeNum] = useState(1);
   const [restored, setRestored] = useState(false);
