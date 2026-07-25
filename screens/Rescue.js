@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated, Easing, TextInput } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../context/AppContext';
@@ -89,7 +89,8 @@ const BIBO_PARTICLE = require('../assets/bibo/welcome.png');
 
 /** إيموجيات صغيرة (أو أيقونة بيبو) تتطاير من نقطة معيّنة وتختفي — تُستخدم كتفاعل بصري خفيف عند لحظات الفوز/الخسارة */
 function FlyingEmojis({ burstKey, emojis }) {
-  const anims = useRef(emojis.map(() => new Animated.Value(0))).current;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const anims = useMemo(() => emojis.map(() => new Animated.Value(0)), [burstKey]);
   useEffect(() => {
     anims.forEach(a => a.setValue(0));
     Animated.stagger(60, anims.map(a => Animated.timing(a, { toValue: 1, duration: 700, easing: Easing.out(Easing.quad), useNativeDriver: true }))).start();
