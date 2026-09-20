@@ -9,13 +9,23 @@ var Notifications = null;
 try { Notifications = require('expo-notifications'); } catch (e) {}
 
 if (Notifications) {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-    }),
-  });
+  try {
+    // shouldShowAlert اتلغى — بديله shouldShowBanner (البانر) + shouldShowList (قائمة الإشعارات)
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      }),
+    });
+  } catch (e) {}
+}
+
+// الـ trigger لازم يحدد type صراحةً في الإصدارات الحديثة (بدل { seconds } لوحدها)
+function intervalTrigger(seconds) {
+  const types = Notifications && Notifications.SchedulableTriggerInputTypes;
+  return { type: types ? types.TIME_INTERVAL : 'timeInterval', seconds };
 }
 
 export async function requestNotificationPermission() {
@@ -57,7 +67,7 @@ export async function scheduleBiboReminder(lang, hoursDelay = 20) {
         // ومش شغال في Expo Go العادي — هيرجع للصوت الافتراضي في Expo Go تلقائيًا.
         sound: Platform.OS === 'ios' ? 'notification.mp3' : 'notification',
       },
-      trigger: { seconds: Math.max(60, Math.round(hoursDelay * 60 * 60)) },
+      trigger: intervalTrigger(Math.max(60, Math.round(hoursDelay * 60 * 60))),
     });
   } catch (e) {}
 }
@@ -79,17 +89,17 @@ export async function scheduleStreakReminders(lang, currentStreak, streakBreakHo
   try {
     await Notifications.scheduleNotificationAsync({
       content: { title: lang === 'ar' ? 'بيبو 🐦' : 'Bibo 🐦', body: biboSay('reminder', lang), sound: soundOpt },
-      trigger: { seconds: 20 * 60 * 60 },
+      trigger: intervalTrigger(20 * 60 * 60),
     });
 
     if (currentStreak > 0) {
       await Notifications.scheduleNotificationAsync({
         content: { title: lang === 'ar' ? 'بيبو 🔥' : 'Bibo 🔥', body: biboSay('streakWarning', lang), sound: soundOpt },
-        trigger: { seconds: 48 * 60 * 60 },
+        trigger: intervalTrigger(48 * 60 * 60),
       });
       await Notifications.scheduleNotificationAsync({
         content: { title: lang === 'ar' ? 'بيبو ⏳' : 'Bibo ⏳', body: biboSay('streakLastChance', lang), sound: soundOpt },
-        trigger: { seconds: Math.max(60, (streakBreakHours - 2) * 60 * 60) },
+        trigger: intervalTrigger(Math.max(60, (streakBreakHours - 2) * 60 * 60)),
       });
     }
   } catch (e) {}
