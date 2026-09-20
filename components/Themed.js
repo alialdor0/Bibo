@@ -15,7 +15,11 @@
 // بكل شاشة، مش داخل مكوّنات جاهزة تانية.
 
 import React from 'react';
-import { SafeAreaView, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
+// SafeAreaView الخاص بـ React Native نفسه أصبح deprecated ويعمل على iOS فقط؛
+// النسخة دي (المدمجة أصلًا في Expo Go) بتشتغل على iOS وأندرويد، وضرورية بعد ما
+// أصبح وضع edge-to-edge إجباريًا على أندرويد (المحتوى بيترسم تحت شريط الحالة).
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
 
 const WHITE_RE = /^rgba\(255,\s*255,\s*255,\s*([0-9.]+)\)$/i;
