@@ -112,3 +112,4 @@ export default function ThemedSafeArea({ style, children, ...rest }) {
     </SafeAreaView>
   );
 }
+ 
